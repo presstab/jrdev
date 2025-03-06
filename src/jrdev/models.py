@@ -9,7 +9,14 @@ AVAILABLE_MODELS = [
     "deepseek-r1-671b",
     "deepseek-r1-llama-70b",
     "qwen-2.5-coder-32b",
+    "qwen-2.5-qwq-32b",
     "llama-3.1-405b",
     "llama-3.2-3b",
     "llama-3.3-70b"
+]
+
+THINK_MODELS = [
+    "deepseek-r1-671b",
+    "deepseek-r1-llama-70b",
+    "qwen-2.5-qwq-32b"
 ]

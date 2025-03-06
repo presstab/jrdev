@@ -1,6 +1,11 @@
 import re
 from jrdev.colors import Colors
 from jrdev.ui import terminal_print, PrintType
+from jrdev.models import THINK_MODELS
+
+
+def is_think_model(model):
+    return model in THINK_MODELS
 
 
 def filter_think_tags(text):
@@ -25,7 +30,7 @@ async def stream_request(client, model, messages):
         model=model, messages=messages, stream=True
     )
 
-    is_deepseek = "deepseek" in model
+    uses_think = is_think_model(model)
     response_text = ""
     first_chunk = True
 
@@ -40,7 +45,7 @@ async def stream_request(client, model, messages):
             response_text += chunk_text
 
             # For DeepSeek models, only print content that's not in <think> tags
-            if is_deepseek:
+            if uses_think:
                 # Check if this chunk contains any complete </think> tags
                 # If so, we need to recalculate what to display from the full text
                 if "</think>" in chunk_text:
@@ -63,4 +68,6 @@ async def stream_request(client, model, messages):
                 # For non-DeepSeek models, print all chunks
                 terminal_print(chunk_text, PrintType.LLM, end="", flush=True)
 
+    if uses_think:
+        return filter_think_tags(response_text)
     return response_text

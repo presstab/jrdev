@@ -7,7 +7,6 @@ using OpenAI-compatible APIs.
 import asyncio
 import sys
 import platform
-from file_utils import *
 
 from openai import AsyncOpenAI
 
@@ -28,6 +27,7 @@ from jrdev.commands import (handle_clear, handle_exit, handle_help,
 from jrdev.models import AVAILABLE_MODELS
 from jrdev.llm_requests import stream_request
 from jrdev.ui import terminal_print, PrintType
+from jrdev.file_utils import *
 
 
 class JrDevTerminal:

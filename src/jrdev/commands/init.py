@@ -64,12 +64,7 @@ async def get_file_summary(terminal, file_path, context_file_path, additional_co
         # No need to print the file content when doing concurrent analysis
         
         # Send the request to the LLM
-        file_completion = (
-            await terminal.client.chat.completions.create(
-                model=terminal.model, messages=temp_messages
-            )
-        )
-        file_analysis = file_completion.choices[0].message.content
+        file_analysis = await stream_request(terminal.client, terminal.model, temp_messages)
 
         # Print the analysis
         terminal_print(f"\nFile Analysis for {file_path}:", PrintType.HEADER)
@@ -164,7 +159,7 @@ async def handle_init(terminal, args):
                 ]
 
                 # Now switch to a different model for file analysis
-                terminal.model = "llama-3.3-70b"
+                terminal.model = "qwen-2.5-qwq-32b"
                 terminal_print(f"\nSwitching model to: {terminal.model} for file analysis", PrintType.INFO)
 
                 # Initialize the context file
