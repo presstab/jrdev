@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+
+"""
+Stateinfo command implementation for the JrDev terminal.
+Displays current terminal state information.
+"""
+
+from jrdev.ui import terminal_print, PrintType
+
+
+async def handle_stateinfo(terminal, args):
+    """
+    Handle the /stateinfo command to display current terminal state.
+
+    Args:
+        terminal: The JrDevTerminal instance
+        args: Command arguments (unused)
+    """
+    terminal_print("\nCurrent Terminal State:", print_type=PrintType.HEADER)
+    terminal_print(f"  Model: {terminal.model}", print_type=PrintType.INFO)
+    terminal_print(f"  Message history: {len(terminal.messages)} messages", print_type=PrintType.INFO)
+    
+    # Display API details
+    terminal_print(f"  API base URL: {terminal.client.base_url}", print_type=PrintType.INFO)
+    
+    # If the terminal has any file context loaded
+    project_files = {
+        "filetree": "jrdev_filetree.txt",
+        "filecontext": "jrdev_filecontext.md",
+        "overview": "jrdev_overview.md",
+        "code_change_example": "code_change_example.json"
+    }
+    
+    loaded_files = []
+    for key, filename in project_files.items():
+        if any(key in msg.get("content", "") for msg in terminal.messages if msg.get("role") == "user"):
+            loaded_files.append(filename)
+    
+    if loaded_files:
+        terminal_print(f"  Project context: {', '.join(loaded_files)}", print_type=PrintType.INFO)
+    else:
+        terminal_print(f"  Project context: None", print_type=PrintType.INFO)

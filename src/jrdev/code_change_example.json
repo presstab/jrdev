@@ -1,0 +1,29 @@
+{
+  "file_changes": [
+    {
+      "filename": "main.cpp",
+      "change_type": "replace",
+      "start_line": 10,
+      "end_line": 12,
+      "replacement": [
+        "int x = 5;",
+        "cout << x << endl;"
+      ]
+    },
+    {
+      "filename": "main.cpp",
+      "change_type": "insert",
+      "after_line": 25,
+      "content": [
+        "// Inserted comment",
+        "newFunction();"
+      ]
+    },
+    {
+      "filename": "main.cpp",
+      "change_type": "delete",
+      "start_line": 30,
+      "end_line": 31
+    }
+  ]
+}

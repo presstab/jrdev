@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+
+"""
+Tree chart utility for generating file structure diagrams.
+"""
+
+import os
+import sys
+from pathlib import Path
+
+
+def generate_tree(directory=None, output_file=None, max_depth=None, 
+                  exclude_dirs=None, exclude_files=None, include_files=None):
+    """
+    Generate a tree representation of the directory structure.
+
+    Args:
+        directory: Root directory to start from. Defaults to current directory.
+        output_file: If provided, write output to this file.
+        max_depth: Maximum depth to traverse.
+        exclude_dirs: List of directory names to exclude.
+        exclude_files: List of filename patterns to exclude.
+        include_files: List of filename patterns to include (overrides exclude_files).
+
+    Returns:
+        String representation of the directory tree.
+    """
+    if directory is None:
+        directory = os.getcwd()
+    
+    if exclude_dirs is None:
+        exclude_dirs = ['.git', '__pycache__', '.venv', 'venv', 'node_modules', '.idea', '.vscode']
+    
+    if exclude_files is None:
+        exclude_files = ['*.pyc', '*.pyo', '*~', '.DS_Store', 'Thumbs.db']
+    
+    # Convert to Path object
+    directory_path = Path(directory)
+    
+    # Get the top-level directory name
+    result = [f"Directory structure of: {directory_path}\n"]
+    
+    def should_exclude_dir(dir_name):
+        """Check if directory should be excluded."""
+        return dir_name.startswith('.') or dir_name in exclude_dirs
+    
+    def should_exclude_file(file_name):
+        """Check if file should be excluded."""
+        if include_files is not None:
+            # If include_files is specified, only include these files
+            for pattern in include_files:
+                if Path(file_name).match(pattern):
+                    return False
+            return True
+        
+        # Otherwise exclude files based on exclude_files patterns
+        if file_name.startswith('.'):
+            return True
+        
+        for pattern in exclude_files:
+            if Path(file_name).match(pattern):
+                return True
+        
+        return False
+    
+    def walk_directory(path, prefix="", depth=0):
+        """Recursively walk the directory tree."""
+        if max_depth is not None and depth > max_depth:
+            return
+        
+        dirs = []
+        files = []
+        
+        # Sort entries for consistent output
+        for entry in sorted(os.listdir(path)):
+            entry_path = path / entry
+            if entry_path.is_dir() and not should_exclude_dir(entry):
+                dirs.append(entry)
+            elif entry_path.is_file() and not should_exclude_file(entry):
+                files.append(entry)
+        
+        # Process directories
+        for i, dir_name in enumerate(dirs):
+            if i == len(dirs) - 1 and not files:
+                # Last entry, no files
+                result.append(f"{prefix}└── {dir_name}/")
+                walk_directory(path / dir_name, f"{prefix}    ", depth + 1)
+            else:
+                result.append(f"{prefix}├── {dir_name}/")
+                walk_directory(path / dir_name, f"{prefix}│   ", depth + 1)
+        
+        # Process files
+        for i, file_name in enumerate(files):
+            if i == len(files) - 1:
+                # Last entry
+                result.append(f"{prefix}└── {file_name}")
+            else:
+                result.append(f"{prefix}├── {file_name}")
+    
+    # Start walking from the root directory with a depth of 0
+    try:
+        if directory_path.is_dir():
+            walk_directory(directory_path)
+        else:
+            result.append(f"Error: {directory_path} is not a directory.")
+    except PermissionError:
+        result.append(f"Error: Permission denied accessing {directory_path}")
+    except Exception as e:
+        result.append(f"Error: {str(e)}")
+    
+    # Convert result to string
+    output = "\n".join(result)
+    
+    # Write to file if specified
+    if output_file:
+        with open(output_file, 'w') as f:
+            f.write(output)
+    
+    return output
+
+
+def main():
+    """Command-line interface for the tree chart utility."""
+    directory = os.getcwd()
+    
+    # Generate tree and print to stdout
+    tree_output = generate_tree(directory)
+    print(tree_output)
+
+
+if __name__ == "__main__":
+    main()
