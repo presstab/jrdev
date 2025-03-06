@@ -166,8 +166,8 @@ class JrDevTerminal:
                 # Check for code change JSON in the follow-up response
                 # await self.check_and_apply_code_changes(follow_up_response)
             else:
-                # Check for code change JSON in the response
-                # await self.check_and_apply_code_changes(response_text)
+                # do file changes here todo
+                return
         except Exception as e:
             terminal_print(f"Error: {str(e)}", PrintType.ERROR)
 
