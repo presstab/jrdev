@@ -3,6 +3,7 @@ Command implementations for the JrDev terminal.
 """
 
 from jrdev.commands.clear import handle_clear
+from jrdev.commands.cost import handle_cost
 from jrdev.commands.exit import handle_exit
 from jrdev.commands.help import handle_help
 from jrdev.commands.init import handle_init
@@ -18,4 +19,5 @@ __all__ = [
     "handle_init",
     "handle_help",
     "handle_stateinfo",
+    "handle_cost",
 ]

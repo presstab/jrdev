@@ -25,4 +25,5 @@ async def handle_help(terminal, args):
         print_type=PrintType.COMMAND
     )
     terminal_print("  /stateinfo - Display current terminal state information", print_type=PrintType.COMMAND)
+    terminal_print("  /cost - Display session cost breakdown by model", print_type=PrintType.COMMAND)
     terminal_print("  /help - Show this help message", print_type=PrintType.COMMAND)

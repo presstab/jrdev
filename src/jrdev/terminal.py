@@ -21,7 +21,7 @@ except ImportError:
     READLINE_AVAILABLE = False
 
 from jrdev.colors import Colors
-from jrdev.commands import (handle_clear, handle_exit, handle_help,
+from jrdev.commands import (handle_clear, handle_cost, handle_exit, handle_help,
                                 handle_init, handle_model, handle_models,
                                 handle_stateinfo)
 from jrdev.models import AVAILABLE_MODELS, is_think_model
@@ -69,6 +69,7 @@ class JrDevTerminal:
             "/models": handle_models,
             "/stateinfo": handle_stateinfo,
             "/clear": handle_clear,
+            "/cost": handle_cost,
             "/init": handle_init,
             "/help": handle_help,
         }

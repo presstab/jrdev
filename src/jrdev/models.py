@@ -57,3 +57,17 @@ def is_think_model(model):
             return entry["is_think"]
 
     return False
+
+
+def get_model_cost(model):
+    """model input and output cost per million tokens (cost denominated in VCU)"""
+    for entry in AVAILABLE_MODELS:
+        if entry["name"] == model:
+            return {"input_cost": entry["input_cost"], "output_cost": entry["output_cost"]}
+
+    return None
+
+
+def VCU_Value():
+    """VCU dollar value"""
+    return 0.1
