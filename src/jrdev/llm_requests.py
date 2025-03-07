@@ -1,11 +1,8 @@
 import re
 from jrdev.colors import Colors
 from jrdev.ui import terminal_print, PrintType
-from jrdev.models import THINK_MODELS
-
-
-def is_think_model(model):
-    return model in THINK_MODELS
+from jrdev.models import is_think_model
+from jrdev.usage import get_instance
 
 
 def filter_think_tags(text):
@@ -24,7 +21,7 @@ def is_inside_think_tag(text):
     return think_open > think_close
 
 
-async def stream_request(client, model, messages):
+async def stream_request(client, model, messages, print_stream=True):
     # Create a streaming completion
     stream = await client.chat.completions.create(
         model=model, messages=messages, stream=True
@@ -53,20 +50,34 @@ async def stream_request(client, model, messages):
 
                     # Print only new content since last filtered output
                     if len(filtered_text) > 0:
-                        terminal_print(
-                            filtered_text[-len(chunk_text):],
-                            PrintType.LLM,
-                            end="",
-                            flush=True
-                        )
+                        if print_stream:
+                            terminal_print(
+                                filtered_text[-len(chunk_text):],
+                                PrintType.LLM,
+                                end="",
+                                flush=True
+                            )
                 else:
                     # For chunks without </think>, we check if we're currently inside a tag
                     in_think_tag = is_inside_think_tag(response_text)
                     if not in_think_tag and chunk_text:
-                        terminal_print(chunk_text, PrintType.LLM, end="", flush=True)
+                        if print_stream:
+                            terminal_print(chunk_text, PrintType.LLM, end="", flush=True)
             else:
-                # For non-DeepSeek models, print all chunks
-                terminal_print(chunk_text, PrintType.LLM, end="", flush=True)
+                # For non-think models, print all chunks
+                if print_stream:
+                    terminal_print(chunk_text, PrintType.LLM, end="", flush=True)
+
+        if "completion_tokens" in str(chunk):
+            # print(chunk)
+            # print(chunk.usage.completion_tokens)
+            input_tokens = chunk.usage.prompt_tokens
+            output_tokens = chunk.usage.completion_tokens
+            terminal_print(f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens}", PrintType.WARNING)
+            
+            # Track token usage
+            usage_tracker = get_instance()
+            await usage_tracker.add_use(model, input_tokens, output_tokens)
 
     if uses_think:
         return filter_think_tags(response_text)

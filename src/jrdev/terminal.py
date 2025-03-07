@@ -24,7 +24,7 @@ from jrdev.colors import Colors
 from jrdev.commands import (handle_clear, handle_exit, handle_help,
                                 handle_init, handle_model, handle_models,
                                 handle_stateinfo)
-from jrdev.models import AVAILABLE_MODELS
+from jrdev.models import AVAILABLE_MODELS, is_think_model
 from jrdev.llm_requests import stream_request
 from jrdev.ui import terminal_print, PrintType
 from jrdev.file_utils import *
@@ -284,8 +284,10 @@ class JrDevTerminal:
 
 async def main(model=None):
     terminal = JrDevTerminal()
-    if model and model in AVAILABLE_MODELS:
-        terminal.model = model
+    if model:
+        model_names = [m["name"] for m in AVAILABLE_MODELS]
+        if model in model_names:
+            terminal.model = model
     await terminal.run_terminal()
 
 
@@ -293,8 +295,11 @@ def run_cli():
     """Entry point for the command-line interface."""
     import argparse
     
+    # Get list of available model names for argparse choices
+    model_names = [model["name"] for model in AVAILABLE_MODELS]
+    
     parser = argparse.ArgumentParser(description="JrDev Terminal - LLM model interface")
-    parser.add_argument("--model", help="Specify the LLM model to use")
+    parser.add_argument("--model", help="Specify the LLM model to use", choices=model_names)
     parser.add_argument("--version", action="store_true", help="Show version information")
     
     args = parser.parse_args()

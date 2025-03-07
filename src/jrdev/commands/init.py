@@ -64,7 +64,7 @@ async def get_file_summary(terminal, file_path, context_file_path, additional_co
         # No need to print the file content when doing concurrent analysis
         
         # Send the request to the LLM
-        file_analysis = await stream_request(terminal.client, terminal.model, temp_messages)
+        file_analysis = await stream_request(terminal.client, terminal.model, temp_messages, print_stream=False)
 
         # Print the analysis
         terminal_print(f"\nFile Analysis for {file_path}:", PrintType.HEADER)
