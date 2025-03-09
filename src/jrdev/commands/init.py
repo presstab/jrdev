@@ -131,12 +131,7 @@ async def handle_init(terminal, args):
 
         # Send the request to the LLM
         try:
-            full_response = await stream_request(client=terminal.client, model=terminal.model, messages=temp_messages)
-
-            # Extract the actual response by removing the <think>...</think> sections
-            recommendation_response = re.sub(
-                r"<think>.*?</think>", "", full_response, flags=re.DOTALL
-            ).strip()
+            recommendation_response = await stream_request(client=terminal.client, model=terminal.model, messages=temp_messages)
 
             # Print the LLM's response
             terminal_print("\nLLM File Recommendations:", PrintType.HEADER)
@@ -144,19 +139,7 @@ async def handle_init(terminal, args):
 
             # Parse the file list from the response
             try:
-                # Extract the list using regex to be more resilient to different formats
-                list_pattern = r"\[(.*?)\]"
-                match = re.search(list_pattern, recommendation_response, re.DOTALL)
-
-                if not match:
-                    terminal_print("Error: Could not parse file list from LLM response", PrintType.ERROR)
-                    return
-
-                files_str = match.group(1)
-                # Split by commas and clean up each entry
-                recommended_files = [
-                    file.strip().strip("'\"").lstrip("/") for file in files_str.split(",")
-                ]
+                recommended_files = requested_files(recommendation_response)
 
                 # Now switch to a different model for file analysis
                 terminal.model = "qwen-2.5-qwq-32b"
