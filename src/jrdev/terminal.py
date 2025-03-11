@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-
 """
 Terminal interface for interacting with JrDev's LLM models
 using OpenAI-compatible APIs.
 """
+
 import asyncio
 import sys
 import platform
+import os
 
 from openai import AsyncOpenAI
 
@@ -22,12 +23,12 @@ except ImportError:
 
 from jrdev.colors import Colors
 from jrdev.commands import (handle_clear, handle_cost, handle_exit, handle_help,
-                                handle_init, handle_model, handle_models,
-                                handle_stateinfo)
+                            handle_init, handle_model, handle_models,
+                            handle_stateinfo)
 from jrdev.models import AVAILABLE_MODELS, is_think_model
 from jrdev.llm_requests import stream_request
 from jrdev.ui import terminal_print, PrintType
-from jrdev.file_utils import *
+from jrdev.file_utils import requested_files, get_file_contents, check_and_apply_code_changes
 
 
 class JrDevTerminal:
@@ -103,17 +104,17 @@ class JrDevTerminal:
                 terminal_print(f"Warning: Could not read {filename}: {str(e)}", PrintType.WARNING)
 
         # Build the complete message
-        dev_prompt_modifier = ("Consider the project that has been attached. An engineer for the project is asking you (a "
-                           "master architect, and excellent engineer) for help or advice. Although the engineer is "
-                           "asking a question to you, respond with an analysis of what would need to be done to "
-                           "complete the task. This should be brief and should be written in a way that is readable for both "
-                           "humans and llm's. If the user is asking about how to change code, IT IS REQUIRED that you retrieve"
-                           " the full file before suggesting the code changes. Request files using the format: "
-                           " 'get_files ['path/to/file1.txt', 'path/to/file2.cpp, etc]")
+        dev_prompt_modifier = (
+            "Consider the project that has been attached. An engineer for the project is asking you (a "
+            "master architect, and excellent engineer) for help or advice. Although the engineer is "
+            "asking a question to you, respond with an analysis of what would need to be done to "
+            "complete the task. This should be brief and should be written in a way that is readable for both "
+            "humans and llm's. If the user is asking about how to change code, IT IS REQUIRED that you retrieve "
+            "the full file before suggesting the code changes. Request files using the format: "
+            " 'get_files [\"path/to/file1.txt\", \"path/to/file2.cpp\", etc]'"
+        )
 
         user_additional_modifier = " Here is the user's question or instruction:"
-
-        # Prepare message content with project context and prompt modifier
         user_message = f"{user_additional_modifier} {content}"
 
         if self.model not in self.messages:
@@ -128,92 +129,83 @@ class JrDevTerminal:
 
         self.messages[self.model].append({"role": "user", "content": user_message})
 
-        # Show processing message
         model_name = self.model
         terminal_print(f"\n{model_name} is processing request...", PrintType.PROCESSING)
 
         try:
             response_text = await stream_request(self.client, self.model, self.messages[self.model])
-
-            # Add a new line after the streaming completes
+            # Add a new line after streaming completes
             terminal_print("", PrintType.INFO)
 
             # Add response to messages
             self.messages[self.model].append({"role": "assistant", "content": response_text})
 
-            # Check for get_files request outside of think tags
+            # Process file requests if present
             files_to_send = requested_files(response_text)
             if files_to_send:
-
-                terminal_print(f"\nDetected file request: {str(files_to_send)}", PrintType.INFO)
+                terminal_print(f"\nDetected file request: {files_to_send}", PrintType.INFO)
                 files_content = get_file_contents(files_to_send)
+                dev_msg = (
+                """
+                If code modifications are needed, return a JSON object with a 'files' key containing a full rewrite of the
+                file which includes the recommended changes, no additional explanation is needed since this will only be visible to machines:
+                {
+                    "files": [
+                        {
+                            "filename": "example.py",
+                            "path": "src/util/",
+                            "content": "full file goes in here. use new line\n for line changing\n"
+                        },
+                        {file2 content....}
+                    ]
+                }
+                """)
 
-                # Send the file contents back to the LLM
-                follow_up_message = f"Previously requested files:{files_content}"
+                follow_up_message = (f"As you rewrite this code, leave the code as unchanged as possible, except for the areas"
+                                     f" where code changes are needed to complete the task. For example, leave all comments and don't"
+                                     f" 'clean up' the code. These requested files will give you the needed context to make changes to the code:{files_content}")
                 self.messages[self.model].append({"role": "user", "content": follow_up_message})
+                self.messages[self.model].append({"role": "system", "content": dev_msg})
 
                 terminal_print(f"\nSending requested files to {model_name}...", PrintType.PROCESSING)
-
-                # Get the LLM's response to the files with streaming
                 follow_up_response = await stream_request(self.client, self.model, self.messages[self.model])
-
-                terminal_print("", PrintType.INFO)  # Add a new line after streaming
-
-                # Add complete response to messages
-                self.messages[self.model].append(
-                    {"role": "assistant", "content": follow_up_response}
-                )
-
-                # Check for code change JSON in the follow-up response
-                # await self.check_and_apply_code_changes(follow_up_response)
+                terminal_print("", PrintType.INFO)
+                self.messages[self.model].append({"role": "assistant", "content": follow_up_response})
+                # Process code changes from the follow-up response
+                check_and_apply_code_changes(follow_up_response)
             else:
-                # do file changes here todo
-                return
+                # If no file request, check the original response for code changes
+                check_and_apply_code_changes(response_text)
         except Exception as e:
             terminal_print(f"Error: {str(e)}", PrintType.ERROR)
 
     def is_inside_think_tag(self, text):
         """Determine if the current position is inside a <think> tag."""
-        # Count the number of opening and closing tags
         think_open = text.count("<think>")
         think_close = text.count("</think>")
-
-        # If there are more opening tags than closing tags, we're inside a tag
         return think_open > think_close
 
     def filter_think_tags(self, text):
         """Remove content within <think></think> tags."""
-        # Use regex to remove all <think>...</think> sections
         return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
 
     def setup_readline(self):
         """Set up the readline module for command history."""
         if not READLINE_AVAILABLE:
             return
-            
+
         try:
-            # Enable history and tab completion
             readline.parse_and_bind("tab: complete")
-            
-            # Configure readline for better line wrapping
             readline.set_completer_delims(' \t\n;')
-            
-            # Configure line editing to handle long inputs better
             if hasattr(readline, 'set_screen_size'):
-                # Get terminal size and set readline's screen size
                 try:
                     import shutil
                     columns, _ = shutil.get_terminal_size()
-                    # Set a large number of rows to ensure vertical scrolling
                     readline.set_screen_size(100, columns)
                 except Exception:
-                    # Fallback if terminal size detection fails
                     readline.set_screen_size(100, 120)
-
-            # Load history if exists
             if os.path.exists(self.history_file):
                 readline.read_history_file(self.history_file)
-                # Set history length limit
                 readline.set_history_length(1000)
         except Exception as e:
             terminal_print(f"Error setting up readline: {str(e)}", PrintType.ERROR)

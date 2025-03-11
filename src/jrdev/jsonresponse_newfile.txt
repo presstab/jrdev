@@ -1,0 +1,30 @@
+```json
+{
+  "files": [
+    {
+      "filename": "assetbox.cpp",
+      "path": "",
+      "content": "#include \"assetbox.h\"\n\n#include <QLabel>\n#include <QVBoxLayout>\n#include <QFont>\n\n// AssetBox implementation\nAssetBox::AssetBox(const QString& assetName, double price, const QColor& color, QWidget* parent)\n    : QFrame(parent)\n    , m_assetName(assetName)\n{\n    // Enable hover events\n    setAttribute(Qt::WA_Hover);\n    \n    // Set up the frame style\n    setFrameShape(QFrame::Box);\n    setLineWidth(2);\n    \n    // Set fixed size - about twice the height of a combobox (which is typically 22-25px)\n    setMinimumSize(80, 45);\n    setMaximumSize(100, 50);\n    \n    // Create a vertical layout with minimal margins\n    QVBoxLayout* layout = new QVBoxLayout(this);\n    layout->setContentsMargins(3, 2, 3, 2);\n    layout->setSpacing(0);\n    \n    // Create labels\n    m_labelName = new QLabel(assetName, this);\n    m_labelName->setAlignment(Qt::AlignCenter);\n    QFont nameFont = m_labelName->font();\n    nameFont.setBold(true);\n    nameFont.setPointSize(10);\n    m_labelName->setFont(nameFont);\n    \n    // Price label\n    m_labelPrice = new QLabel(this);\n    m_labelPrice->setAlignment(Qt::AlignCenter);\n    m_labelPrice->setFont(nameFont);\n    \n    // Update price\n    UpdatePrice(price);\n    \n    // Add labels to layout\n    layout->addWidget(m_labelName);\n    layout->addWidget(m_labelPrice);\n    \n    // Set color\n    UpdateColor(color);\n}\n\nvoid AssetBox::UpdatePrice(double price)\n{\n    // Format the price with proper precision and dollar sign\n    QString priceText = \"$\";\n    \n    // Handle different formatting based on price magnitude\n    if (price >= 1000) {\n        // Format with commas for thousands\n        int intPart = static_cast<int>(price);\n        QString formattedInt;\n        \n        // Convert to string with commas\n        QString numStr = QString::number(intPart);\n        int len = numStr.length();\n        for (int i = 0; i < len; ++i) {\n            if (i > 0 && (len - i) % 3 == 0) {\n                formattedInt += ',';\n            }\n            formattedInt += numStr[i];\n        }\n        \n        priceText += formattedInt;\n    } else if (price >= 100) {\n        priceText += QString::number(price, 'f', 1);\n    } else if (price >= 10) {\n        priceText += QString::number(price, 'f', 2);\n    } else if (price >= 1) {\n        priceText += QString::number(price, 'f', 3);\n    } else {\n        priceText += QString::number(price, 'f', 4);\n    }\n    \n    m_labelPrice->setText(priceText);\n}\n\nvoid AssetBox::UpdateColor(const QColor& color)\n{\n    // Create a transparent version of the color (50% opacity)\n    QColor bgColor = color;\n    bgColor.setAlpha(128); // 50% opacity (255 * 0.5)\n    \n    // Create a hover color variation\n    QColor hoverColor = color.lighter(150); // 150% brighter\n    \n    // Set stylesheet with hover effects\n    QString styleSheet = QString(\n        \"AssetBox {\"\n        \"  background-color: rgba(%1, %2, %3, %4);\"\n        \"  border: 2px solid %5;\"\n        \"  border-radius: 4px;\"\n        \"}\"\n        \"AssetBox:hover {\"\n        \"  background-color: rgba(%1, %2, %3, 200);\"\n        \"  border: 2px solid %6;\"\n        \"}\"\n        \"QLabel {\"\n        \"  color: white;\"\n        \"}\"\n    ).arg(color.red())\n     .arg(color.green())\n     .arg(color.blue())\n     .arg(bgColor.alpha())\n     .arg(color.name())\n     .arg(hoverColor.name());\n\n    setStyleSheet(styleSheet);\n}\n"
+    },
+    {
+      "filename": "assetbox.h",
+      "path": "",
+      "content": "#ifndef ASSETBOX_H\n#define ASSETBOX_H\n\n#include <QFrame>\n#include <QColor>\n#include <QString>\n\nclass QLabel;\n\n// Class for asset price boxes\nclass AssetBox : public QFrame\n{\n    Q_OBJECT\n    \npublic:\n    AssetBox(const QString& assetName, double price, const QColor& color, QWidget* parent = nullptr);\n    void UpdatePrice(double price);\n    void UpdateColor(const QColor& color);\n    \nprivate:\n    QLabel* m_labelName;\n    QLabel* m_labelPrice;\n    QString m_assetName;\n};\n\n#endif // ASSETBOX_H\n"
+    }
+  ]
+}
+```
+
+Key modifications:
+1. Added `setAttribute(Qt::WA_Hover)` in constructor to enable hover events
+2. Updated `UpdateColor` to generate a 150% lighter hover color
+3. Modified stylesheet to include `AssetBox:hover` state with:
+   - Increased background opacity (200 alpha)
+   - Lighter border color using the generated hover color
+
+The hover effect will:
+- Make the background more opaque (from 128 to 200 alpha)
+- Change the border color to a lighter version of the base color
+- Maintain text visibility with white labels
+
+These changes maintain the existing functionality while adding visual feedback on hover.

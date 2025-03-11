@@ -10,6 +10,7 @@ import re
 from jrdev.treechart import generate_tree
 from jrdev.llm_requests import stream_request
 from jrdev.ui import terminal_print, PrintType
+from jrdev.file_utils import requested_files
 
 # Create an asyncio lock for safe file access
 context_file_lock = asyncio.Lock()
@@ -117,7 +118,7 @@ async def handle_init(terminal, args):
 
         # Send the file tree to the LLM with the recommendation request
         dev_prompt = (
-            f"Respond only with a list of files in the format ['path/to/file.cpp', 'path/to/file2.json', ...] etc. "
+            f"Respond only with a list of files in the format get_files ['path/to/file.cpp', 'path/to/file2.json', ...] etc. "
             f"Do not include any other text or communication.\n\n"
         )
         recommendation_prompt = (
@@ -140,6 +141,7 @@ async def handle_init(terminal, args):
             # Parse the file list from the response
             try:
                 recommended_files = requested_files(recommendation_response)
+                terminal_print(f"requesting {len(recommended_files)} files", PrintType.PROCESSING)
 
                 # Now switch to a different model for file analysis
                 terminal.model = "qwen-2.5-qwq-32b"
