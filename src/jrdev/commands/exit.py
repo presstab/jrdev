@@ -15,6 +15,7 @@ async def handle_exit(terminal, args):
         terminal: The JrDevTerminal instance
         args: Command arguments (unused)
     """
+    terminal.logger.info("User requested exit via /exit command")
     terminal_print("Exiting JrDev terminal...", print_type=PrintType.INFO)
     terminal.running = False
     return True

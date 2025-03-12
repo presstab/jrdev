@@ -9,8 +9,11 @@ import sys
 import platform
 import os
 import re
+import logging
 
 from openai import AsyncOpenAI
+
+from jrdev.logger import setup_logger
 
 # Cross-platform readline support
 try:
@@ -36,13 +39,19 @@ from jrdev.file_utils import requested_files, get_file_contents, check_and_apply
 
 class JrDevTerminal:
     def __init__(self):
+        # Set up logging
+        self.logger = setup_logger()
+        self.logger.info("Initializing JrDevTerminal")
+        
         # Load environment variables from .env file
         from dotenv import load_dotenv
         load_dotenv()
         
         api_key = os.getenv("VENICE_API_KEY")
         if not api_key:
-            terminal_print("Error: VENICE_API_KEY not found in .env file", PrintType.ERROR)
+            error_msg = "VENICE_API_KEY not found in .env file"
+            self.logger.error(error_msg)
+            terminal_print(f"Error: {error_msg}", PrintType.ERROR)
             sys.exit(1)
             
         self.client = AsyncOpenAI(
@@ -71,6 +80,9 @@ class JrDevTerminal:
         
         # Track active background tasks
         self.active_tasks = {}
+        
+        # Background task monitor
+        self.task_monitor = None
 
         # Initialize command handlers dictionary
         self.command_handlers = {
@@ -103,8 +115,10 @@ class JrDevTerminal:
         cmd = cmd_parts[0].lower()
 
         if cmd in self.command_handlers:
+            self.logger.info(f"Executing command: {cmd}")
             return await self.command_handlers[cmd](self, cmd_parts)
         else:
+            self.logger.warning(f"Unknown command attempted: {cmd}")
             terminal_print(f"Unknown command: {cmd}", PrintType.ERROR)
             terminal_print("Type /help for available commands", PrintType.INFO)
 
@@ -120,8 +134,12 @@ class JrDevTerminal:
         Returns:
             str: The response text from the model
         """
+        self.logger.info(f"Sending message to model {self.model}")
+        
         if not isinstance(content, str):
-            terminal_print(f"Error: expected string but got {type(content)}", PrintType.ERROR)
+            error_msg = f"Expected string but got {type(content)}"
+            self.logger.error(error_msg)
+            terminal_print(f"Error: {error_msg}", PrintType.ERROR)
             return None
             
         # Read project context files if they exist
@@ -132,7 +150,9 @@ class JrDevTerminal:
                     with open(filename, "r") as f:
                         project_context[key] = f.read()
             except Exception as e:
-                terminal_print(f"Warning: Could not read {filename}: {str(e)}", PrintType.WARNING)
+                warning_msg = f"Could not read {filename}: {str(e)}"
+                self.logger.warning(warning_msg)
+                terminal_print(f"Warning: {warning_msg}", PrintType.WARNING)
 
         # Build the complete message
         dev_prompt_modifier = (
@@ -180,6 +200,7 @@ class JrDevTerminal:
                 # Process file requests if present
                 files_to_send = requested_files(response_text)
                 if files_to_send:
+                    self.logger.info(f"Detected file request: {files_to_send}")
                     terminal_print(f"\nDetected file request: {files_to_send}", PrintType.INFO)
                     files_content = get_file_contents(files_to_send)
                     dev_msg = (
@@ -204,19 +225,24 @@ class JrDevTerminal:
                     self.messages[self.model].append({"role": "user", "content": follow_up_message})
                     self.messages[self.model].append({"role": "system", "content": dev_msg})
 
+                    self.logger.info(f"Sending requested files to {model_name}")
                     terminal_print(f"\nSending requested files to {model_name}...", PrintType.PROCESSING)
                     follow_up_response = await stream_request(self.client, self.model, self.messages[self.model])
                     terminal_print("", PrintType.INFO)
                     self.messages[self.model].append({"role": "assistant", "content": follow_up_response})
                     # Process code changes from the follow-up response
+                    self.logger.info("Processing code changes from follow-up response")
                     check_and_apply_code_changes(follow_up_response)
                 else:
                     # If no file request, check the original response for code changes
+                    self.logger.info("Processing code changes from original response")
                     check_and_apply_code_changes(response_text)
             
             return response_text
         except Exception as e:
-            terminal_print(f"Error: {str(e)}", PrintType.ERROR)
+            error_msg = str(e)
+            self.logger.error(f"Error in send_simple_message: {error_msg}")
+            terminal_print(f"Error: {error_msg}", PrintType.ERROR)
             return None
     
     async def send_message(self, content, writepath=None):
@@ -231,8 +257,12 @@ class JrDevTerminal:
         Returns:
             str: The response text from the model
         """
+        self.logger.info(f"Sending message to model {self.model}")
+        
         if not isinstance(content, str):
-            terminal_print(f"Error: expected string but got {type(content)}", PrintType.ERROR)
+            error_msg = f"Expected string but got {type(content)}"
+            self.logger.error(error_msg)
+            terminal_print(f"Error: {error_msg}", PrintType.ERROR)
             return None
 
         # Read project context files if they exist
@@ -260,6 +290,7 @@ class JrDevTerminal:
                 context_section += f"\n--- Context File {i + 1}: {ctx['name']} ---\n{ctx['content']}\n"
             user_message += context_section
 
+        # Add the user message to the persistent message history
         messages = []
         messages.append({"role": "user", "content": user_message})
 
@@ -267,10 +298,11 @@ class JrDevTerminal:
         terminal_print(f"\n{model_name} is processing request...", PrintType.PROCESSING)
 
         try:
-            response_text = await stream_request(self.client, self.model, self.messages[self.model])
+            response_text = await stream_request(self.client, self.model, messages)
+            self.logger.info("Successfully received response from model")
             
             # Add response to messages
-            self.messages[self.model].append({"role": "assistant", "content": response_text})
+            #self.messages[self.model].append({"role": "assistant", "content": response_text})
             
             if writepath is None:
                 return response_text
@@ -297,13 +329,18 @@ class JrDevTerminal:
                     # Write the LLM response
                     f.write(response_text)
                 
+                self.logger.info(f"Response saved to file: {writepath}")
                 terminal_print(f"Response saved to {writepath}", print_type=PrintType.SUCCESS)
                 return response_text
             except Exception as e:
-                terminal_print(f"Error writing to file {writepath}: {str(e)}", print_type=PrintType.ERROR)
+                error_msg = f"Error writing to file {writepath}: {str(e)}"
+                self.logger.error(error_msg)
+                terminal_print(error_msg, print_type=PrintType.ERROR)
                 return response_text
         except Exception as e:
-            terminal_print(f"Error: {str(e)}", PrintType.ERROR)
+            error_msg = str(e)
+            self.logger.error(f"Error in send_message: {error_msg}")
+            terminal_print(f"Error: {error_msg}", PrintType.ERROR)
             return None
 
     def is_inside_think_tag(self, text):
@@ -512,8 +549,8 @@ class JrDevTerminal:
         except Exception as e:
             terminal_print(f"Error saving history: {str(e)}", PrintType.ERROR)
 
-    def get_user_input(self):
-        """Get user input with proper line wrapping."""
+    async def get_user_input(self):
+        """Get user input with proper line wrapping using asyncio to prevent blocking the event loop."""
         # Make sure terminal can handle long lines by using better prompt
         prompt = f"\n{Colors.BOLD}{Colors.GREEN}> {Colors.RESET}"
         
@@ -525,19 +562,51 @@ class JrDevTerminal:
             prompt_len = 4  # Length of "> " without color codes
             available_width = term_width - prompt_len
             
-            # If very narrow terminal, just use basic input
-            if available_width < 20:
-                return input(prompt)
-                
             # Readline will use this width for wrapping
             if READLINE_AVAILABLE and hasattr(readline, 'set_screen_size'):
                 readline.set_screen_size(100, available_width)
         except Exception:
             pass
+        
+        # Use asyncio.to_thread to run input() in a separate thread
+        # This prevents blocking the event loop, allowing background tasks to run
+        return await asyncio.to_thread(input, prompt)
+        
+    async def task_monitor_callback(self):
+        """Periodic callback to check on background tasks and handle any completed ones."""
+        try:
+            # Check for completed or failed tasks that need cleanup
+            completed_tasks = []
+            for job_id, task_info in self.active_tasks.items():
+                task = task_info.get("task")
+                if task and task.done():
+                    # Task is completed or failed, handle any cleanup if needed
+                    if task.exception():
+                        self.logger.error(f"Background task {job_id} failed with exception: {task.exception()}")
+                    completed_tasks.append(job_id)
             
-        return input(prompt)
+            # Remove completed tasks from active_tasks
+            for job_id in completed_tasks:
+                if job_id in self.active_tasks:
+                    del self.active_tasks[job_id]
+                    self.logger.info(f"Removed completed task {job_id} from active tasks")
+            
+            # Reschedule the monitor if terminal is still running
+            if self.running:
+                self.task_monitor = asyncio.create_task(self._schedule_task_monitor())
+        except Exception as e:
+            self.logger.error(f"Error in task monitor: {str(e)}")
+            # Reschedule even if there was an error
+            if self.running:
+                self.task_monitor = asyncio.create_task(self._schedule_task_monitor())
+    
+    async def _schedule_task_monitor(self):
+        """Schedule the task monitor to run after a delay."""
+        await asyncio.sleep(1.0)  # Check every second
+        await self.task_monitor_callback()
         
     async def run_terminal(self):
+        self.logger.info(f"JrDev Terminal started with model: {self.model}")
         terminal_print(f"JrDev Terminal (Model: {self.model})", PrintType.HEADER)
         terminal_print("Type a message to chat with the model", PrintType.INFO)
         terminal_print("Type /help for available commands", PrintType.INFO)
@@ -545,9 +614,17 @@ class JrDevTerminal:
         if READLINE_AVAILABLE:
             terminal_print("Use up/down arrows to navigate command history", PrintType.INFO)
 
+        # Start the task monitor
+        self.task_monitor = asyncio.create_task(self._schedule_task_monitor())
+        self.logger.info("Task monitor started")
+
         while self.running:
             try:
-                user_input = self.get_user_input()
+                # Get user input asynchronously, allowing background tasks to run
+                user_input = await self.get_user_input()
+
+                # Brief yield to the event loop to allow background tasks to progress
+                await asyncio.sleep(0.01)
 
                 # Save to history
                 self.save_history(user_input)
@@ -560,10 +637,20 @@ class JrDevTerminal:
                 else:
                     await self.send_message(user_input)
             except KeyboardInterrupt:
+                self.logger.info("User initiated terminal exit (KeyboardInterrupt)")
                 terminal_print("\nExiting JrDev terminal...", PrintType.INFO)
                 self.running = False
             except Exception as e:
-                terminal_print(f"Error: {str(e)}", PrintType.ERROR)
+                error_msg = str(e)
+                self.logger.error(f"Error in run_terminal: {error_msg}")
+                terminal_print(f"Error: {error_msg}", PrintType.ERROR)
+        
+        # Cancel the task monitor when shutting down
+        if self.task_monitor and not self.task_monitor.done():
+            self.task_monitor.cancel()
+            self.logger.info("Task monitor cancelled")
+        
+        self.logger.info("JrDev Terminal gracefully shut down")
 
 
 async def main(model=None):

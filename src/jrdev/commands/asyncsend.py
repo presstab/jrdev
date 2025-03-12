@@ -43,63 +43,78 @@ async def handle_asyncsend(terminal: Any, args: List[str]) -> None:
         if not os.path.isabs(filepath):
             filepath = os.path.join(os.getcwd(), filepath)
             
+        terminal.logger.info(f"Starting async task #{job_id} to save response to {filepath}")
         terminal_print(f"Task #{job_id} started: Saving response to {filepath}", 
                       print_type=PrintType.INFO)
                       
         # Create a task to process the request in the background
         async def background_task():
             try:
+                terminal.logger.info(f"Background task #{job_id} sending message to model")
                 response = await terminal.send_message(prompt, writepath=filepath)
                 if response:
+                    terminal.logger.info(f"Background task #{job_id} completed successfully")
                     terminal_print(f"Task #{job_id} completed: Response saved to {filepath}", 
                                   print_type=PrintType.SUCCESS)
                 else:
+                    terminal.logger.error(f"Background task #{job_id} failed to get response")
                     terminal_print(f"Task #{job_id} failed: Error sending message or writing to file", 
                                   print_type=PrintType.ERROR)
                 
-                # Remove task from active tasks on completion
-                if job_id in terminal.active_tasks:
-                    del terminal.active_tasks[job_id]
+                # Task monitor will handle cleanup of completed tasks
             except Exception as e:
-                terminal_print(f"Task #{job_id} failed: {str(e)}", 
+                error_msg = str(e)
+                terminal.logger.error(f"Background task #{job_id} failed with error: {error_msg}")
+                terminal_print(f"Task #{job_id} failed: {error_msg}", 
                               print_type=PrintType.ERROR)
                 
-                # Remove task from active tasks on error
-                if job_id in terminal.active_tasks:
-                    del terminal.active_tasks[job_id]
+                # Task monitor will handle cleanup of failed tasks
         
         # Schedule the task but don't wait for it
         task = asyncio.create_task(background_task())
-        terminal.active_tasks[job_id] = {"task": task, "type": "file_response", "path": filepath, "timestamp": asyncio.get_event_loop().time()}
+        terminal.active_tasks[job_id] = {
+            "task": task, 
+            "type": "file_response", 
+            "path": filepath, 
+            "prompt": prompt[:30] + "..." if len(prompt) > 30 else prompt,
+            "timestamp": asyncio.get_event_loop().time()
+        }
     else:
         # No filepath provided, just send the message
         prompt = " ".join(args[1:])
         
+        terminal.logger.info(f"Starting async task #{job_id} to process message")
         terminal_print(f"Task #{job_id} started: Processing in background", 
                       print_type=PrintType.INFO)
         
         # Create a task to process the request in the background
         async def background_task():
             try:
+                terminal.logger.info(f"Background task #{job_id} sending message to model")
                 response = await terminal.send_message(prompt)
                 if response:
+                    terminal.logger.info(f"Background task #{job_id} completed successfully")
                     terminal_print(f"Task #{job_id} completed", 
                                   print_type=PrintType.SUCCESS)
                 else:
+                    terminal.logger.error(f"Background task #{job_id} failed to get response")
                     terminal_print(f"Task #{job_id} failed: Error sending message", 
                                   print_type=PrintType.ERROR)
                 
-                # Remove task from active tasks on completion
-                if job_id in terminal.active_tasks:
-                    del terminal.active_tasks[job_id]
+                # Task monitor will handle cleanup of completed tasks
             except Exception as e:
-                terminal_print(f"Task #{job_id} failed: {str(e)}", 
+                error_msg = str(e)
+                terminal.logger.error(f"Background task #{job_id} failed with error: {error_msg}")
+                terminal_print(f"Task #{job_id} failed: {error_msg}", 
                               print_type=PrintType.ERROR)
                 
-                # Remove task from active tasks on error
-                if job_id in terminal.active_tasks:
-                    del terminal.active_tasks[job_id]
+                # Task monitor will handle cleanup of failed tasks
         
         # Schedule the task but don't wait for it
         task = asyncio.create_task(background_task())
-        terminal.active_tasks[job_id] = {"task": task, "type": "message", "prompt": prompt[:30] + "...", "timestamp": asyncio.get_event_loop().time()}
+        terminal.active_tasks[job_id] = {
+            "task": task, 
+            "type": "message", 
+            "prompt": prompt[:30] + "..." if len(prompt) > 30 else prompt, 
+            "timestamp": asyncio.get_event_loop().time()
+        }
