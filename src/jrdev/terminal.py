@@ -8,6 +8,7 @@ import asyncio
 import sys
 import platform
 import os
+import re
 
 from openai import AsyncOpenAI
 
@@ -22,9 +23,10 @@ except ImportError:
     READLINE_AVAILABLE = False
 
 from jrdev.colors import Colors
-from jrdev.commands import (handle_clear, handle_cost, handle_exit, handle_help,
-                            handle_init, handle_model, handle_models,
-                            handle_stateinfo)
+from jrdev.commands import (handle_addcontext, handle_clearcontext, handle_clearmessages,
+                            handle_cost, handle_exit, handle_help, handle_init, 
+                            handle_model, handle_models, handle_process, handle_stateinfo, 
+                            handle_viewcontext)
 from jrdev.models import AVAILABLE_MODELS, is_think_model
 from jrdev.llm_requests import stream_request
 from jrdev.ui import terminal_print, PrintType
@@ -51,7 +53,37 @@ class JrDevTerminal:
         self.model = "llama-3.3-70b"
         self.running = True
         self.messages = {} #model -> messages
+        
+        # Project files dict to track various files used by the application
+        self.project_files = {
+            "filetree": "jrdev_filetree.txt",
+            "filecontext": "jrdev_filecontext.md",
+            "overview": "jrdev_overview.md",
+            "code_change_example": "code_change_example.json"
+        }
+        
+        # Context list to store additional context files for the LLM
+        self.context = []
+        
+        # Controls whether to process file requests and code changes
+        self.process_follow_up = False
 
+        # Initialize command handlers dictionary
+        self.command_handlers = {
+            "/exit": handle_exit,
+            "/model": handle_model,
+            "/models": handle_models,
+            "/stateinfo": handle_stateinfo,
+            "/clearcontext": handle_clearcontext,
+            "/clearmessages": handle_clearmessages,
+            "/cost": handle_cost,
+            "/init": handle_init,
+            "/help": handle_help,
+            "/process": handle_process,
+            "/addcontext": handle_addcontext,
+            "/viewcontext": handle_viewcontext,
+        }
+        
         # Set up readline for command history
         self.history_file = os.path.expanduser("~/.jrdev_history")
         self.setup_readline()
@@ -63,39 +95,31 @@ class JrDevTerminal:
 
         cmd = cmd_parts[0].lower()
 
-        # Map commands to their handler functions
-        command_handlers = {
-            "/exit": handle_exit,
-            "/model": handle_model,
-            "/models": handle_models,
-            "/stateinfo": handle_stateinfo,
-            "/clear": handle_clear,
-            "/cost": handle_cost,
-            "/init": handle_init,
-            "/help": handle_help,
-        }
-
-        if cmd in command_handlers:
-            return await command_handlers[cmd](self, cmd_parts)
+        if cmd in self.command_handlers:
+            return await self.command_handlers[cmd](self, cmd_parts)
         else:
             terminal_print(f"Unknown command: {cmd}", PrintType.ERROR)
             terminal_print("Type /help for available commands", PrintType.INFO)
 
-    async def send_message(self, content):
+    async def send_simple_message(self, content, process_follow_up=False):
+        """
+        Send a message to the LLM without processing follow-up tasks like file requests
+        and code changes unless explicitly requested.
+
+        Args:
+            content: The message content to send
+            process_follow_up: Whether to process follow-up tasks like file requests and code changes
+        
+        Returns:
+            str: The response text from the model
+        """
         if not isinstance(content, str):
             terminal_print(f"Error: expected string but got {type(content)}", PrintType.ERROR)
-            return
+            return None
             
         # Read project context files if they exist
-        project_files = {
-            "filetree": "jrdev_filetree.txt",
-            "filecontext": "jrdev_filecontext.md",
-            "overview": "jrdev_overview.md",
-            "code_change_example": "code_change_example.json"
-        }
-
         project_context = {}
-        for key, filename in project_files.items():
+        for key, filename in self.project_files.items():
             try:
                 if os.path.exists(filename):
                     with open(filename, "r") as f:
@@ -105,14 +129,11 @@ class JrDevTerminal:
 
         # Build the complete message
         dev_prompt_modifier = (
-            "Consider the project that has been attached. An engineer for the project is asking you (a "
-            "master architect, and excellent engineer) for help or advice. Although the engineer is "
-            "asking a question to you, respond with an analysis of what would need to be done to "
-            "complete the task. This should be brief and should be written in a way that is readable for both "
-            "humans and llm's. If the user is asking about how to change code, IT IS REQUIRED that you retrieve "
-            "the full file before suggesting the code changes. Request files using the format: "
-            " 'get_files [\"path/to/file1.txt\", \"path/to/file2.cpp\", etc]'"
+            "You are an expert software architect and engineer reviewing an attached project. An engineer from the project is asking for guidance on how to complete a specific task. Begin by providing a high-level analysis of the task, outlining the necessary steps and strategy without including any code changes. "
+            "**CRITICAL:** Do not propose any code modifications until you have received and reviewed the full content of the relevant file(s). If the file content is not yet in your context, request it using the exact format: "
+            "'get_files [\"path/to/file1.txt\", \"path/to/file2.cpp\", ...]'. Only after the complete file content is available should you suggest code changes."
         )
+        dev_prompt_modifier = None
 
         user_additional_modifier = " Here is the user's question or instruction:"
         user_message = f"{user_additional_modifier} {content}"
@@ -124,8 +145,15 @@ class JrDevTerminal:
             if project_context:
                 for key, value in project_context.items():
                     user_message = f"{user_message}\n\n{key.upper()}:\n{value}"
-
-            self.messages[self.model].append({"role": "system", "content": dev_prompt_modifier})
+            if dev_prompt_modifier is not None:
+                self.messages[self.model].append({"role": "system", "content": dev_prompt_modifier})
+        
+        # Add any additional context files stored in self.context
+        if self.context:
+            context_section = "\n\nUSER CONTEXT:\n"
+            for i, ctx in enumerate(self.context):
+                context_section += f"\n--- Context File {i+1}: {ctx['name']} ---\n{ctx['content']}\n"
+            user_message += context_section
 
         self.messages[self.model].append({"role": "user", "content": user_message})
 
@@ -136,48 +164,63 @@ class JrDevTerminal:
             response_text = await stream_request(self.client, self.model, self.messages[self.model])
             # Add a new line after streaming completes
             terminal_print("", PrintType.INFO)
-
-            # Add response to messages
+            
+            # Always add response to messages
             self.messages[self.model].append({"role": "assistant", "content": response_text})
+            
+            # Only process follow-up tasks if explicitly requested
+            if process_follow_up:
+                # Process file requests if present
+                files_to_send = requested_files(response_text)
+                if files_to_send:
+                    terminal_print(f"\nDetected file request: {files_to_send}", PrintType.INFO)
+                    files_content = get_file_contents(files_to_send)
+                    dev_msg = (
+                    """
+                    If code modifications are needed, return a JSON object with a 'files' key containing a full rewrite of the
+                    file which includes the recommended changes, no additional explanation is needed since this will only be visible to machines:
+                    {
+                        "files": [
+                            {
+                                "filename": "example.py",
+                                "path": "src/util/",
+                                "content": "full file goes in here. use new line\n for line changing\n"
+                            },
+                            {file2 content....}
+                        ]
+                    }
+                    """)
 
-            # Process file requests if present
-            files_to_send = requested_files(response_text)
-            if files_to_send:
-                terminal_print(f"\nDetected file request: {files_to_send}", PrintType.INFO)
-                files_content = get_file_contents(files_to_send)
-                dev_msg = (
-                """
-                If code modifications are needed, return a JSON object with a 'files' key containing a full rewrite of the
-                file which includes the recommended changes, no additional explanation is needed since this will only be visible to machines:
-                {
-                    "files": [
-                        {
-                            "filename": "example.py",
-                            "path": "src/util/",
-                            "content": "full file goes in here. use new line\n for line changing\n"
-                        },
-                        {file2 content....}
-                    ]
-                }
-                """)
+                    follow_up_message = (f"As you rewrite this code, leave the code as unchanged as possible, except for the areas"
+                                         f" where code changes are needed to complete the task. For example, leave all comments and don't"
+                                         f" 'clean up' the code. These requested files will give you the needed context to make changes to the code:{files_content}")
+                    self.messages[self.model].append({"role": "user", "content": follow_up_message})
+                    self.messages[self.model].append({"role": "system", "content": dev_msg})
 
-                follow_up_message = (f"As you rewrite this code, leave the code as unchanged as possible, except for the areas"
-                                     f" where code changes are needed to complete the task. For example, leave all comments and don't"
-                                     f" 'clean up' the code. These requested files will give you the needed context to make changes to the code:{files_content}")
-                self.messages[self.model].append({"role": "user", "content": follow_up_message})
-                self.messages[self.model].append({"role": "system", "content": dev_msg})
-
-                terminal_print(f"\nSending requested files to {model_name}...", PrintType.PROCESSING)
-                follow_up_response = await stream_request(self.client, self.model, self.messages[self.model])
-                terminal_print("", PrintType.INFO)
-                self.messages[self.model].append({"role": "assistant", "content": follow_up_response})
-                # Process code changes from the follow-up response
-                check_and_apply_code_changes(follow_up_response)
-            else:
-                # If no file request, check the original response for code changes
-                check_and_apply_code_changes(response_text)
+                    terminal_print(f"\nSending requested files to {model_name}...", PrintType.PROCESSING)
+                    follow_up_response = await stream_request(self.client, self.model, self.messages[self.model])
+                    terminal_print("", PrintType.INFO)
+                    self.messages[self.model].append({"role": "assistant", "content": follow_up_response})
+                    # Process code changes from the follow-up response
+                    check_and_apply_code_changes(follow_up_response)
+                else:
+                    # If no file request, check the original response for code changes
+                    check_and_apply_code_changes(response_text)
+            
+            return response_text
         except Exception as e:
             terminal_print(f"Error: {str(e)}", PrintType.ERROR)
+            return None
+    
+    async def send_message(self, content):
+        """
+        Send a message to the LLM with default behavior.
+        This uses send_simple_message with the current process_follow_up setting.
+        
+        Args:
+            content: The message content to send
+        """
+        return await self.send_simple_message(content, process_follow_up=self.process_follow_up)
 
     def is_inside_think_tag(self, text):
         """Determine if the current position is inside a <think> tag."""
@@ -189,13 +232,177 @@ class JrDevTerminal:
         """Remove content within <think></think> tags."""
         return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
 
+    def completer(self, text, state):
+        """
+        Custom completer function for readline.
+        Provides tab completion for commands and their arguments.
+        """
+        buffer = readline.get_line_buffer()
+        line = buffer.lstrip()
+        
+        # If the line starts with a slash, it might be a command
+        if line.startswith("/"):
+            
+            # Check if we're completing a command or its arguments
+            if " " in line:
+                # We're completing arguments for a command
+                command, args_prefix = line.split(" ", 1)
+                
+                # If the command is /model, provide model name completions
+                if command == "/model":
+                    model_names = [model["name"] for model in AVAILABLE_MODELS]
+                    matches = [name for name in model_names if name.startswith(args_prefix)]
+                    
+                    # If there's only one match and we've pressed tab once (state == 0)
+                    if len(matches) == 1 and state == 0:
+                        return matches[0]
+                    
+                    # If there are multiple matches and this is the first time showing them (state == 0)
+                    if len(matches) > 1 and state == 0:
+                        # Print a newline to start the completions on a fresh line
+                        print("\n")
+                        
+                        # Print all matches in columns 
+                        terminal_width = os.get_terminal_size().columns
+                        max_item_len = max(len(item) for item in matches) + 2  # +2 for spacing
+                        items_per_row = max(1, terminal_width // max_item_len)
+                        
+                        for i, item in enumerate(matches):
+                            print(f"{item:<{max_item_len}}", end=("" if (i + 1) % items_per_row else "\n"))
+                        
+                        # If we didn't end with a newline, print one now
+                        if len(matches) % items_per_row != 0:
+                            print()
+                        
+                        # Redisplay the prompt and current input
+                        print(f"\n{Colors.BOLD}{Colors.GREEN}> {Colors.RESET}{command} {args_prefix}", end="", flush=True)
+                    
+                    # Return items based on state
+                    try:
+                        return matches[state]
+                    except IndexError:
+                        return None
+                
+                # If the command is /addcontext, provide file path completions
+                elif command == "/addcontext":
+                    # Get the current working directory
+                    cwd = os.getcwd()
+                    
+                    # Check if args_prefix contains wildcard (*, ?, [)
+                    has_wildcard = any(c in args_prefix for c in ['*', '?', '['])
+                    
+                    # If it has a wildcard already, we don't provide completions
+                    if has_wildcard:
+                        return None
+                    
+                    # Split the args_prefix into directory and filename parts
+                    if "/" in args_prefix:
+                        dir_prefix, file_prefix = os.path.split(args_prefix)
+                        dir_path = os.path.join(cwd, dir_prefix)
+                    else:
+                        dir_path = cwd
+                        file_prefix = args_prefix
+                    
+                    try:
+                        # Get all files and directories in the target directory
+                        if os.path.isdir(dir_path):
+                            items = os.listdir(dir_path)
+                            matches = []
+                            
+                            for item in items:
+                                # Only include items that match the prefix
+                                if item.startswith(file_prefix):
+                                    full_item = item
+                                    # If the args_prefix includes a directory, include it in the completion
+                                    if "/" in args_prefix:
+                                        full_item = os.path.join(dir_prefix, item)
+                                    
+                                    # Add a trailing slash for directories
+                                    full_path = os.path.join(cwd, dir_prefix if "/" in args_prefix else "", item)
+                                    if os.path.isdir(full_path):
+                                        full_item += "/"
+                                    
+                                    matches.append(full_item)
+                            
+                            # If there's only one match and we've pressed tab once (state == 0)
+                            if len(matches) == 1 and state == 0:
+                                return matches[0]
+                            
+                            # If there are multiple matches and this is the first time showing them (state == 0)
+                            if len(matches) > 1 and state == 0:
+                                # Print a newline to start the completions on a fresh line
+                                print("\n")
+                                
+                                # Print all matches in columns (we could get fancy with column formatting, but keeping it simple)
+                                terminal_width = os.get_terminal_size().columns
+                                max_item_len = max(len(item) for item in matches) + 2  # +2 for spacing
+                                items_per_row = max(1, terminal_width // max_item_len)
+                                
+                                for i, item in enumerate(matches):
+                                    print(f"{item:<{max_item_len}}", end=("" if (i + 1) % items_per_row else "\n"))
+                                
+                                # If we didn't end with a newline, print one now
+                                if len(matches) % items_per_row != 0:
+                                    print()
+                                
+                                # Redisplay the prompt and current input
+                                print(f"\n{Colors.BOLD}{Colors.GREEN}> {Colors.RESET}{command} {args_prefix}", end="", flush=True)
+                                
+                            # Return items based on state
+                            try:
+                                return matches[state]
+                            except IndexError:
+                                return None
+                    except Exception as e:
+                        # Print debug info
+                        print(f"\nError in file completion: {str(e)}")
+                        return None
+                
+                return None
+            else:
+                # We're completing a command
+                matches = [cmd for cmd in self.command_handlers.keys() if cmd.startswith(line)]
+                
+                # If there's only one match and we've pressed tab once (state == 0)
+                if len(matches) == 1 and state == 0:
+                    return matches[0]
+                
+                # If there are multiple matches and this is the first time showing them (state == 0)
+                if len(matches) > 1 and state == 0:
+                    # Print a newline to start the completions on a fresh line
+                    print("\n")
+                    
+                    # Print all matches in columns 
+                    terminal_width = os.get_terminal_size().columns
+                    max_item_len = max(len(item) for item in matches) + 2  # +2 for spacing
+                    items_per_row = max(1, terminal_width // max_item_len)
+                    
+                    for i, item in enumerate(matches):
+                        print(f"{item:<{max_item_len}}", end=("" if (i + 1) % items_per_row else "\n"))
+                    
+                    # If we didn't end with a newline, print one now
+                    if len(matches) % items_per_row != 0:
+                        print()
+                    
+                    # Redisplay the prompt and current input
+                    print(f"\n{Colors.BOLD}{Colors.GREEN}> {Colors.RESET}{line}", end="", flush=True)
+                
+                # Return items based on state
+                try:
+                    return matches[state]
+                except IndexError:
+                    return None
+        
+        return None
+
     def setup_readline(self):
-        """Set up the readline module for command history."""
+        """Set up the readline module for command history and tab completion."""
         if not READLINE_AVAILABLE:
             return
 
         try:
             readline.parse_and_bind("tab: complete")
+            readline.set_completer(self.completer)
             readline.set_completer_delims(' \t\n;')
             if hasattr(readline, 'set_screen_size'):
                 try:

@@ -18,7 +18,21 @@ async def handle_stateinfo(terminal, args):
     """
     terminal_print("\nCurrent Terminal State:", print_type=PrintType.HEADER)
     terminal_print(f"  Model: {terminal.model}", print_type=PrintType.INFO)
-    terminal_print(f"  Message history: {len(terminal.messages)} messages", print_type=PrintType.INFO)
+    
+    # Display message history count
+    model_count = len(terminal.messages)
+    message_count = sum(len(msgs) for msgs in terminal.messages.values()) if terminal.messages else 0
+    terminal_print(f"  Models with history: {model_count}", print_type=PrintType.INFO)
+    terminal_print(f"  Total messages: {message_count}", print_type=PrintType.INFO)
+    
+    # Display file processing status
+    processing_status = "Enabled" if terminal.process_follow_up else "Disabled"
+    status_type = PrintType.SUCCESS if terminal.process_follow_up else PrintType.WARNING
+    terminal_print(f"  File processing: {processing_status}", print_type=status_type)
+    
+    # Display context file count
+    context_count = len(terminal.context)
+    terminal_print(f"  Context files: {context_count}", print_type=PrintType.INFO)
     
     # Display API details
     terminal_print(f"  API base URL: {terminal.client.base_url}", print_type=PrintType.INFO)

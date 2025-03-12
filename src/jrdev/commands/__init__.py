@@ -2,22 +2,30 @@
 Command implementations for the JrDev terminal.
 """
 
-from jrdev.commands.clear import handle_clear
+from jrdev.commands.addcontext import handle_addcontext
+from jrdev.commands.clearcontext import handle_clearcontext
+from jrdev.commands.clearmessages import handle_clearmessages
 from jrdev.commands.cost import handle_cost
 from jrdev.commands.exit import handle_exit
 from jrdev.commands.help import handle_help
 from jrdev.commands.init import handle_init
 from jrdev.commands.model import handle_model
 from jrdev.commands.models import handle_models
+from jrdev.commands.process import handle_process
 from jrdev.commands.stateinfo import handle_stateinfo
+from jrdev.commands.viewcontext import handle_viewcontext
 
 __all__ = [
+    "handle_addcontext",
     "handle_exit",
     "handle_model",
     "handle_models",
-    "handle_clear",
+    "handle_clearcontext",
+    "handle_clearmessages",
     "handle_init",
     "handle_help",
+    "handle_process",
     "handle_stateinfo",
     "handle_cost",
+    "handle_viewcontext",
 ]

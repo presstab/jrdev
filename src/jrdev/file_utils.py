@@ -314,5 +314,8 @@ def check_and_apply_code_changes(response_text):
 
     if "files" in new_files:
         for file in new_files["files"]:
-            full_path = f"{file['path']}{file['filename']}"
-            write_string_to_file(full_path, file["content"])
+            if file['filename'] in file['path']:
+                write_string_to_file(file['filename'], file["content"])
+            else:
+                full_path = f"{file['path']}{file['filename']}"
+                write_string_to_file(full_path, file["content"])
