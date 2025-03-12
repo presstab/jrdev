@@ -7,7 +7,7 @@ import asyncio
 import os
 import re
 
-from jrdev.treechart import generate_tree
+from jrdev.treechart import generate_tree, generate_compact_tree
 from jrdev.llm_requests import stream_request
 from jrdev.ui import terminal_print, PrintType
 from jrdev.file_utils import requested_files
@@ -102,9 +102,9 @@ async def handle_init(terminal, args):
         if len(args) > 1:
             output_file = args[1]
 
-        # Generate the tree structure using our package's treechart module
+        # Generate the tree structure using the token-efficient format
         current_dir = os.getcwd()
-        tree_output = generate_tree(current_dir, output_file)
+        tree_output = generate_compact_tree(current_dir, output_file)
 
         terminal_print(f"File tree generated and saved to {output_file}", PrintType.SUCCESS)
 
@@ -121,10 +121,19 @@ async def handle_init(terminal, args):
             f"Respond only with a list of files in the format get_files ['path/to/file.cpp', 'path/to/file2.json', ...] etc. "
             f"Do not include any other text or communication.\n\n"
         )
+        
+        # Create a description of the compact format if using compact tree
+        format_explanation = (
+            f"The project structure below is in a compact format for efficiency:\n"
+            f"- ROOT=directory_name: The root directory name\n"
+            f"- path/to/dir:[file1,file2,...]: Files in a directory\n"
+            f"Each line represents either the root directory or a directory with its files.\n\n"
+        )
+        
         recommendation_prompt = (
             f"Given this project structure, what files would you select to find out the "
             f"most important context about the project, choose up to 20 files?\n\n"
-            f"{tree_output}"
+            f"{format_explanation}{tree_output}"
         )
 
         # Create a temporary message list to avoid polluting the main conversation history
