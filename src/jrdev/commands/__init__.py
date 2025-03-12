@@ -3,6 +3,8 @@ Command implementations for the JrDev terminal.
 """
 
 from jrdev.commands.addcontext import handle_addcontext
+from jrdev.commands.asyncsend import handle_asyncsend
+from jrdev.commands.cancel import handle_cancel
 from jrdev.commands.clearcontext import handle_clearcontext
 from jrdev.commands.clearmessages import handle_clearmessages
 from jrdev.commands.cost import handle_cost
@@ -13,10 +15,13 @@ from jrdev.commands.model import handle_model
 from jrdev.commands.models import handle_models
 from jrdev.commands.process import handle_process
 from jrdev.commands.stateinfo import handle_stateinfo
+from jrdev.commands.tasks import handle_tasks
 from jrdev.commands.viewcontext import handle_viewcontext
 
 __all__ = [
     "handle_addcontext",
+    "handle_asyncsend",
+    "handle_cancel",
     "handle_exit",
     "handle_model",
     "handle_models",
@@ -26,6 +31,7 @@ __all__ = [
     "handle_help",
     "handle_process",
     "handle_stateinfo",
+    "handle_tasks",
     "handle_cost",
     "handle_viewcontext",
 ]

@@ -23,10 +23,11 @@ except ImportError:
     READLINE_AVAILABLE = False
 
 from jrdev.colors import Colors
-from jrdev.commands import (handle_addcontext, handle_clearcontext, handle_clearmessages,
-                            handle_cost, handle_exit, handle_help, handle_init, 
-                            handle_model, handle_models, handle_process, handle_stateinfo, 
-                            handle_viewcontext)
+from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
+                            handle_clearcontext, handle_clearmessages, handle_cost, 
+                            handle_exit, handle_help, handle_init, handle_model, 
+                            handle_models, handle_process, handle_stateinfo, 
+                            handle_tasks, handle_viewcontext)
 from jrdev.models import AVAILABLE_MODELS, is_think_model
 from jrdev.llm_requests import stream_request
 from jrdev.ui import terminal_print, PrintType
@@ -67,6 +68,9 @@ class JrDevTerminal:
         
         # Controls whether to process file requests and code changes
         self.process_follow_up = False
+        
+        # Track active background tasks
+        self.active_tasks = {}
 
         # Initialize command handlers dictionary
         self.command_handlers = {
@@ -82,6 +86,9 @@ class JrDevTerminal:
             "/process": handle_process,
             "/addcontext": handle_addcontext,
             "/viewcontext": handle_viewcontext,
+            "/asyncsend": handle_asyncsend,
+            "/tasks": handle_tasks,
+            "/cancel": handle_cancel,
         }
         
         # Set up readline for command history
@@ -212,15 +219,92 @@ class JrDevTerminal:
             terminal_print(f"Error: {str(e)}", PrintType.ERROR)
             return None
     
-    async def send_message(self, content):
+    async def send_message(self, content, writepath=None):
         """
         Send a message to the LLM with default behavior.
-        This uses send_simple_message with the current process_follow_up setting.
+        If writepath is provided, the response will be saved to that file.
         
         Args:
             content: The message content to send
+            writepath: Optional. If provided, the response will be saved to this path as a markdown file
+        
+        Returns:
+            str: The response text from the model
         """
-        return await self.send_simple_message(content, process_follow_up=self.process_follow_up)
+        if not isinstance(content, str):
+            terminal_print(f"Error: expected string but got {type(content)}", PrintType.ERROR)
+            return None
+
+        # Read project context files if they exist
+        project_context = {}
+        for key, filename in self.project_files.items():
+            try:
+                if os.path.exists(filename):
+                    with open(filename, "r") as f:
+                        project_context[key] = f.read()
+            except Exception as e:
+                terminal_print(f"Warning: Could not read {filename}: {str(e)}", PrintType.WARNING)
+
+        user_additional_modifier = " Here is the user's question or instruction:"
+        user_message = f"{user_additional_modifier} {content}"
+
+        # Append project context if available (only needed on first run)
+        if project_context:
+            for key, value in project_context.items():
+                user_message = f"{user_message}\n\n{key.upper()}:\n{value}"
+
+        # Add any additional context files stored in self.context
+        if self.context:
+            context_section = "\n\nUSER CONTEXT:\n"
+            for i, ctx in enumerate(self.context):
+                context_section += f"\n--- Context File {i + 1}: {ctx['name']} ---\n{ctx['content']}\n"
+            user_message += context_section
+
+        messages = []
+        messages.append({"role": "user", "content": user_message})
+
+        model_name = self.model
+        terminal_print(f"\n{model_name} is processing request...", PrintType.PROCESSING)
+
+        try:
+            response_text = await stream_request(self.client, self.model, self.messages[self.model])
+            
+            # Add response to messages
+            self.messages[self.model].append({"role": "assistant", "content": response_text})
+            
+            if writepath is None:
+                return response_text
+                
+            # Make sure the writepath has .md extension
+            if not writepath.endswith('.md'):
+                writepath = f"{writepath}.md"
+                
+            # Create directory structure if it doesn't exist
+            os.makedirs(os.path.dirname(os.path.abspath(writepath)), exist_ok=True)
+            
+            # Write the response to the specified file path
+            try:
+                with open(writepath, 'w') as f:
+                    # Add a title based on the file name
+                    title = os.path.basename(writepath).replace('.md', '').replace('_', ' ').title()
+                    f.write(f"# {title}\n\n")
+                    
+                    # Write timestamp
+                    from datetime import datetime
+                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    f.write(f"> Generated by {self.model} on {timestamp}\n\n")
+                    
+                    # Write the LLM response
+                    f.write(response_text)
+                
+                terminal_print(f"Response saved to {writepath}", print_type=PrintType.SUCCESS)
+                return response_text
+            except Exception as e:
+                terminal_print(f"Error writing to file {writepath}: {str(e)}", print_type=PrintType.ERROR)
+                return response_text
+        except Exception as e:
+            terminal_print(f"Error: {str(e)}", PrintType.ERROR)
+            return None
 
     def is_inside_think_tag(self, text):
         """Determine if the current position is inside a <think> tag."""

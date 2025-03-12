@@ -24,6 +24,9 @@ async def handle_help(terminal, args):
     terminal_print("  /clearcontext - Clear context files and conversation history", print_type=PrintType.COMMAND)
     terminal_print("  /clearmessages - Clear message history for all models", print_type=PrintType.COMMAND)
     terminal_print("  /process on|off - Enable or disable automatic file processing", print_type=PrintType.COMMAND)
+    terminal_print("  /asyncsend [filepath] <prompt> - Send message in background and optionally save to a file", print_type=PrintType.COMMAND)
+    terminal_print("  /tasks - List all active background tasks", print_type=PrintType.COMMAND)
+    terminal_print("  /cancel <task_id>|all - Cancel background task(s)", print_type=PrintType.COMMAND)
     terminal_print(
         "  /init [filename] - Generate file tree, analyze files, and create project overview",
         print_type=PrintType.COMMAND
