@@ -124,7 +124,7 @@ class JrDevTerminal:
             terminal_print("Type /help for available commands", PrintType.INFO)
 
     
-    async def send_message(self, content, writepath=None, print_stream=False):
+    async def send_message(self, content, writepath=None, print_stream=True):
         """
         Send a message to the LLM with default behavior.
         If writepath is provided, the response will be saved to that file.
@@ -132,6 +132,7 @@ class JrDevTerminal:
         Args:
             content: The message content to send
             writepath: Optional. If provided, the response will be saved to this path as a markdown file
+            print_stream: Whether to print the stream response to terminal (default: True)
         
         Returns:
             str: The response text from the model
@@ -177,6 +178,7 @@ class JrDevTerminal:
         terminal_print(f"\n{model_name} is processing request...", PrintType.PROCESSING)
 
         try:
+            # Pass the print_stream parameter to control whether to print the model's response
             response_text = await stream_request(self.client, self.model, messages, print_stream)
             self.logger.info("Successfully received response from model")
             
@@ -514,7 +516,10 @@ class JrDevTerminal:
                 if user_input.startswith("/"):
                     await self.handle_command(user_input)
                 else:
-                    await self.send_message(user_input)
+                    # Send the message and print the streamed response from the model
+                    # No need to use the return value since stream_request already
+                    # handles printing the model's response to the terminal
+                    await self.send_message(user_input, print_stream=True)
             except KeyboardInterrupt:
                 self.logger.info("User initiated terminal exit (KeyboardInterrupt)")
                 terminal_print("\nExiting JrDev terminal...", PrintType.INFO)
