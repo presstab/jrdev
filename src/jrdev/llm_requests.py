@@ -34,7 +34,8 @@ async def stream_request(client, model, messages, print_stream=True):
     async for chunk in stream:
         if first_chunk:
             # Update status message when first chunk arrives
-            terminal_print(f"Receiving response from {model}...", PrintType.PROCESSING)
+            if print_stream:
+                terminal_print(f"Receiving response from {model}...", PrintType.PROCESSING)
             first_chunk = False
 
         if chunk.choices and chunk.choices[0].delta.content:
@@ -73,7 +74,8 @@ async def stream_request(client, model, messages, print_stream=True):
             # print(chunk.usage.completion_tokens)
             input_tokens = chunk.usage.prompt_tokens
             output_tokens = chunk.usage.completion_tokens
-            terminal_print(f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens}", PrintType.WARNING)
+            if print_stream:
+                terminal_print(f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens}", PrintType.WARNING)
             
             # Track token usage
             usage_tracker = get_instance()

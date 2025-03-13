@@ -151,7 +151,6 @@ def manual_json_parse(text):
     """
     # Split the input text into non-empty lines.
     lines = [line.strip() for line in text.splitlines() if line.strip()]
-    result = ""
 
     nums = "0123456789"
     pending_key = ""
@@ -226,6 +225,8 @@ def manual_json_parse(text):
                             stack[-1].append(quote_text)
                             quote_text = ""
                             continue
+                        else:
+                            raise Exception("UNHANDLED QUOTE END 230")
                     continue
                 else:
                     #start of new quote
@@ -238,30 +239,30 @@ def manual_json_parse(text):
                 continue
 
             if char in nums:
-                if num_start > -1:
-                    num_end = i
 
-                    #check if this is last digit
-                    if i + 1 < len(line):
+                if num_start == -1:
+                    num_start = i
 
-                        if line[i+1] in nums:
-                            continue
-                        #last instance, now compile as full number
-                        num_str = line[num_start:(num_end+1)]
-                        num_start = -1
-                        n = int(num_str)
-                        if pending_key:
-                            stack[-1][pending_key] = n
-                            pending_key = ""
-                        elif isinstance(stack[-1], list):
-                            stack[-1].append(n)
-                        else:
-                            raise Exception(f"UNHANDLED NUMBER**** {num_str}")
+                num_end = i
+
+                #check if this is last digit
+                if i + 1 < len(line):
+
+                    if line[i+1] in nums:
                         continue
-
-                    continue
-
-                num_start = i
+                    #last instance, now compile as full number
+                    num_str = line[num_start:(num_end+1)]
+                    num_start = -1
+                    n = int(num_str)
+                    if pending_key:
+                        stack[-1][pending_key] = n
+                        pending_key = ""
+                    elif isinstance(stack[-1], list):
+                        stack[-1].append(n)
+                    else:
+                        raise Exception(f"UNHANDLED NUMBER**** {num_str}")
+                else:
+                    raise Exception(f"UNHANDLED NUMBER 266: {char}")
                 continue
 
             # object start
@@ -308,14 +309,55 @@ def manual_json_parse(text):
     return main_object
 
 
+def apply_file_changes(changes_json):
+    # Group changes by filename
+    changes_by_file = {}
+    files_changed = []
+
+    for change in changes_json["changes"]:
+        filename = change["filename"]
+        changes_by_file.setdefault(filename, []).append(change)
+
+    for filename, changes in changes_by_file.items():
+        # Read the file into a list of lines
+        with open(filename, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        # Sort changes in descending order of start_line
+        changes.sort(key=lambda c: c["start_line"], reverse=True)
+
+        for change in changes:
+            if "start_line" not in change:
+                raise Exception(f"start_line not in change: {change}")
+            if "end_line" not in change:
+                raise Exception(f"end_line not in change: {change}")
+            if "filename" not in change:
+                raise Exception(f"filename not in change: {change}")
+            if "new_content" not in change:
+                raise Exception(f"new_content not in change: {change}")
+
+            new_content = change["new_content"]
+            new_content = new_content.replace("\\n", "\n").replace("\\\"", "\"")
+
+            # Convert 1-indexed line numbers to 0-indexed indices
+            start_idx = change["start_line"] - 1
+            # end_line is inclusive, so the slice should stop at end_line index
+            end_idx = change["end_line"]
+            # Replace the specified block with the new content
+            new_lines = [line + "\n" for line in new_content.split("\n")]
+            lines = lines[:start_idx] + new_lines + lines[end_idx:]
+
+        # Write the updated lines back to the file
+        with open(filename, "w", encoding="utf-8") as f:
+            files_changed.append(filename)
+            f.writelines(lines)
+
+        return files_changed
+
 def check_and_apply_code_changes(response_text):
     cutoff = cutoff_string(response_text, "```json", "```")
-    new_files = manual_json_parse(cutoff)
+    changes = manual_json_parse(cutoff)
 
-    if "files" in new_files:
-        for file in new_files["files"]:
-            if file['filename'] in file['path']:
-                write_string_to_file(file['filename'], file["content"])
-            else:
-                full_path = f"{file['path']}{file['filename']}"
-                write_string_to_file(full_path, file["content"])
+    if "changes" in changes:
+        return apply_file_changes(changes)
+    return []

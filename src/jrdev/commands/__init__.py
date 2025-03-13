@@ -7,6 +7,7 @@ from jrdev.commands.asyncsend import handle_asyncsend
 from jrdev.commands.cancel import handle_cancel
 from jrdev.commands.clearcontext import handle_clearcontext
 from jrdev.commands.clearmessages import handle_clearmessages
+from jrdev.commands.code import handle_code
 from jrdev.commands.cost import handle_cost
 from jrdev.commands.exit import handle_exit
 from jrdev.commands.help import handle_help
@@ -22,6 +23,7 @@ __all__ = [
     "handle_addcontext",
     "handle_asyncsend",
     "handle_cancel",
+    "handle_code",
     "handle_exit",
     "handle_model",
     "handle_models",

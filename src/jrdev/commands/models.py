@@ -23,7 +23,7 @@ async def handle_models(terminal, args):
         input_cost = model["input_cost"]
         output_cost = model["output_cost"]
         
-        think_status = "Supports <think> tags" if is_think else "No <think> tags"
+        think_status = "Reasoning" if is_think else "Standard"
         costs = f"Input: ${input_cost/1000:.4f}/1K tokens, Output: ${output_cost/1000:.4f}/1K tokens"
         
         if model_name == terminal.model:

@@ -31,13 +31,9 @@ class TestFileUtils(unittest.TestCase):
         cutoff = cutoff_string(json_response, "```json", "```")
         print(f"cutoff:\n {cutoff}")
 
-        new_files = manual_json_parse(cutoff)
-        #print(f"parse_line_by_line:\n {parse_line_by_line}")
-        if "files" in new_files:
-            for file in new_files["files"]:
-                full_path = f"{file['path']}{file['filename']}"
-                write_string_to_file(full_path, file["content"])
-        #check_and_apply_code_changes(json_response)
+        changes = manual_json_parse(cutoff)
+        print(f"changes: {changes}")
+
 
 
 if __name__ == "__main__":

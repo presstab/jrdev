@@ -27,7 +27,7 @@ except ImportError:
 
 from jrdev.colors import Colors
 from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
-                            handle_clearcontext, handle_clearmessages, handle_cost, 
+                            handle_clearcontext, handle_clearmessages, handle_code, handle_cost, 
                             handle_exit, handle_help, handle_init, handle_model, 
                             handle_models, handle_process, handle_stateinfo, 
                             handle_tasks, handle_viewcontext)
@@ -60,7 +60,7 @@ class JrDevTerminal:
             project=None,
             base_url="https://api.venice.ai/api/v1",
         )
-        self.model = "llama-3.3-70b"
+        self.model = "deepseek-r1-671b"
         self.running = True
         self.messages = {} #model -> messages
         
@@ -101,6 +101,7 @@ class JrDevTerminal:
             "/asyncsend": handle_asyncsend,
             "/tasks": handle_tasks,
             "/cancel": handle_cancel,
+            "/code": handle_code,
         }
         
         # Set up readline for command history
@@ -122,130 +123,8 @@ class JrDevTerminal:
             terminal_print(f"Unknown command: {cmd}", PrintType.ERROR)
             terminal_print("Type /help for available commands", PrintType.INFO)
 
-    async def send_simple_message(self, content, process_follow_up=False):
-        """
-        Send a message to the LLM without processing follow-up tasks like file requests
-        and code changes unless explicitly requested.
-
-        Args:
-            content: The message content to send
-            process_follow_up: Whether to process follow-up tasks like file requests and code changes
-        
-        Returns:
-            str: The response text from the model
-        """
-        self.logger.info(f"Sending message to model {self.model}")
-        
-        if not isinstance(content, str):
-            error_msg = f"Expected string but got {type(content)}"
-            self.logger.error(error_msg)
-            terminal_print(f"Error: {error_msg}", PrintType.ERROR)
-            return None
-            
-        # Read project context files if they exist
-        project_context = {}
-        for key, filename in self.project_files.items():
-            try:
-                if os.path.exists(filename):
-                    with open(filename, "r") as f:
-                        project_context[key] = f.read()
-            except Exception as e:
-                warning_msg = f"Could not read {filename}: {str(e)}"
-                self.logger.warning(warning_msg)
-                terminal_print(f"Warning: {warning_msg}", PrintType.WARNING)
-
-        # Build the complete message
-        dev_prompt_modifier = (
-            "You are an expert software architect and engineer reviewing an attached project. An engineer from the project is asking for guidance on how to complete a specific task. Begin by providing a high-level analysis of the task, outlining the necessary steps and strategy without including any code changes. "
-            "**CRITICAL:** Do not propose any code modifications until you have received and reviewed the full content of the relevant file(s). If the file content is not yet in your context, request it using the exact format: "
-            "'get_files [\"path/to/file1.txt\", \"path/to/file2.cpp\", ...]'. Only after the complete file content is available should you suggest code changes."
-        )
-        dev_prompt_modifier = None
-
-        user_additional_modifier = " Here is the user's question or instruction:"
-        user_message = f"{user_additional_modifier} {content}"
-
-        if self.model not in self.messages:
-            self.messages[self.model] = []
-
-            # Append project context if available (only needed on first run)
-            if project_context:
-                for key, value in project_context.items():
-                    user_message = f"{user_message}\n\n{key.upper()}:\n{value}"
-            if dev_prompt_modifier is not None:
-                self.messages[self.model].append({"role": "system", "content": dev_prompt_modifier})
-        
-        # Add any additional context files stored in self.context
-        if self.context:
-            context_section = "\n\nUSER CONTEXT:\n"
-            for i, ctx in enumerate(self.context):
-                context_section += f"\n--- Context File {i+1}: {ctx['name']} ---\n{ctx['content']}\n"
-            user_message += context_section
-
-        self.messages[self.model].append({"role": "user", "content": user_message})
-
-        model_name = self.model
-        terminal_print(f"\n{model_name} is processing request...", PrintType.PROCESSING)
-
-        try:
-            response_text = await stream_request(self.client, self.model, self.messages[self.model])
-            # Add a new line after streaming completes
-            terminal_print("", PrintType.INFO)
-            
-            # Always add response to messages
-            self.messages[self.model].append({"role": "assistant", "content": response_text})
-            
-            # Only process follow-up tasks if explicitly requested
-            if process_follow_up:
-                # Process file requests if present
-                files_to_send = requested_files(response_text)
-                if files_to_send:
-                    self.logger.info(f"Detected file request: {files_to_send}")
-                    terminal_print(f"\nDetected file request: {files_to_send}", PrintType.INFO)
-                    files_content = get_file_contents(files_to_send)
-                    dev_msg = (
-                    """
-                    If code modifications are needed, return a JSON object with a 'files' key containing a full rewrite of the
-                    file which includes the recommended changes, no additional explanation is needed since this will only be visible to machines:
-                    {
-                        "files": [
-                            {
-                                "filename": "example.py",
-                                "path": "src/util/",
-                                "content": "full file goes in here. use new line\n for line changing\n"
-                            },
-                            {file2 content....}
-                        ]
-                    }
-                    """)
-
-                    follow_up_message = (f"As you rewrite this code, leave the code as unchanged as possible, except for the areas"
-                                         f" where code changes are needed to complete the task. For example, leave all comments and don't"
-                                         f" 'clean up' the code. These requested files will give you the needed context to make changes to the code:{files_content}")
-                    self.messages[self.model].append({"role": "user", "content": follow_up_message})
-                    self.messages[self.model].append({"role": "system", "content": dev_msg})
-
-                    self.logger.info(f"Sending requested files to {model_name}")
-                    terminal_print(f"\nSending requested files to {model_name}...", PrintType.PROCESSING)
-                    follow_up_response = await stream_request(self.client, self.model, self.messages[self.model])
-                    terminal_print("", PrintType.INFO)
-                    self.messages[self.model].append({"role": "assistant", "content": follow_up_response})
-                    # Process code changes from the follow-up response
-                    self.logger.info("Processing code changes from follow-up response")
-                    check_and_apply_code_changes(follow_up_response)
-                else:
-                    # If no file request, check the original response for code changes
-                    self.logger.info("Processing code changes from original response")
-                    check_and_apply_code_changes(response_text)
-            
-            return response_text
-        except Exception as e:
-            error_msg = str(e)
-            self.logger.error(f"Error in send_simple_message: {error_msg}")
-            terminal_print(f"Error: {error_msg}", PrintType.ERROR)
-            return None
     
-    async def send_message(self, content, writepath=None):
+    async def send_message(self, content, writepath=None, print_stream=False):
         """
         Send a message to the LLM with default behavior.
         If writepath is provided, the response will be saved to that file.
@@ -298,7 +177,7 @@ class JrDevTerminal:
         terminal_print(f"\n{model_name} is processing request...", PrintType.PROCESSING)
 
         try:
-            response_text = await stream_request(self.client, self.model, messages)
+            response_text = await stream_request(self.client, self.model, messages, print_stream)
             self.logger.info("Successfully received response from model")
             
             # Add response to messages
