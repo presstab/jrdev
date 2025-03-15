@@ -37,14 +37,14 @@ async def handle_code(terminal: Any, args: List[str]) -> None:
     await send_code_request(terminal, message)
 
 
-async def send_code_request(terminal: Any, content: str):
+async def send_code_request(terminal: Any, user_task: str):
     """
     Send a message to the LLM without processing follow-up tasks like file requests
     and code changes unless explicitly requested.
 
     Args:
         terminal: The JrDevTerminal instance
-        content: The message content to send
+        user_task: The message content to send
         process_follow_up: Whether to process follow-up tasks like file requests and code changes
     
     Returns:
@@ -52,8 +52,8 @@ async def send_code_request(terminal: Any, content: str):
     """
     terminal.logger.info(f"Sending message to model {terminal.model}")
     
-    if not isinstance(content, str):
-        error_msg = f"Expected string but got {type(content)}"
+    if not isinstance(user_task, str):
+        error_msg = f"Expected string but got {type(user_task)}"
         terminal.logger.error(error_msg)
         terminal_print(f"Error: {error_msg}", PrintType.ERROR)
         return
@@ -77,8 +77,8 @@ async def send_code_request(terminal: Any, content: str):
         "'get_files [\"path/to/file1.txt\", \"path/to/file2.cpp\", ...]'. Only after the complete file content is available should you suggest code changes."
     )
 
-    user_additional_modifier = " Here is the user's question or instruction:"
-    user_message = f"{user_additional_modifier} {content}"
+    user_additional_modifier = " Here is the task to complete:"
+    user_message = f"{user_additional_modifier} {user_task}"
 
     if terminal.model not in terminal.messages:
         terminal.messages[terminal.model] = []
@@ -110,7 +110,7 @@ async def send_code_request(terminal: Any, content: str):
         # Always add response to messages
         terminal.messages[terminal.model].append({"role": "assistant", "content": response_text})
 
-        await process_code_request_response(terminal, response_text)
+        await process_code_request_response(terminal, response_text, user_task)
     except Exception as e:
         error_msg = str(e)
         terminal.logger.error(f"Error in send_code_request: {error_msg}")
@@ -184,27 +184,27 @@ async def double_check_changed_files(terminal, filelist):
         return True  # Default to true to not block the process
 
 
-async def process_code_request_response(terminal, response):
+async def process_code_request_response(terminal, response_prev, user_task):
     # Process file requests if present
-    files_to_send = requested_files(response)
+    files_to_send = requested_files(response_prev)
 
-    if files_to_send:
-        terminal.logger.info(f"Found file request, sending files: {files_to_send}")
-        response = await send_file_request(terminal, files_to_send)
-    else:
-        terminal.logger.info("No file requests found in response")
-    
+    terminal.logger.info(f"Found file request, sending files: {files_to_send}")
+    response = await send_file_request(terminal, files_to_send, user_task, response_prev)
+
     # Process code changes in the response
-    terminal.logger.info("Processing code changes from response")
+    terminal.logger.info(f"Processing code changes from response\n RESPONSE:\n {response}")
     files_changed = check_and_apply_code_changes(response)
-    
+
     if files_changed:
         # Validate the changed files to ensure they're not malformed
+        model_prev = terminal.model
+        terminal.model = "qwen-2.5-coder-32b"
         is_valid = await double_check_changed_files(terminal, files_changed)
-        
+        terminal.model = model_prev
+
         if not is_valid:
             terminal_print(
-                "\nDetected possible issues in the changed files. Please review them manually.", 
+                "\nDetected possible issues in the changed files. Please review them manually.",
                 PrintType.WARNING
             )
             # Here you could add more sophisticated error handling or recovery
@@ -213,35 +213,53 @@ async def process_code_request_response(terminal, response):
         terminal.logger.info("No files were changed during this request")
 
 
-async def send_file_request(terminal, files_to_send):
+async def send_file_request(terminal, files_to_send, user_task, assistant_plan):
     terminal.logger.info(f"Detected file request: {files_to_send}")
     terminal_print(f"\nDetected file request: {files_to_send}", PrintType.INFO)
+
     files_content = get_file_contents(files_to_send)
 
     dev_msg = (
         """
-        You are an expert software engineer and code reviewer. Instead of rewriting the entire file, provide only the necessary modifications as a diff. Format your response as a JSON object with a "changes" key that contains an array of changes. Each change should include:
+        You are an expert software engineer and code reviewer. Instead of rewriting the entire file, provide only the necessary modifications as a diff. 
+        Format your response as a JSON object with a "changes" key that contains an array of changes. You have three ways to specify changes:
 
-        - "filename": the name of the file to modify.
-        - "start_line": the starting line number where the change should occur.
-        - "end_line": the ending line number to be replaced. For an insertion (with no lines to replace), set "start_line" equal to "end_line" to indicate that new content should be inserted at that position.
-        - "new_content": the new code that should replace the specified lines or be inserted at the given point.
+        1. DELETE: Existing code using line numbers to delete code:
+        - "filename": the name of the file to modify
+        - "operation": "DELETE"
+        - "start_line": the starting line number
+        - "end_line": the ending line number (inclusive)
 
-        Do not include any additional commentary or explanation.
+        2. ADD: Add new code, using content reference to specify positioning:
+        - "filename": the name of the file to modify
+        - "insert_after_line": a unique line of existing code after which to insert
+        - "new_content": the code to insert after the specified line
+        - "sub_type": specifies the type of addition:
+            - "FUNCTION": a new function implementation, including the full scope of the function.
+            - "BLOCK": lines of code added within an existing function or structure
+
+        3. Creating a new file:
+        - "operation": "NEW"
+        - "filename": the path of the new file to create
+        - "new_content": the entire content of the new file
+
+        When using the "insert_after_line" approach, make sure to choose a distinctive line that appears exactly once in the file.
+
+        Wrap your response in ```json and ``` markers. Use \\n for line breaks in new_content.
+        Do not include any additional commentary or explanation outside the JSON.
         """
     )
 
-    follow_up_message = (
-        f"As you rewrite this code, leave the code as unchanged as possible, except for the areas"
-        f" where code changes are needed to complete the task. For example, leave all comments and don't"
-        f" 'clean up' the code. These requested files will give you the needed context to make changes to the code:{files_content}")
-    terminal.messages[terminal.model].append({"role": "user", "content": follow_up_message})
-    terminal.messages[terminal.model].append({"role": "system", "content": dev_msg})
-
+    #construct and send message to LLM
+    messages = []
+    messages.append({"role": "system", "content": dev_msg})
+    messages.append({"role": "assistant", "content": assistant_plan})
+    messages.append({"role": "user", "content": f"Task To Accomplish: {user_task}"})
+    messages.append({"role": "user", "content": files_content})
     terminal.logger.info(f"Sending requested files to {terminal.model}")
     terminal_print(f"\nSending requested files to {terminal.model}...", PrintType.PROCESSING)
-    follow_up_response = await stream_request(terminal.client, terminal.model,
-                                              terminal.messages[terminal.model])
+
+    follow_up_response = await stream_request(terminal.client, terminal.model, messages)
     terminal_print("", PrintType.INFO)
     terminal.messages[terminal.model].append({"role": "assistant", "content": follow_up_response})
 

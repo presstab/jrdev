@@ -6,8 +6,12 @@ from difflib import SequenceMatcher
 import numbers
 import fnmatch
 import pprint
+import logging
 
 from jrdev.ui import terminal_print, PrintType
+
+# Get the global logger instance
+logger = logging.getLogger("jrdev")
 
 
 def requested_files(text):
@@ -97,7 +101,8 @@ def get_file_contents(file_list):
 
     formatted_content = ""
     for path, content in file_contents.items():
-        formatted_content += f"\n\n--- {path} ---\n{content}"
+        formatted_content += f"\n\n--- BEGIN FILE: {path} ---\n{content}\n--- END FILE: {path} ---\n"
+
     return formatted_content
 
 
@@ -247,22 +252,20 @@ def manual_json_parse(text):
 
                 #check if this is last digit
                 if i + 1 < len(line):
-
                     if line[i+1] in nums:
                         continue
-                    #last instance, now compile as full number
-                    num_str = line[num_start:(num_end+1)]
-                    num_start = -1
-                    n = int(num_str)
-                    if pending_key:
-                        stack[-1][pending_key] = n
-                        pending_key = ""
-                    elif isinstance(stack[-1], list):
-                        stack[-1].append(n)
-                    else:
-                        raise Exception(f"UNHANDLED NUMBER**** {num_str}")
+
+                #last instance, now compile as full number
+                num_str = line[num_start:(num_end+1)]
+                num_start = -1
+                n = int(num_str)
+                if pending_key:
+                    stack[-1][pending_key] = n
+                    pending_key = ""
+                elif isinstance(stack[-1], list):
+                    stack[-1].append(n)
                 else:
-                    raise Exception(f"UNHANDLED NUMBER 266: {char}")
+                    raise Exception(f"UNHANDLED NUMBER* 264*** {num_str}")
                 continue
 
             # object start
@@ -309,50 +312,284 @@ def manual_json_parse(text):
     return main_object
 
 
+def process_function_subtype(lines, new_content, filename):
+    """
+    Process a FUNCTION sub_type change by adding it to the end of the file.
+    
+    Args:
+        lines: List of file lines
+        new_content: Content to add
+        filename: Name of the file being modified
+        
+    Returns:
+        Tuple of (start_idx, end_idx, new_content_lines)
+    """
+    # For function sub-type, add to the end of the file with a blank line separation
+    start_idx = len(lines)
+    end_idx = len(lines)
+    
+    # Add a blank line if the file doesn't end with one
+    lines_copy = lines.copy()
+    if lines_copy and lines_copy[-1].strip():
+        lines_copy.append("\n")
+    
+    message = f"Adding function to the end of {filename}"
+    terminal_print(message, PrintType.INFO)
+    logger.info(message)
+    
+    # Prepare the new content
+    new_lines = [
+        line + ("\n" if not line.endswith("\n") else "") 
+        for line in new_content.split("\n")
+    ]
+    
+    return lines_copy, start_idx, end_idx, new_lines
+
+
+def process_add_operation(lines, change, filename):
+    """
+    Process an ADD operation to insert new content at a specific line.
+    
+    Args:
+        lines: List of file lines
+        change: The change specification
+        filename: Name of the file being modified
+        
+    Returns:
+        Updated list of lines
+    """
+    # Convert 1-indexed line numbers to 0-indexed indices
+    start_idx = change["start_line"] - 1
+    # For add operations, end_idx is the same as start_idx
+    end_idx = start_idx
+    
+    new_content = change["new_content"]
+    new_content = new_content.replace("\\n", "\n").replace("\\\"", "\"")
+
+    # Check if this is a FUNCTION sub_type that needs special handling
+    if "sub_type" in change and change["sub_type"] == "FUNCTION":
+        lines, start_idx, end_idx, new_lines = process_function_subtype(lines, new_content, filename)
+    else:
+        message = f"Adding content at line {change['start_line']} in {filename}"
+        terminal_print(message, PrintType.INFO)
+        logger.info(message)
+        
+        # Prepare the new content and insert it
+        new_lines = [
+            line + ("\n" if not line.endswith("\n") else "") 
+            for line in new_content.split("\n")
+        ]
+    
+    return lines[:start_idx] + new_lines + lines[end_idx:]
+
+
+def process_delete_operation(lines, change):
+    """
+    Process a DELETE operation to remove content from specific lines.
+    
+    Args:
+        lines: List of file lines
+        change: The change specification
+        
+    Returns:
+        Updated list of lines
+    """
+    # Convert 1-indexed line numbers to 0-indexed indices
+    start_idx = change["start_line"] - 1
+    end_idx = change["end_line"]
+    
+    message = f"Deleting content from line {change['start_line']} to {change['end_line']} in {change['filename']}"
+    terminal_print(message, PrintType.INFO)
+    logger.info(message)
+    
+    return lines[:start_idx] + lines[end_idx:]
+
+
+def process_operation_changes(lines, operation_changes, filename):
+    """
+    Process changes based on operation (ADD/DELETE) and start_line.
+    
+    Args:
+        lines: List of file lines
+        operation_changes: List of changes with operation and start_line
+        filename: Name of the file being modified
+        
+    Returns:
+        Updated list of lines
+    """
+    # Sort changes in descending order of start_line
+    operation_changes.sort(key=lambda c: c["start_line"], reverse=True)
+    
+    for change in operation_changes:
+        operation = change["operation"]
+        
+        if "filename" not in change:
+            raise Exception(f"filename not in change: {change}")
+
+        if operation == "DELETE" and "end_line" not in change:
+            raise Exception(f"end_line not in change: {change}")
+
+        if operation == "ADD" and "new_content" not in change:
+            raise Exception(f"new_content not in change: {change}")
+
+        # Process the operation based on its type
+        if operation == "ADD":
+            lines = process_add_operation(lines, change, filename)
+        elif operation == "DELETE":
+            lines = process_delete_operation(lines, change)
+            
+    return lines
+
+
+def process_insert_after_changes(lines, insert_after_changes, filepath):
+    """
+    Process changes based on insert_after_line directive.
+    
+    Args:
+        lines: List of file lines
+        insert_after_changes: List of changes with insert_after_line
+        filepath: Path to the file being modified
+        
+    Returns:
+        Updated list of lines
+    """
+    for change in insert_after_changes:
+        if "filename" not in change:
+            raise Exception(f"filename not in change: {change}")
+        if "new_content" not in change:
+            raise Exception(f"new_content not in change: {change}")
+        if "insert_after_line" not in change:
+            raise Exception(f"insert_after_line not in change: {change}")
+        
+        new_content = change["new_content"]
+        new_content = new_content.replace("\\n", "\n").replace("\\\"", "\"")
+        
+        # Check if this is a FUNCTION sub_type that needs special handling
+        if "sub_type" in change and change["sub_type"] == "FUNCTION":
+            lines, start_idx, end_idx, new_lines = process_function_subtype(lines, new_content, filepath)
+            lines = lines[:start_idx] + new_lines + lines[end_idx:]
+            continue
+            
+        insert_after = change["insert_after_line"]
+        
+        # Find the line to insert after
+        found = False
+        for i, line in enumerate(lines):
+            if insert_after.strip() in line.strip():
+                # Prepare the new content
+                new_lines = [
+                    line + ("\n" if not line.endswith("\n") else "") 
+                    for line in new_content.split("\n")
+                ]
+                # Insert after the matching line
+                lines = lines[:i+1] + new_lines + lines[i+1:]
+                
+                message = f"Inserting content after line containing '{insert_after}' in {filepath}"
+                terminal_print(message, PrintType.INFO)
+                logger.info(message)
+                
+                found = True
+                break
+                
+        if not found:
+            message = f"Warning: Could not find line '{insert_after}' in {filepath}"
+            terminal_print(message, PrintType.WARNING)
+            logger.warning(message)
+            
+    return lines
+
+
 def apply_file_changes(changes_json):
+    """
+    Apply changes to files based on the provided JSON.
+    
+    The function supports multiple ways to specify changes:
+    1. Using operation=ADD/DELETE with start_line
+    2. Using insert_after_line to specify a line of code after which to insert
+       (more reliable for LLM-based edits)
+    3. Using operation=NEW to create a new file
+    """
     # Group changes by filename
     changes_by_file = {}
+    new_files = []
     files_changed = []
 
     for change in changes_json["changes"]:
+        # Handle NEW operation separately
+        if "operation" in change and change["operation"] == "NEW":
+            new_files.append(change)
+            continue
+            
         filename = change["filename"]
         changes_by_file.setdefault(filename, []).append(change)
 
     for filename, changes in changes_by_file.items():
         # Read the file into a list of lines
-        with open(filename, "r", encoding="utf-8") as f:
-            lines = f.readlines()
+        filepath = filename
+        if os.path.exists(filename) == False:
+            try:
+                filepath = find_similar_file(filename)
+            except Exception as e:
+                terminal_print(f"File not found: {filepath}", PrintType.ERROR)
+                continue
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            terminal_print(f"File not found: {filepath}", PrintType.ERROR)
+            continue
+        except Exception as e:
+            terminal_print(f"Error reading {filepath}: {str(e)}", PrintType.ERROR)
+            continue
 
-        # Sort changes in descending order of start_line
-        changes.sort(key=lambda c: c["start_line"], reverse=True)
-
-        for change in changes:
-            if "start_line" not in change:
-                raise Exception(f"start_line not in change: {change}")
-            if "end_line" not in change:
-                raise Exception(f"end_line not in change: {change}")
-            if "filename" not in change:
-                raise Exception(f"filename not in change: {change}")
-            if "new_content" not in change:
-                raise Exception(f"new_content not in change: {change}")
-
-            new_content = change["new_content"]
-            new_content = new_content.replace("\\n", "\n").replace("\\\"", "\"")
-
-            # Convert 1-indexed line numbers to 0-indexed indices
-            start_idx = change["start_line"] - 1
-            # end_line is inclusive, so the slice should stop at end_line index
-            end_idx = change["end_line"]
-            # Replace the specified block with the new content
-            new_lines = [line + "\n" for line in new_content.split("\n")]
-            lines = lines[:start_idx] + new_lines + lines[end_idx:]
+        # Process classic operation-based changes (start_line based)
+        operation_changes = [c for c in changes if "operation" in c and "start_line" in c]
+        insert_after_changes = [c for c in changes if "insert_after_line" in c]
+        
+        # Process operation-based changes first
+        if operation_changes:
+            lines = process_operation_changes(lines, operation_changes, filename)
+        
+        # Process insert_after_line based changes
+        lines = process_insert_after_changes(lines, insert_after_changes, filepath)
 
         # Write the updated lines back to the file
-        with open(filename, "w", encoding="utf-8") as f:
-            files_changed.append(filename)
+        with open(filepath, "w", encoding="utf-8") as f:
+            files_changed.append(filepath)
             f.writelines(lines)
+            message = f"Updated {filepath}"
+            terminal_print(message, PrintType.WARNING)
+            logger.info(message)
+    
+    # Process new file creations
+    for change in new_files:
+        if "filename" not in change:
+            raise Exception(f"filename not in change: {change}")
+        if "new_content" not in change:
+            raise Exception(f"new_content not in change: {change}")
+        
+        filepath = change["filename"]
+        new_content = change["new_content"]
+        new_content = new_content.replace("\\n", "\n").replace("\\\"", "\"")
+        
+        # Create directories if they don't exist
+        directory = os.path.dirname(filepath)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory)
+            message = f"Created directory: {directory}"
+            terminal_print(message, PrintType.INFO)
+            logger.info(message)
+        
+        # Write the new file
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(new_content)
+            files_changed.append(filepath)
+            message = f"Created new file: {filepath}"
+            terminal_print(message, PrintType.WARNING)
+            logger.info(message)
 
-        return files_changed
+    return files_changed
+
 
 def check_and_apply_code_changes(response_text):
     cutoff = cutoff_string(response_text, "```json", "```")
