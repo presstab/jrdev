@@ -1,0 +1,13 @@
+```json
+{
+  "changes": [
+    {
+      "filename": "tests/mock/price_chart.go",
+      "insert_type": "insert_after_function",
+      "insert_after_function": "PriceChart.Cleanup",
+      "new_content": "\n",
+      "sub_type": "BLOCK"
+    }
+  ]
+}
+```

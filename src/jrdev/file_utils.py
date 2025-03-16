@@ -12,6 +12,7 @@ from jrdev.ui import terminal_print, PrintType
 from jrdev.cpp import parse_cpp_signature, parse_cpp_functions
 from jrdev.py_lang import parse_python_signature, parse_python_functions
 from jrdev.ts_lang import parse_typescript_signature, parse_typescript_functions
+from jrdev.go_lang import parse_go_signature, parse_go_functions
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -540,6 +541,10 @@ def insert_after_function(change, lines, filepath):
         # Note: JavaScript files use the TypeScript parser too (mapped in detect_language)
         requested_class, requested_function = parse_typescript_signature(function_name)
         file_functions = parse_typescript_functions(filepath)
+    elif language == 'go':
+        # Parse the Go function signature (struct/package and function name)
+        requested_class, requested_function = parse_go_signature(function_name)
+        file_functions = parse_go_functions(filepath)
     else:
         # Other languages not supported yet
         raise Exception(f"Language {language} is not supported for insert_after_function yet")
@@ -575,6 +580,7 @@ def insert_after_function(change, lines, filepath):
     # Handle special case where new_content is intended to be just blank lines
     if new_content.strip() == "":
         newline_count = new_content.count('\n')
+        logger.info(f"Inserting {newline_count} newlines")
         
         # Count existing blank lines after the function
         existing_blank_lines = 0
@@ -583,11 +589,14 @@ def insert_after_function(change, lines, filepath):
             existing_blank_lines += 1
             i += 1
         
-        # Calculate how many more blank lines we need to add
-        lines_to_add = newline_count - existing_blank_lines
+        logger.info(f"Found {existing_blank_lines} existing blank lines")
         
-        # For TypeScript/JavaScript, we need to handle indentation properly
-        if language == 'typescript':  # This includes JavaScript (mapped in detect_language)
+        # We just want to add the number of blank lines specified in the JSON,
+        # not calculate a difference from existing blank lines
+        lines_to_add = newline_count
+        
+        # For languages where indentation matters, handle it properly
+        if language in ['typescript', 'go']:  # typescript includes JavaScript
             # Get the indentation level of the line after the function
             indentation = ""
             next_line_idx = func_end_idx + 1
@@ -597,14 +606,17 @@ def insert_after_function(change, lines, filepath):
                 indentation_match = re.match(r'^(\s*)', prev_line)
                 if indentation_match:
                     indentation = indentation_match.group(1)
-                
-            # Add the needed blank lines with proper indentation
-            for _ in range(max(0, lines_to_add)):
+            
+            # Add the blank lines specified in new_content
+            logger.info(f"Adding {lines_to_add} blank lines after function end (index {func_end_idx})")
+            # We want to add blank lines right after the function, not after existing blank lines
+            for _ in range(lines_to_add):
                 lines.insert(func_end_idx + 1, indentation + "\n")
         else:
-            # Add the needed blank lines without special indentation
-            for _ in range(max(0, lines_to_add)):
-                lines.insert(func_end_idx + 1 + existing_blank_lines, "\n")
+            # Add the blank lines specified in new_content for other languages
+            logger.info(f"Adding {lines_to_add} blank lines after function end (index {func_end_idx})")
+            for _ in range(lines_to_add):
+                lines.insert(func_end_idx + 1, "\n")
                 
         message = f"Inserting {newline_count} blank line(s) after function '{function_name}' in {filepath}"
         terminal_print(message, PrintType.INFO)
