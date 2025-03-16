@@ -466,7 +466,11 @@ def detect_language(filepath):
         filepath: Path to the file
         
     Returns:
-        str: Language identifier ('cpp', 'python', etc.)
+        str: Language identifier ('cpp', 'python', 'typescript', etc.)
+        
+    Note:
+        For implementation simplicity, JavaScript files are treated as 'typescript'
+        since the same parser handles both languages.
     """
     ext = os.path.splitext(filepath)[1].lower()
     
@@ -479,8 +483,10 @@ def detect_language(filepath):
         '.hpp': 'cpp',
         '.h': 'cpp',
         '.py': 'python',
-        '.js': 'javascript',
+        '.js': 'typescript',  # Use TypeScript parser for JavaScript
+        '.jsx': 'typescript', # React JSX also uses TypeScript parser
         '.ts': 'typescript',
+        '.tsx': 'typescript', # TypeScript React
         '.go': 'go',
         '.java': 'java',
         '.rb': 'ruby',
@@ -529,8 +535,9 @@ def insert_after_function(change, lines, filepath):
         # Parse the Python function signature
         requested_class, requested_function = parse_python_signature(function_name)
         file_functions = parse_python_functions(filepath)
-    elif language in ['typescript', 'javascript']:
+    elif language == 'typescript':
         # Parse the TypeScript/JavaScript function signature
+        # Note: JavaScript files use the TypeScript parser too (mapped in detect_language)
         requested_class, requested_function = parse_typescript_signature(function_name)
         file_functions = parse_typescript_functions(filepath)
     else:
@@ -579,8 +586,8 @@ def insert_after_function(change, lines, filepath):
         # Calculate how many more blank lines we need to add
         lines_to_add = newline_count - existing_blank_lines
         
-        # For TypeScript, we need to handle indentation properly
-        if language in ['typescript', 'javascript']:
+        # For TypeScript/JavaScript, we need to handle indentation properly
+        if language == 'typescript':  # This includes JavaScript (mapped in detect_language)
             # Get the indentation level of the line after the function
             indentation = ""
             next_line_idx = func_end_idx + 1
