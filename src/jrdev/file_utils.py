@@ -11,6 +11,7 @@ import logging
 from jrdev.ui import terminal_print, PrintType
 from jrdev.cpp import parse_cpp_signature, parse_cpp_functions
 from jrdev.py_lang import parse_python_signature, parse_python_functions
+from jrdev.ts_lang import parse_typescript_signature, parse_typescript_functions
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -528,6 +529,10 @@ def insert_after_function(change, lines, filepath):
         # Parse the Python function signature
         requested_class, requested_function = parse_python_signature(function_name)
         file_functions = parse_python_functions(filepath)
+    elif language in ['typescript', 'javascript']:
+        # Parse the TypeScript/JavaScript function signature
+        requested_class, requested_function = parse_typescript_signature(function_name)
+        file_functions = parse_typescript_functions(filepath)
     else:
         # Other languages not supported yet
         raise Exception(f"Language {language} is not supported for insert_after_function yet")
@@ -574,9 +579,25 @@ def insert_after_function(change, lines, filepath):
         # Calculate how many more blank lines we need to add
         lines_to_add = newline_count - existing_blank_lines
         
-        # Add the needed blank lines
-        for _ in range(max(0, lines_to_add)):
-            lines.insert(func_end_idx + 1 + existing_blank_lines, "\n")
+        # For TypeScript, we need to handle indentation properly
+        if language in ['typescript', 'javascript']:
+            # Get the indentation level of the line after the function
+            indentation = ""
+            next_line_idx = func_end_idx + 1
+            if next_line_idx < len(lines) and next_line_idx > 0:
+                # Get indentation from the previous line
+                prev_line = lines[func_end_idx]
+                indentation_match = re.match(r'^(\s*)', prev_line)
+                if indentation_match:
+                    indentation = indentation_match.group(1)
+                
+            # Add the needed blank lines with proper indentation
+            for _ in range(max(0, lines_to_add)):
+                lines.insert(func_end_idx + 1, indentation + "\n")
+        else:
+            # Add the needed blank lines without special indentation
+            for _ in range(max(0, lines_to_add)):
+                lines.insert(func_end_idx + 1 + existing_blank_lines, "\n")
                 
         message = f"Inserting {newline_count} blank line(s) after function '{function_name}' in {filepath}"
         terminal_print(message, PrintType.INFO)
