@@ -9,7 +9,8 @@ import pprint
 import logging
 
 from jrdev.ui import terminal_print, PrintType
-from jrdev.cpp import *
+from jrdev.cpp import parse_cpp_signature, parse_cpp_functions
+from jrdev.py_lang import parse_python_signature, parse_python_functions
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -456,6 +457,41 @@ def process_operation_changes(lines, operation_changes, filename):
             
     return lines
 
+def detect_language(filepath):
+    """
+    Detect the programming language based on file extension.
+    
+    Args:
+        filepath: Path to the file
+        
+    Returns:
+        str: Language identifier ('cpp', 'python', etc.)
+    """
+    ext = os.path.splitext(filepath)[1].lower()
+    
+    # Map file extensions to language identifiers
+    lang_map = {
+        '.cpp': 'cpp',
+        '.cc': 'cpp',
+        '.cxx': 'cpp',
+        '.c++': 'cpp',
+        '.hpp': 'cpp',
+        '.h': 'cpp',
+        '.py': 'python',
+        '.js': 'javascript',
+        '.ts': 'typescript',
+        '.go': 'go',
+        '.java': 'java',
+        '.rb': 'ruby',
+        '.rs': 'rust',
+        '.swift': 'swift',
+        '.php': 'php',
+        '.cs': 'csharp',
+    }
+    
+    # Return the language or None if not recognized
+    return lang_map.get(ext)
+
 def insert_after_function(change, lines, filepath):
     """
     Insert content after a specified function in a file.
@@ -467,16 +503,35 @@ def insert_after_function(change, lines, filepath):
         
     Returns:
         None - modifies lines in place
+    
+    Raises:
+        Exception: If the language is not supported or function can't be found
     """
     function_name = change["insert_after_function"]
     logger.info(f"insert_after_function {function_name}")
     
-    # Parse the function signature to get class and function name
-    requested_class, requested_function = parse_cpp_signature(function_name)
-    
-    # Analyze file for function definitions
-    file_functions = parse_cpp_functions(filepath)
+    # Detect the language
+    language = detect_language(filepath)
+    if not language:
+        raise Exception(f"Could not detect language for file: {filepath}")
 
+    requested_class = None
+    requested_function = None
+    file_functions = None
+
+    # Handle based on language
+    if language == 'cpp':
+        # Parse the function signature to get class and function name
+        requested_class, requested_function = parse_cpp_signature(function_name)
+        file_functions = parse_cpp_functions(filepath)
+    elif language == 'python':
+        # Parse the Python function signature
+        requested_class, requested_function = parse_python_signature(function_name)
+        file_functions = parse_python_functions(filepath)
+    else:
+        # Other languages not supported yet
+        raise Exception(f"Language {language} is not supported for insert_after_function yet")
+    
     # Find matching function
     matched_function = None
     for func in file_functions:

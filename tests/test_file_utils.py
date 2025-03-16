@@ -78,6 +78,52 @@ class TestFileUtils(unittest.TestCase):
         
         # Compare the actual content with the expected content
         self.assertEqual(actual_content, expected_content)
+        
+    def test_python_function_insertion(self) -> None:
+        """Test inserting content after a Python function"""
+        # Define paths for original and expected Python files
+        python_mock_path = os.path.join(os.path.dirname(__file__), "mock/insert_after_function_mock_python.json")
+        python_original_file = os.path.join(os.path.dirname(__file__), "mock/price_chart_widget.py")
+        python_expected_file = os.path.join(os.path.dirname(__file__), "mock/price_chart_widget_after.py")
+        
+        # Copy original Python file to temp directory
+        python_temp_file = os.path.join(self.temp_dir, "price_chart_widget.py")
+        shutil.copy2(python_original_file, python_temp_file)
+        
+        # Load the Python mock JSON file
+        with open(python_mock_path, "r") as f:
+            json_content = f.read()
+        
+        # Extract the JSON content using cutoff_string
+        json_content = cutoff_string(json_content, "```json", "```")
+        
+        # Parse the JSON content
+        changes_json = manual_json_parse(json_content)
+        
+        # Modify the file paths in the changes to point to our temp directory
+        for change in changes_json["changes"]:
+            if "filename" in change:
+                original_path = change["filename"]
+                filename = os.path.basename(original_path)
+                change["filename"] = os.path.join(self.temp_dir, filename)
+        
+        # Apply the changes
+        with patch('jrdev.file_utils.terminal_print') as mock_terminal_print:
+            files_changed = apply_file_changes(changes_json)
+        
+        # Verify that the file was changed
+        self.assertEqual(len(files_changed), 1)
+        
+        # Read the content of the changed file
+        with open(files_changed[0], "r") as f:
+            actual_content = f.read()
+        
+        # Read the expected content
+        with open(python_expected_file, "r") as f:
+            expected_content = f.read()
+
+        # Compare the actual content with the expected content
+        self.assertEqual(actual_content, expected_content)
 
 
 if __name__ == "__main__":
