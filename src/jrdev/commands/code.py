@@ -188,14 +188,43 @@ async def process_code_request_response(terminal, response_prev, user_task):
     # Process file requests if present
     files_to_send = requested_files(response_prev)
 
+    # send file requests, get a list of steps
     terminal.logger.info(f"Found file request, sending files: {files_to_send}")
     response = await send_file_request(terminal, files_to_send, user_task, response_prev)
 
-    # Process code changes in the response
-    terminal.logger.info(f"Processing code changes from response\n RESPONSE:\n {response}")
-    files_changed = check_and_apply_code_changes(response)
+    # parse steps response
+    steps = await parse_steps(response, files_to_send)
+    if "steps" not in steps or len(steps["steps"]) == 0:
+        raise Exception("failed to process steps")
 
-    if files_changed:
+    terminal.logger.info(f"parsed_steps successfully: steps:\n {steps}")
+
+    # turn each step into individual code changes
+    files_changed_set = set()
+    for step in steps["steps"]:
+        terminal.logger.info(f"step: {step}")
+        filepath = step["filename"]
+        terminal.logger.info("filecheck")
+        file_check = [f for f in files_to_send if f == filepath]
+        if file_check is None:
+            raise Exception(f"process_code_request unable to find file {filepath}")
+
+        terminal.logger.info("file_content")
+        file_content = get_file_contents([filepath])
+        # send request for LLM to complete changes in step
+        code_change_response = await request_code(terminal, step, file_content)
+
+        # todo some kind of sanity check here? or just one sanity check at the very end?
+
+        # Process code changes in the response
+        terminal.logger.info(f"Processing code changes from response\n RESPONSE:\n {code_change_response}")
+        new_file_changes = check_and_apply_code_changes(code_change_response)
+        # only track each file once
+        for f in new_file_changes:
+            files_changed_set.add(f)
+
+
+    if len(files_changed_set):
         # Validate the changed files to ensure they're not malformed
         model_prev = terminal.model
         terminal.model = "qwen-2.5-coder-32b"
@@ -216,6 +245,157 @@ async def process_code_request_response(terminal, response_prev, user_task):
     else:
         terminal.logger.info("No files were changed during this request")
 
+async def parse_steps(steps_text, filelist):
+    """
+    Parse steps from a text file that contains instructions for code changes,
+    and verify that all referenced files exist in the provided filelist.
+    
+    Args:
+        steps_text (str): The content of the steps text file.
+        filelist (list): List of files that are available.
+        
+    Returns:
+        dict: A dictionary containing the parsed steps.
+    """
+    from jrdev.file_utils import cutoff_string, manual_json_parse
+    import logging
+    import os
+    
+    logger = logging.getLogger("jrdev")
+    
+    # Extract the JSON content using cutoff_string
+    json_content = cutoff_string(steps_text, "```json", "```")
+    
+    # Parse the JSON content
+    steps_json = manual_json_parse(json_content)
+    
+    if "steps" not in steps_json:
+        logger.warning("No steps found in the steps file")
+        return {"steps": []}
+    
+    # Check if each filename referenced in steps exists in filelist
+    missing_files = []
+    for step in steps_json["steps"]:
+        if "filename" in step:
+            filename = step["filename"]
+            # Convert filelist paths to basenames for comparison
+            basename = os.path.basename(filename)
+            found = False
+            
+            for file_path in filelist:
+                if os.path.basename(file_path) == basename or file_path == filename:
+                    found = True
+                    break
+            
+            if not found:
+                missing_files.append(filename)
+    
+    if missing_files:
+        logger.warning(f"Files not found in filelist: {missing_files}")
+        # Add a warning to the steps_json
+        steps_json["missing_files"] = missing_files
+    
+    return steps_json
+
+
+operation_promts = {
+    "DELETE": (
+        """
+        DELETE: Remove existing code using code references rather than line numbers.
+           - "filename": the file to modify.
+           - "operation": "DELETE".
+           - "target": an object specifying what to delete. It may include:
+               - "function": the name of a function to delete.
+               - "block": a block within a function, identified by the function name and a "position_marker" (e.g., "before_return", "after_variable_declaration").
+        """
+    ),
+    "ADD": (
+        """
+        ADD: Insert new code at a specified location using code references.
+           - "filename": the file to modify.
+           - "insert_location": an object that indicates where to insert the new code. Options include:
+               - "after_function": the name of a function after which to insert.
+               - "within_function": the name of a function, along with a "position_marker" to pinpoint the insertion spot (e.g., "at_start", "before_return").
+               - "after_marker": a custom code marker or comment present in the file.
+               - "global": to insert code at the global scope.
+           - "new_content": the code to insert.
+           - "sub_type": the type of code being added. Options include:
+               - "FUNCTION": a complete new function implementation.
+               - "BLOCK": lines of code added within an existing function or structure.
+               - "COMMENT": inline documentation or comment updates.
+        """
+    ),
+    "REPLACE": (
+        """
+        REPLACE: Replace an existing code block with new content.
+           - "filename": the file to modify.
+           - "operation": "REPLACE".
+           - "target_type": the type of code to be replaced. Options include:
+               - "FUNCTION": the entire function implementation.
+               - "BLOCK": a specific block of code within a function.
+               - "SIGNATURE": the function's declaration (parameters, return type, etc.).
+               - "COMMENT": inline documentation or comment section.
+           - "target_reference": an object that specifies the location of the code to be replaced, such as a function name combined with a marker.
+           - "new_content": the replacement code.
+        """
+    ),
+    "RENAME": (
+        """
+        RENAME: Change the name of an identifier and update its references.
+           - "filename": the file to modify.
+           - "operation": "RENAME".
+           - "target_type": the type of identifier (e.g., "FUNCTION", "CLASS", "VARIABLE").
+           - "old_name": the current name.
+           - "new_name": the new name.
+           - "update_references": (optional) a boolean indicating whether to update all occurrences of the identifier.
+        """
+    ),
+    "NEW": (
+        """
+        NEW: Create a new file.
+           - "operation": "NEW".
+           - "filename": the path of the new file to create.
+           - "new_content": the entire content of the new file.
+        """
+    )
+}
+
+async def request_code(terminal, change_instruction, file):
+    op_type = change_instruction["operation_type"]
+    operation_prompt = operation_promts[op_type]
+    dev_msg = (
+        f"""
+        You are an expert software engineer and code reviewer and have been tasked with a simple one step operation. 
+        Format your response as a JSON object with a "changes" key that contains an array of modifications. You may only 
+        use the following operation to complete the task: {operation_prompt}
+        
+        Wrap your response in ```json and ``` markers. Use \\n for line breaks in new_content. 
+        Do not include any additional commentary or explanation outside the JSON.
+        """
+    )
+
+    prompt = (
+        f"""
+        You have been tasked with using the {op_type} operation to {change_instruction["description"]}. This should be 
+        applied to the supplied file {change_instruction["filename"]} and you will need to locate the proper location in 
+        the code to apply this change. The target location is {change_instruction["target_location"]}. Operations should 
+        only be applied to this location, or else the task will fail.
+        """
+    )
+
+    # construct and send message to LLM
+    messages = []
+    messages.append({"role": "system", "content": dev_msg})
+    messages.append({"role": "user", "content": file})
+    messages.append({"role": "user", "content": prompt})
+    terminal.logger.info(f"Sending code request to {terminal.model}")
+    terminal_print(f"\nSending code request to {terminal.model}...", PrintType.PROCESSING)
+
+    follow_up_response = await stream_request(terminal.client, terminal.model, messages)
+    terminal_print("", PrintType.INFO)
+    terminal.messages[terminal.model].append({"role": "assistant", "content": follow_up_response})
+    return follow_up_response
+
 
 async def send_file_request(terminal, files_to_send, user_task, assistant_plan = None):
     terminal.logger.info(f"Detected file request: {files_to_send}")
@@ -225,34 +405,22 @@ async def send_file_request(terminal, files_to_send, user_task, assistant_plan =
 
     dev_msg = (
         """
-        You are an expert software engineer and code reviewer. Instead of rewriting the entire file, provide only the necessary modifications as a diff. 
-        Format your response as a JSON object with a "changes" key that contains an array of changes. You have three ways to specify changes:
+        Instructions:
+        You are a professor of computer science, currently teaching a basic CS1000 course to some new students with 
+        little experience programming. The requested task is one that will be given to the students.
+        CRITICAL: Do not provide any code for the students, only textual aide. 
+        
+        Generate a plan of discrete steps. The plan must be formatted as a numbered list where each step corresponds to a single operation (ADD, DELETE, REPLACE, 
+        RENAME, or NEW). Each step should be self-contained and include:
 
-        1. DELETE: Existing code using line numbers to delete code:
-        - "filename": the name of the file to modify
-        - "operation": "DELETE"
-        - "start_line": the starting line number
-        - "end_line": the ending line number (inclusive)
-
-        2. ADD: Add new code, using content reference to specify positioning:
-        - "filename": the name of the file to modify
-        - "insert_type": specifies how to position the new code:
-            - "insert_after_line": a **unique** line of existing code after which to insert. This must be the only occurance of that line. Do not use this if it is a "}"
-            - "insert_after_function": the name of a function after which to insert
-        - "new_content": the code to insert after the specified reference
-        - "sub_type": specifies the type of addition:
-            - "FUNCTION": a new function implementation, including the full scope of the function.
-            - "BLOCK": lines of code added within an existing function or structure
-
-        3. Creating a new file:
-        - "operation": "NEW"
-        - "filename": the path of the new file to create
-        - "new_content": the entire content of the new file
-
-        When using the "insert_after_line" approach, make sure to choose a distinctive line that appears exactly once in the file. The "insert_after_function" approach is safer for adding new functions since it will locate function definitions by name rather than by a specific line that might change.
-
-        Wrap your response in ```json and ``` markers. Use \\n for line breaks in new_content.
-        Do not include any additional commentary or explanation outside the JSON.
+        - The operation type.
+        - Filename
+        - The target location or reference (such as a function name, marker, or global scope).
+        - A brief description of the intended change.
+    
+        Ensure that a student can follow each step independently. Provide only the plan in your response, with no additional commentary or extraneous information.
+        
+        The response should be in json format example: {"steps": [{"operation_type": "ADD", "filename": "src/test_file.py", "target_location": "after function X scope end", "description": "Adjust the code so that it prints hello world"}]}
         """
     )
 

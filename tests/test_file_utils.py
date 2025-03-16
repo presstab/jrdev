@@ -12,6 +12,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
 from jrdev.file_utils import *
+from jrdev.commands.code import parse_steps
 
 
 class TestFileUtils(unittest.TestCase):
@@ -218,6 +219,53 @@ class TestFileUtils(unittest.TestCase):
         
         # Compare the actual content with the expected content
         self.assertEqual(actual_content, expected_content)
+
+
+    def test_parse_steps(self) -> None:
+        """Test parsing steps from steps.txt file"""
+        # Path to the steps.txt file
+        steps_path = os.path.join(os.path.dirname(__file__), "mock/steps.txt")
+        
+        # Read the steps file
+        with open(steps_path, "r") as f:
+            steps_content = f.read()
+        
+        # Available files for validation
+        available_files = [
+            "pricechartwidget.cpp",
+            "pricechartwidget.h",
+            os.path.join(self.temp_dir, "pricechartwidget.cpp")  # Full path
+        ]
+        
+        # Run the parse_steps function
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(parse_steps(steps_content, available_files))
+        loop.close()
+        
+        # Check that the steps were parsed correctly
+        self.assertIn("steps", result)
+        self.assertEqual(len(result["steps"]), 6)
+        
+        # Check structure of the first step
+        first_step = result["steps"][0]
+        self.assertEqual(first_step["operation_type"], "ADD")
+        self.assertEqual(first_step["filename"], "pricechartwidget.cpp")
+        self.assertEqual(first_step["target_location"], "after function AssetBox::mousePressEvent(QMouseEvent *event)")
+        self.assertIn("description", first_step)
+        
+        # Ensure there are no missing files reported
+        self.assertNotIn("missing_files", result)
+        
+        # Test with a missing file
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result_with_missing = loop.run_until_complete(parse_steps(steps_content, ["pricechartwidget.cpp"]))
+        loop.close()
+        
+        # Check that missing files are correctly reported
+        self.assertIn("missing_files", result_with_missing)
+        self.assertIn("pricechartwidget.h", result_with_missing["missing_files"])
 
 
 if __name__ == "__main__":
