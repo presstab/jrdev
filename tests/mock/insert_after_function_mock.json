@@ -1,0 +1,13 @@
+```json
+{
+  "changes": [
+    {
+      "filename": "tests/mock/pricechartwidget.cpp",
+      "insert_type": "insert_after_function",
+      "insert_after_function": "PriceChartWidget::~PriceChartWidget()",
+      "new_content": "\n\n",
+      "sub_type": "BLOCK"
+    }
+  ]
+}
+```

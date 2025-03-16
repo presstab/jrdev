@@ -9,6 +9,7 @@ import pprint
 import logging
 
 from jrdev.ui import terminal_print, PrintType
+from jrdev.cpp import *
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -328,9 +329,24 @@ def process_function_subtype(lines, new_content, filename):
     start_idx = len(lines)
     end_idx = len(lines)
     
-    # Add a blank line if the file doesn't end with one
+    # Ensure there's exactly one blank line between functions
     lines_copy = lines.copy()
-    if lines_copy and lines_copy[-1].strip():
+    if lines_copy:
+        # First, check if file already ends with blank lines
+        blank_line_count = 0
+        for i in range(len(lines_copy) - 1, -1, -1):
+            if not lines_copy[i].strip():
+                blank_line_count += 1
+            else:
+                break
+        
+        # Remove all blank lines
+        while blank_line_count > 0:
+            lines_copy.pop()
+            blank_line_count -= 1
+            
+        # Add exactly one blank line between functions
+        lines_copy.append("\n")
         lines_copy.append("\n")
     
     message = f"Adding function to the end of {filename}"
@@ -440,14 +456,96 @@ def process_operation_changes(lines, operation_changes, filename):
             
     return lines
 
+def insert_after_function(change, lines, filepath):
+
+    function_name = change["insert_after_function"]
+    logger.info(f"insert_after_function {function_name}")
+    # Find the end of the specified function
+    found = False
+
+    requested_class, requested_function = parse_cpp_signature(function_name)
+    # analyze file for function defs
+    file_functions = parse_cpp_functions(filepath)
+
+    # see if there is a match
+    matched_function = None
+    for func in file_functions:
+        if func["name"] == requested_function:
+            # does it have a class?
+            if requested_class is None:
+                if func["class"] is None:
+                    matched_function = func
+                    break
+            elif func["class"] is None:
+                # no match, req has a class, this doesn't
+                continue
+            elif func["class"] == requested_class:
+                matched_function = func
+                break
+
+    if matched_function is None:
+        message = f"Warning: Could not find function: '{requested_function}' class: {requested_class} in {filepath}\n Options: {file_functions}"
+        terminal_print(message, PrintType.WARNING)
+        logger.warning(message)
+        return
+
+    # Check if the next line is at the same indentation level (no indentation)
+    func_endl = matched_function["end_line"]
+    next_line = lines[func_endl+1].rstrip()
+
+    # Prepare the new content
+    new_lines = [
+        line + ("\n" if not line.endswith("\n") else "")
+        for line in new_content.split("\n")
+    ]
+
+    # Insert after the function with proper spacing
+    # If the next line is already blank, no need to add another blank line
+    if next_line == "":
+        lines = lines[:j + 1] + new_lines + lines[j + 1:]
+    else:
+        # Add a blank line before inserting the new function
+        lines = lines[:j + 1] + ["\n"] + new_lines + lines[j + 1:]
+
+    message = f"Inserting content after function '{function_name}' in {filepath}"
+    terminal_print(message, PrintType.INFO)
+    logger.info(message)
+
+def insert_after_line(change, lines, filepath):
+    logger.info(f"insert_after_line {function_name}")
+    insert_after = change["insert_after_line"]
+
+    # Find the line to insert after
+    found = False
+    for i, line in enumerate(lines):
+        if insert_after.strip() in line.strip():
+            # Prepare the new content
+            new_lines = [
+                line + ("\n" if not line.endswith("\n") else "")
+                for line in new_content.split("\n")
+            ]
+            # Insert after the matching line
+            lines = lines[:i + 1] + new_lines + lines[i + 1:]
+
+            message = f"Inserting content after line containing '{insert_after}' in {filepath}"
+            terminal_print(message, PrintType.INFO)
+            logger.info(message)
+
+            found = True
+            break
+
+    if not found:
+        message = f"Warning: Could not find line '{insert_after}' in {filepath}"
+        terminal_print(message, PrintType.WARNING)
+        logger.warning(message)
 
 def process_insert_after_changes(lines, insert_after_changes, filepath):
     """
-    Process changes based on insert_after_line directive.
+    Process changes based on insert_type directive (insert_after_line or insert_after_function).
     
     Args:
         lines: List of file lines
-        insert_after_changes: List of changes with insert_after_line
+        insert_after_changes: List of changes with insert_after_line or insert_after_function
         filepath: Path to the file being modified
         
     Returns:
@@ -458,43 +556,36 @@ def process_insert_after_changes(lines, insert_after_changes, filepath):
             raise Exception(f"filename not in change: {change}")
         if "new_content" not in change:
             raise Exception(f"new_content not in change: {change}")
-        if "insert_after_line" not in change:
-            raise Exception(f"insert_after_line not in change: {change}")
+        if "insert_type" not in change:
+            raise Exception(f"insert_type not in change: {change}")
+        
+        # Use helper functions to check for insert types
+        insert_type = change["insert_type"]
+        has_after_line = "insert_after_line" in insert_type
+        has_after_function = "insert_after_function" in insert_type
+        
+        # Handle invalid insert_type
+        if not (has_after_line or has_after_function):
+            raise Exception(f"Invalid insert_type '{change['insert_type']}' or missing required parameters in change: {change}")
         
         new_content = change["new_content"]
         new_content = new_content.replace("\\n", "\n").replace("\\\"", "\"")
         
-        # Check if this is a FUNCTION sub_type that needs special handling
-        if "sub_type" in change and change["sub_type"] == "FUNCTION":
-            lines, start_idx, end_idx, new_lines = process_function_subtype(lines, new_content, filepath)
-            lines = lines[:start_idx] + new_lines + lines[end_idx:]
-            continue
-            
-        insert_after = change["insert_after_line"]
+        # Check if this is a FUNCTION sub_type that needs special handling at the end of file
+        # if "sub_type" in change and change["sub_type"] == "FUNCTION" and not has_insert_after_function and not has_insert_after_line:
+        #     lines, start_idx, end_idx, new_lines = process_function_subtype(lines, new_content, filepath)
+        #     lines = lines[:start_idx] + new_lines + lines[end_idx:]
+        #     continue
         
-        # Find the line to insert after
-        found = False
-        for i, line in enumerate(lines):
-            if insert_after.strip() in line.strip():
-                # Prepare the new content
-                new_lines = [
-                    line + ("\n" if not line.endswith("\n") else "") 
-                    for line in new_content.split("\n")
-                ]
-                # Insert after the matching line
-                lines = lines[:i+1] + new_lines + lines[i+1:]
-                
-                message = f"Inserting content after line containing '{insert_after}' in {filepath}"
-                terminal_print(message, PrintType.INFO)
-                logger.info(message)
-                
-                found = True
-                break
-                
-        if not found:
-            message = f"Warning: Could not find line '{insert_after}' in {filepath}"
-            terminal_print(message, PrintType.WARNING)
-            logger.warning(message)
+        # Process insert_after_function if it exists
+        if has_after_function:
+            insert_after_function(change, lines, filepath)
+            continue  # Skip to the next change after processing insert_after_function
+        
+        # Process insert_after_line if it exists
+        if has_after_line:
+            insert_after_line(change, lines, filepath)
+            continue
             
     return lines
 
@@ -505,7 +596,9 @@ def apply_file_changes(changes_json):
     
     The function supports multiple ways to specify changes:
     1. Using operation=ADD/DELETE with start_line
-    2. Using insert_after_line to specify a line of code after which to insert
+    2. Using insert_type with options:
+       - insert_after_line: to specify a line of code after which to insert
+       - insert_after_function: to specify a function after which to insert new code
        (more reliable for LLM-based edits)
     3. Using operation=NEW to create a new file
     """
@@ -544,7 +637,7 @@ def apply_file_changes(changes_json):
 
         # Process classic operation-based changes (start_line based)
         operation_changes = [c for c in changes if "operation" in c and "start_line" in c]
-        insert_after_changes = [c for c in changes if "insert_after_line" in c]
+        insert_after_changes = [c for c in changes if "insert_after_line" in c or "insert_after_function" in c]
         
         # Process operation-based changes first
         if operation_changes:

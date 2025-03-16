@@ -167,21 +167,21 @@ async def double_check_changed_files(terminal, filelist):
         # Check if the validation response indicates the files are valid
         if validation_response.strip().startswith("VALID"):
             terminal_print("✓ Files validated successfully", PrintType.SUCCESS)
-            return True
+            return None
         elif "INVALID" in validation_response:
             # Extract the reason from the response
             reason = validation_response.split("INVALID:")[1].strip() if ":" in validation_response else "Unspecified error"
             terminal_print(f"⚠ Files may be malformed: {reason}", PrintType.ERROR)
-            return False
+            return reason
         else:
             # If the response doesn't match our expected format
             terminal_print("⚠ Could not determine if files are valid", PrintType.WARNING)
             terminal.logger.warning(f"Unexpected validation response: {validation_response}")
-            return True  # Default to true to not block the process
+            return None  # Default to true to not block the process
     except Exception as e:
         terminal.logger.error(f"Error in double_check_changed_files: {str(e)}")
         terminal_print(f"Error validating files: {str(e)}", PrintType.ERROR)
-        return True  # Default to true to not block the process
+        return None
 
 
 async def process_code_request_response(terminal, response_prev, user_task):
@@ -199,10 +199,14 @@ async def process_code_request_response(terminal, response_prev, user_task):
         # Validate the changed files to ensure they're not malformed
         model_prev = terminal.model
         terminal.model = "qwen-2.5-coder-32b"
-        is_valid = await double_check_changed_files(terminal, files_changed)
+        error_msg = await double_check_changed_files(terminal, files_changed)
+        if error_msg is not None:
+            files_changed = await send_file_request(terminal, files_changed, error_msg)
+            error_msg = await double_check_changed_files(terminal, files_changed)
+
         terminal.model = model_prev
 
-        if not is_valid:
+        if error_msg is not None:
             terminal_print(
                 "\nDetected possible issues in the changed files. Please review them manually.",
                 PrintType.WARNING
@@ -213,7 +217,7 @@ async def process_code_request_response(terminal, response_prev, user_task):
         terminal.logger.info("No files were changed during this request")
 
 
-async def send_file_request(terminal, files_to_send, user_task, assistant_plan):
+async def send_file_request(terminal, files_to_send, user_task, assistant_plan = None):
     terminal.logger.info(f"Detected file request: {files_to_send}")
     terminal_print(f"\nDetected file request: {files_to_send}", PrintType.INFO)
 
@@ -232,8 +236,10 @@ async def send_file_request(terminal, files_to_send, user_task, assistant_plan):
 
         2. ADD: Add new code, using content reference to specify positioning:
         - "filename": the name of the file to modify
-        - "insert_after_line": a unique line of existing code after which to insert
-        - "new_content": the code to insert after the specified line
+        - "insert_type": specifies how to position the new code:
+            - "insert_after_line": a **unique** line of existing code after which to insert. This must be the only occurance of that line. Do not use this if it is a "}"
+            - "insert_after_function": the name of a function after which to insert
+        - "new_content": the code to insert after the specified reference
         - "sub_type": specifies the type of addition:
             - "FUNCTION": a new function implementation, including the full scope of the function.
             - "BLOCK": lines of code added within an existing function or structure
@@ -243,7 +249,7 @@ async def send_file_request(terminal, files_to_send, user_task, assistant_plan):
         - "filename": the path of the new file to create
         - "new_content": the entire content of the new file
 
-        When using the "insert_after_line" approach, make sure to choose a distinctive line that appears exactly once in the file.
+        When using the "insert_after_line" approach, make sure to choose a distinctive line that appears exactly once in the file. The "insert_after_function" approach is safer for adding new functions since it will locate function definitions by name rather than by a specific line that might change.
 
         Wrap your response in ```json and ``` markers. Use \\n for line breaks in new_content.
         Do not include any additional commentary or explanation outside the JSON.
@@ -253,7 +259,8 @@ async def send_file_request(terminal, files_to_send, user_task, assistant_plan):
     #construct and send message to LLM
     messages = []
     messages.append({"role": "system", "content": dev_msg})
-    messages.append({"role": "assistant", "content": assistant_plan})
+    if assistant_plan is not None:
+        messages.append({"role": "assistant", "content": assistant_plan})
     messages.append({"role": "user", "content": f"Task To Accomplish: {user_task}"})
     messages.append({"role": "user", "content": files_content})
     terminal.logger.info(f"Sending requested files to {terminal.model}")
