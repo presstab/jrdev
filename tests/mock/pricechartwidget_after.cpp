@@ -18,6 +18,7 @@ PriceChartWidget::~PriceChartWidget()
     
     // Note: m_cryptodb is owned by MainWindow, don't delete it here
 }
+
 // Check() implementation
 void PriceChartWidget::Check() {
     // TODO: Add implementation details here later
