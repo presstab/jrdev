@@ -3,8 +3,9 @@
   "changes": [
     {
       "filename": "tests/mock/price_chart_widget.ts",
-      "insert_type": "insert_after_function",
-      "insert_after_function": "PriceChartWidget.destructor",
+      "insert_location": {
+        "after_function": "PriceChartWidget.destructor"
+      },
       "new_content": "\n",
       "sub_type": "BLOCK"
     }

@@ -62,6 +62,9 @@ class TestFileUtils(unittest.TestCase):
                 filename = os.path.basename(original_path)
                 change["filename"] = os.path.join(self.temp_dir, filename)
         
+        # Set self.maxDiff to None to see the full diff
+        self.maxDiff = None
+        
         # Apply the changes
         with patch('jrdev.file_utils.terminal_print') as mock_terminal_print:
             files_changed = apply_file_changes(changes_json)

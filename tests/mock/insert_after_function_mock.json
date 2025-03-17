@@ -3,8 +3,9 @@
   "changes": [
     {
       "filename": "tests/mock/pricechartwidget.cpp",
-      "insert_type": "insert_after_function",
-      "insert_after_function": "PriceChartWidget::~PriceChartWidget()",
+      "insert_location": {
+        "after_function": "PriceChartWidget::~PriceChartWidget()"
+      },
       "new_content": "\n",
       "sub_type": "BLOCK"
     }

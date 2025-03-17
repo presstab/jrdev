@@ -9,10 +9,8 @@ import pprint
 import logging
 
 from jrdev.ui import terminal_print, PrintType
-from jrdev.cpp import parse_cpp_signature, parse_cpp_functions
-from jrdev.py_lang import parse_python_signature, parse_python_functions
-from jrdev.ts_lang import parse_typescript_signature, parse_typescript_functions
-from jrdev.go_lang import parse_go_signature, parse_go_functions
+from jrdev.languages import get_language_for_file
+from jrdev.languages.utils import detect_language_for_file
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -500,6 +498,7 @@ def detect_language(filepath):
     # Return the language or None if not recognized
     return lang_map.get(ext)
 
+
 def insert_after_function(change, lines, filepath):
     """
     Insert content after a specified function in a file.
@@ -518,39 +517,28 @@ def insert_after_function(change, lines, filepath):
     function_name = change["insert_after_function"]
     logger.info(f"insert_after_function {function_name}")
     
-    # Detect the language
-    language = detect_language(filepath)
-    if not language:
-        raise Exception(f"Could not detect language for file: {filepath}")
-
-    requested_class = None
-    requested_function = None
-    file_functions = None
-
-    # Handle based on language
-    if language == 'cpp':
-        # Parse the function signature to get class and function name
-        requested_class, requested_function = parse_cpp_signature(function_name)
-        file_functions = parse_cpp_functions(filepath)
-    elif language == 'python':
-        # Parse the Python function signature
-        requested_class, requested_function = parse_python_signature(function_name)
-        file_functions = parse_python_functions(filepath)
-    elif language == 'typescript':
-        # Parse the TypeScript/JavaScript function signature
-        # Note: JavaScript files use the TypeScript parser too (mapped in detect_language)
-        requested_class, requested_function = parse_typescript_signature(function_name)
-        file_functions = parse_typescript_functions(filepath)
-    elif language == 'go':
-        # Parse the Go function signature (struct/package and function name)
-        requested_class, requested_function = parse_go_signature(function_name)
-        file_functions = parse_go_functions(filepath)
-    else:
-        # Other languages not supported yet
-        raise Exception(f"Language {language} is not supported for insert_after_function yet")
+    # Get language handler for this file
+    from jrdev.languages import get_language_for_file
     
+    lang_handler = get_language_for_file(filepath)
+    if not lang_handler:
+        language = detect_language(filepath)
+        raise Exception(f"Could not find language handler for file {filepath} (detected: {language})")
+
+    # Get the language name for special handling
+    language = lang_handler.language_name
+    
+    # Parse the function signature and file
+    requested_class, requested_function = lang_handler.parse_signature(function_name)
+    if requested_function is None:
+        raise Exception(f"Could not parse requested {language} class: {function_name}\n")
+    print(f"requested class: {requested_class}")
+
+    file_functions = lang_handler.parse_functions(filepath)
+
     # Find matching function
     matched_function = None
+    potential_match = None
     for func in file_functions:
         if func["name"] == requested_function:
             # Check class match
@@ -558,6 +546,9 @@ def insert_after_function(change, lines, filepath):
                 if func["class"] is None:
                     matched_function = func
                     break
+                # mark as potential match, assign as match if nothing else found
+                potential_match = func
+                continue
             elif func["class"] is None:
                 # No match, req has a class, this doesn't
                 continue
@@ -565,8 +556,11 @@ def insert_after_function(change, lines, filepath):
                 matched_function = func
                 break
 
+    if matched_function is None and potential_match is not None:
+        matched_function = potential_match
+
     if matched_function is None:
-        message = f"Warning: Could not find function: '{requested_function}' class: {requested_class} in {filepath}"
+        message = f"Warning: Could not find function: '{requested_function}' class: {requested_class} in {filepath}\n  Available Functions: {file_functions}"
         terminal_print(message, PrintType.WARNING)
         logger.warning(message)
         return
@@ -574,8 +568,8 @@ def insert_after_function(change, lines, filepath):
     # Get the end line index of the function (convert from 1-indexed to 0-indexed)
     func_end_idx = matched_function["end_line"] - 1
     
-    # Prepare the new content
-    new_content = change["new_content"]
+    # Prepare the new content and replace escaped newlines
+    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
     
     # Handle special case where new_content is intended to be just blank lines
     if new_content.strip() == "":
@@ -658,8 +652,8 @@ def insert_after_line(change, lines, filepath):
     insert_after_text = change["insert_after_line"]
     logger.info(f"insert_after_line '{insert_after_text}'")
     
-    # Get the new content
-    new_content = change["new_content"]
+    # Get the new content and replace escaped newlines
+    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
 
     # Find the line to insert after
     found = False
@@ -685,13 +679,268 @@ def insert_after_line(change, lines, filepath):
         terminal_print(message, PrintType.WARNING)
         logger.warning(message)
 
+def insert_within_function(change, lines, filepath):
+    """
+    Insert content within a function at a specific position.
+    
+    Args:
+        change: The change specification containing insert_location.within_function
+        lines: List of file lines to modify
+        filepath: Path to the file being modified
+        
+    Returns:
+        None - modifies lines in place
+    """
+    location = change["insert_location"]
+    function_name = location["within_function"]
+    position_marker = location.get("position_marker", "at_start")
+    
+    logger.info(f"insert_within_function '{function_name}' at position '{position_marker}'")
+    
+    # Get language handler for this file
+    from jrdev.languages import get_language_for_file
+    
+    lang_handler = get_language_for_file(filepath)
+    if not lang_handler:
+        language = detect_language(filepath)
+        raise Exception(f"Could not find language handler for file {filepath} (detected: {language})")
+    
+    # Parse the function signature and file
+    requested_class, requested_function = lang_handler.parse_signature(function_name)
+    file_functions = lang_handler.parse_functions(filepath)
+    
+    # Find matching function
+    matched_function = None
+    potential_match = None
+    for func in file_functions:
+        if func["name"] == requested_function:
+            # Check class match
+            if requested_class is None:
+                if func["class"] is None:
+                    matched_function = func
+                    break
+                # mark as potential match, assign as match if nothing else found
+                potential_match = func
+                continue
+            elif func["class"] is None:
+                # No match, req has a class, this doesn't
+                continue
+            elif func["class"] == requested_class:
+                matched_function = func
+                break
+
+    if matched_function is None and potential_match is not None:
+        matched_function = potential_match
+    
+    if matched_function is None:
+        message = f"Warning: Could not find function: '{requested_function}' class: {requested_class} in {filepath}\n  Available Functions: {file_functions}"
+        terminal_print(message, PrintType.WARNING)
+        logger.warning(message)
+        return
+    
+    # Get the start and end line indexes (convert from 1-indexed to 0-indexed)
+    func_start_idx = matched_function["start_line"] - 1
+    func_end_idx = matched_function["end_line"] - 1
+    
+    # Prepare the new content and replace escaped newlines
+    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
+    
+    # Determine insert position based on position_marker
+    insert_idx = None
+    
+    if position_marker == "at_start":
+        # Insert after the opening brace of the function
+        for i in range(func_start_idx, func_end_idx + 1):
+            if "{" in lines[i]:
+                insert_idx = i + 1
+                break
+        if insert_idx is None:
+            insert_idx = func_start_idx + 1  # Default fallback
+    
+    elif position_marker == "before_return":
+        # Find the last return statement in the function
+        for i in range(func_end_idx, func_start_idx - 1, -1):
+            if re.search(r'\breturn\b', lines[i]):
+                insert_idx = i
+                break
+        if insert_idx is None:
+            insert_idx = func_end_idx  # Default fallback
+    
+    else:
+        # Default to right after function declaration
+        insert_idx = func_start_idx + 1
+    
+    # Get indentation from the target line
+    indentation = ""
+    if insert_idx < len(lines):
+        indentation_match = re.match(r'^(\s*)', lines[insert_idx])
+        if indentation_match:
+            indentation = indentation_match.group(1)
+    
+    # Prepare the content with proper indentation
+    new_content_lines = []
+    for line in new_content.splitlines(True):  # Keep line endings
+        if line.strip():  # Only indent non-empty lines
+            new_content_lines.append(indentation + line)
+        else:
+            new_content_lines.append(line)
+    
+    # Insert the content
+    lines[insert_idx:insert_idx] = new_content_lines
+    
+    message = f"Inserting content within function '{function_name}' at {position_marker} in {filepath}"
+    terminal_print(message, PrintType.INFO)
+    logger.info(message)
+
+def insert_after_marker(change, lines, filepath):
+    """
+    Insert content after a specific marker in the file.
+    
+    Args:
+        change: The change specification containing insert_location.after_marker
+        lines: List of file lines to modify
+        filepath: Path to the file being modified
+        
+    Returns:
+        None - modifies lines in place
+    """
+    marker = change["insert_location"]["after_marker"]
+    logger.info(f"insert_after_marker '{marker}'")
+    
+    # Get the new content and replace escaped newlines
+    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
+    
+    # Find the line to insert after
+    found = False
+    for i, line in enumerate(lines):
+        if marker.strip() in line.strip():
+            # Determine indentation
+            indentation = ""
+            indentation_match = re.match(r'^(\s*)', line)
+            if indentation_match:
+                indentation = indentation_match.group(1)
+            
+            # Prepare the new content with proper indentation
+            new_content_lines = []
+            for content_line in new_content.splitlines(True):  # Keep line endings
+                if content_line.strip():  # Only indent non-empty lines
+                    new_content_lines.append(indentation + content_line)
+                else:
+                    new_content_lines.append(content_line)
+            
+            # Insert after the matching line
+            lines[i+1:i+1] = new_content_lines
+            
+            message = f"Inserting content after marker '{marker}' in {filepath}"
+            terminal_print(message, PrintType.INFO)
+            logger.info(message)
+            
+            found = True
+            break
+    
+    if not found:
+        message = f"Warning: Could not find marker '{marker}' in {filepath}"
+        terminal_print(message, PrintType.WARNING)
+        logger.warning(message)
+
+def insert_global(change, lines, filepath):
+    """
+    Insert content at the global scope in the file.
+    
+    Args:
+        change: The change specification containing insert_location.global
+        lines: List of file lines to modify
+        filepath: Path to the file being modified
+        
+    Returns:
+        None - modifies lines in place
+    """
+    location = change["insert_location"]
+    global_position = location.get("global", "end")  # Default to end if only { "global": true } is specified
+    logger.info(f"insert_global at '{global_position}'")
+    
+    # Get the new content and replace escaped newlines
+    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
+    
+    # Determine where to insert the content
+    if global_position == "start" or global_position is True:
+        # Find the first non-import, non-comment line
+        insert_idx = 0
+        language = detect_language(filepath)
+        
+        # Skip shebang, imports, and comments based on language
+        for i, line in enumerate(lines):
+            # Skip shebang line
+            if i == 0 and line.startswith("#!"):
+                continue
+                
+            # Skip module docstring for Python
+            if language == 'python' and i < 5 and line.strip().startswith('"""') or line.strip().startswith("'''"):
+                # Skip until closing triple quote is found
+                for j in range(i + 1, min(i + 20, len(lines))):
+                    if '"""' in lines[j] or "'''" in lines[j]:
+                        i = j + 1
+                        break
+                continue
+                
+            # Skip imports based on language
+            if (language == 'python' and (line.strip().startswith('import ') or line.strip().startswith('from '))) or \
+               (language == 'typescript' and (line.strip().startswith('import ') or line.strip().startswith('require('))) or \
+               (language == 'cpp' and (line.strip().startswith('#include') or line.strip().startswith('using '))) or \
+               (language == 'go' and (line.strip().startswith('import ') or line.strip().startswith('package '))):
+                continue
+                
+            # Skip comments
+            if line.strip().startswith('//') or line.strip().startswith('#') or line.strip().startswith('/*'):
+                continue
+                
+            # Found first non-import, non-comment line
+            insert_idx = i
+            break
+            
+        # Prepare new content lines
+        new_content_lines = new_content.splitlines(True)  # Keep line endings
+        
+        # Ensure there's a blank line after the new content
+        if insert_idx < len(lines) and new_content_lines and not new_content.endswith('\n\n'):
+            new_content_lines.append('\n')
+            
+        # Insert at the beginning of the file (after imports)
+        lines[insert_idx:insert_idx] = new_content_lines
+        
+        message = f"Inserting content at global scope (start) in {filepath}"
+        terminal_print(message, PrintType.INFO)
+        logger.info(message)
+        
+    else:  # "end" or any other value
+        # Add to the end of the file
+        # Check if file ends with newline
+        if lines and not lines[-1].endswith('\n'):
+            lines.append('\n')
+            
+        # Add a separator line if the file is not empty
+        if lines and lines[-1].strip():
+            lines.append('\n')
+            
+        # Add the new content
+        new_content_lines = new_content.splitlines(True)  # Keep line endings
+        lines.extend(new_content_lines)
+        
+        # Ensure file ends with a newline
+        if lines and not lines[-1].endswith('\n'):
+            lines.append('\n')
+            
+        message = f"Inserting content at global scope (end) in {filepath}"
+        terminal_print(message, PrintType.INFO)
+        logger.info(message)
+
 def process_insert_after_changes(lines, insert_after_changes, filepath):
     """
-    Process changes based on insert_type directive (insert_after_line or insert_after_function).
+    Process changes based on insert_location object with various location options.
     
     Args:
         lines: List of file lines
-        insert_after_changes: List of changes with insert_after_line or insert_after_function
+        insert_after_changes: List of changes with insert_location directive
         filepath: Path to the file being modified
         
     Returns:
@@ -702,35 +951,44 @@ def process_insert_after_changes(lines, insert_after_changes, filepath):
             raise Exception(f"filename not in change: {change}")
         if "new_content" not in change:
             raise Exception(f"new_content not in change: {change}")
-        if "insert_type" not in change:
-            raise Exception(f"insert_type not in change: {change}")
         
-        # Use helper functions to check for insert types
-        insert_type = change["insert_type"]
-        has_after_line = "insert_after_line" in insert_type
-        has_after_function = "insert_after_function" in insert_type
-        
-        # Handle invalid insert_type
-        if not (has_after_line or has_after_function):
-            raise Exception(f"Invalid insert_type '{change['insert_type']}' or missing required parameters in change: {change}")
-        
-        change["new_content"] = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
-        
-        # Check if this is a FUNCTION sub_type that needs special handling at the end of file
-        # if "sub_type" in change and change["sub_type"] == "FUNCTION" and not has_insert_after_function and not has_insert_after_line:
-        #     lines, start_idx, end_idx, new_lines = process_function_subtype(lines, new_content, filepath)
-        #     lines = lines[:start_idx] + new_lines + lines[end_idx:]
-        #     continue
-        
-        # Process insert_after_function if it exists
-        if has_after_function:
-            insert_after_function(change, lines, filepath)
-            continue  # Skip to the next change after processing insert_after_function
-        
-        # Process insert_after_line if it exists
-        if has_after_line:
-            insert_after_line(change, lines, filepath)
-            continue
+        # Process with insert_location object
+        if "insert_location" in change:
+            location = change["insert_location"]
+            
+            # Handle all insert location types
+            if "after_function" in location:
+                # Copy the change and add insert_after_function for compatibility
+                function_change = change.copy()
+                function_change["insert_after_function"] = location["after_function"]
+                insert_after_function(function_change, lines, filepath)
+                continue
+                
+            elif "within_function" in location:
+                insert_within_function(change, lines, filepath)
+                continue
+                
+            elif "after_marker" in location:
+                insert_after_marker(change, lines, filepath)
+                continue
+                
+            elif "global" in location:
+                insert_global(change, lines, filepath)
+                continue
+                
+            # Handle the case for after_line (corrected to use after_marker instead)
+            elif "after_line" in location:
+                # Copy the change and create a new insert_location with after_marker
+                marker_change = change.copy()
+                marker_change["insert_location"] = {"after_marker": location["after_line"]}
+                insert_after_marker(marker_change, lines, filepath)
+                terminal_print(f"Warning: 'after_line' is deprecated, use 'after_marker' instead", PrintType.WARNING)
+                continue
+                
+            else:
+                raise Exception(f"Invalid insert_location, missing a valid location type: {change}")
+        else:
+            raise Exception(f"Missing insert_location in change: {change}")
             
     return lines
 
@@ -741,9 +999,9 @@ def apply_file_changes(changes_json):
     
     The function supports multiple ways to specify changes:
     1. Using operation=ADD/DELETE with start_line
-    2. Using insert_type with options:
-       - insert_after_line: to specify a line of code after which to insert
-       - insert_after_function: to specify a function after which to insert new code
+    2. Using insert_location object with options:
+       - after_line: to specify a line of code after which to insert
+       - after_function: to specify a function after which to insert new code
        (more reliable for LLM-based edits)
     3. Using operation=NEW to create a new file
     """
@@ -782,7 +1040,7 @@ def apply_file_changes(changes_json):
 
         # Process classic operation-based changes (start_line based)
         operation_changes = [c for c in changes if "operation" in c and "start_line" in c]
-        insert_after_changes = [c for c in changes if "insert_after_line" in c or "insert_after_function" in c]
+        insert_after_changes = [c for c in changes if "insert_location" in c]
         
         # Process operation-based changes first
         if operation_changes:

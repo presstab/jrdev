@@ -225,13 +225,14 @@ async def process_code_request_response(terminal, response_prev, user_task):
 
 
     if len(files_changed_set):
+        terminal.logger.info("send files for sanity check")
         # Validate the changed files to ensure they're not malformed
         model_prev = terminal.model
         terminal.model = "qwen-2.5-coder-32b"
-        error_msg = await double_check_changed_files(terminal, files_changed)
-        if error_msg is not None:
-            files_changed = await send_file_request(terminal, files_changed, error_msg)
-            error_msg = await double_check_changed_files(terminal, files_changed)
+        error_msg = await double_check_changed_files(terminal, files_changed_set)
+        # if error_msg is not None:
+        #     files_changed = await send_file_request(terminal, files_changed, error_msg)
+        #     error_msg = await double_check_changed_files(terminal, files_changed)
 
         terminal.model = model_prev
 
@@ -302,8 +303,8 @@ operation_promts = {
     "DELETE": (
         """
         DELETE: Remove existing code using code references rather than line numbers.
+           - "operation": "DELETE"
            - "filename": the file to modify.
-           - "operation": "DELETE".
            - "target": an object specifying what to delete. It may include:
                - "function": the name of a function to delete.
                - "block": a block within a function, identified by the function name and a "position_marker" (e.g., "before_return", "after_variable_declaration").
@@ -312,6 +313,7 @@ operation_promts = {
     "ADD": (
         """
         ADD: Insert new code at a specified location using code references.
+           - "operation": "ADD"
            - "filename": the file to modify.
            - "insert_location": an object that indicates where to insert the new code. Options include:
                - "after_function": the name of a function after which to insert.
@@ -328,8 +330,8 @@ operation_promts = {
     "REPLACE": (
         """
         REPLACE: Replace an existing code block with new content.
+           - "operation": "REPLACE"
            - "filename": the file to modify.
-           - "operation": "REPLACE".
            - "target_type": the type of code to be replaced. Options include:
                - "FUNCTION": the entire function implementation.
                - "BLOCK": a specific block of code within a function.
@@ -343,7 +345,7 @@ operation_promts = {
         """
         RENAME: Change the name of an identifier and update its references.
            - "filename": the file to modify.
-           - "operation": "RENAME".
+           - "operation": "RENAME"
            - "target_type": the type of identifier (e.g., "FUNCTION", "CLASS", "VARIABLE").
            - "old_name": the current name.
            - "new_name": the new name.
@@ -353,7 +355,7 @@ operation_promts = {
     "NEW": (
         """
         NEW: Create a new file.
-           - "operation": "NEW".
+           - "operation": "NEW"
            - "filename": the path of the new file to create.
            - "new_content": the entire content of the new file.
         """
