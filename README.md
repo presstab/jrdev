@@ -22,10 +22,11 @@ pip install -r requirements.txt
 
 ## Configuration
 
-Create a `.env` file in your project root directory with your API key:
+Create a `.env` file in your project root directory with your API keys:
 
 ```
-VENICE_API_KEY=your_api_key_here
+VENICE_API_KEY=your_venice_api_key_here
+OPENAI_API_KEY=your_openai_api_key_here  # Optional, needed for OpenAI models
 ```
 
 ## Usage
@@ -66,12 +67,20 @@ jrdev --help
 
 ### Available Models
 
+#### Venice Models
 - deepseek-r1-671b
-- deepseek-r1-llama-70b
 - qwen-2.5-coder-32b
+- qwen-2.5-qwq-32b
 - llama-3.1-405b
 - llama-3.2-3b
 - llama-3.3-70b
+- dolphin-2.9.2-qwen2-72b
+
+#### OpenAI Models (requires OPENAI_API_KEY)
+- o3-mini-2025-01-31
+- gpt-4o
+- gpt-4-turbo
+- gpt-3.5-turbo
 
 ## Development
 

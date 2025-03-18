@@ -1,4 +1,5 @@
 import unittest
+import os
 from jrdev.languages.cpp_lang import CppLang
 
 class TestCppLang(unittest.TestCase):
@@ -60,6 +61,50 @@ class TestCppLang(unittest.TestCase):
         class_name, func_name = self.cpp_lang.parse_signature("Namespace::Class::function")
         self.assertEqual(class_name, "Namespace")
         self.assertEqual(func_name, "Class::function")
+        
+    def test_parse_functions_in_header(self):
+        """Test parsing functions in header files"""
+        header_path = os.path.join(os.path.dirname(__file__), 'mock/pricechartwidget.h')
+        if not os.path.exists(header_path):
+            self.skipTest(f"Mock header file not found: {header_path}")
+            
+        header_functions = self.cpp_lang.parse_functions(header_path)
+        
+        # Verify we found a reasonable number of function declarations
+        self.assertTrue(len(header_functions) >= 10, f"Expected to find at least 10 functions, found {len(header_functions)}")
+        
+        # Check for specific functions we expect to find
+        function_names = [func["name"] for func in header_functions]
+        self.assertIn("PriceChartWidget", function_names)
+        self.assertIn("~PriceChartWidget", function_names)
+        self.assertIn("SetTimeRange", function_names)
+        self.assertIn("paintEvent", function_names)
+        
+        # Verify class name for functions
+        class_names = set(func["class"] for func in header_functions if func["class"] is not None)
+        self.assertEqual(len(class_names), 1)
+        self.assertEqual(list(class_names)[0], "PriceChartWidget")
+    
+    def test_parse_functions_in_implementation(self):
+        """Test parsing functions in implementation files"""
+        impl_path = os.path.join(os.path.dirname(__file__), 'mock/pricechartwidget.cpp')
+        if not os.path.exists(impl_path):
+            self.skipTest(f"Mock implementation file not found: {impl_path}")
+        
+        impl_functions = self.cpp_lang.parse_functions(impl_path)
+        
+        # Verify we found function definitions
+        self.assertTrue(len(impl_functions) >= 2, f"Expected to find at least 2 functions, found {len(impl_functions)}")
+        
+        # Check for specific functions we expect to find
+        function_names = [func["name"] for func in impl_functions]
+        self.assertIn("~PriceChartWidget", function_names)
+        self.assertIn("Check", function_names)
+        
+        # Verify class name for functions
+        class_names = set(func["class"] for func in impl_functions if func["class"] is not None)
+        self.assertEqual(len(class_names), 1)
+        self.assertEqual(list(class_names)[0], "PriceChartWidget")
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,15 @@
+```json
+{
+  "changes": [
+    {
+      "operation": "ADD",
+      "filename": "pricechartwidget.cpp",
+      "insert_location": {
+        "after_function": "UpdateAssetBoxes"
+      },
+      "new_content": "void PriceChartWidget::HandleAssetBoxClick(AssetBox* assetBox)\n{\n    if (!assetBox) return;\n\n    QString strCoin = assetBox->GetCoinName();\n\n    // Remove from layout and delete\n    m_assetBoxLayout->removeWidget(assetBox);\n    delete assetBox;\n    m_mapAssetBoxes.remove(strCoin);\n\n    // Deselect in combobox\n    m_comboboxCoin->SetItemSelected(strCoin, false, true);\n}\n",
+      "sub_type": "FUNCTION"
+    }
+  ]
+}
+```

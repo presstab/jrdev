@@ -1,16 +1,11 @@
 import re
 import os
 import glob
-import difflib
 from difflib import SequenceMatcher
-import numbers
-import fnmatch
-import pprint
 import logging
 
 from jrdev.ui import terminal_print, PrintType
 from jrdev.languages import get_language_for_file
-from jrdev.languages.utils import detect_language_for_file
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -178,6 +173,8 @@ def manual_json_parse(text):
             #todo handle if valid json is on same line
 
         num_start = -1
+        # We'll handle boolean values in the character loop instead
+        # to avoid processing them when they're inside quotes
 
         i = -1
         for char in line:
@@ -185,6 +182,18 @@ def manual_json_parse(text):
 
             if char == ":" and skip_colon:
                 skip_colon = False
+                continue
+
+            # Handle boolean literals - but only outside of quotes
+            if pending_key and not quote_open and i + 4 <= len(line) and line[i:i+4] == "true":
+                stack[-1][pending_key] = True
+                pending_key = ""
+                i += 3  # Skip the rest of 'true'
+                continue
+            if pending_key and not quote_open and i + 5 <= len(line) and line[i:i+5] == "false":
+                stack[-1][pending_key] = False
+                pending_key = ""
+                i += 4  # Skip the rest of 'false'
                 continue
 
             if char == "\"":
@@ -532,7 +541,7 @@ def insert_after_function(change, lines, filepath):
     requested_class, requested_function = lang_handler.parse_signature(function_name)
     if requested_function is None:
         raise Exception(f"Could not parse requested {language} class: {function_name}\n")
-    print(f"requested class: {requested_class}")
+    logger.info(f"requested class: {requested_class}")
 
     file_functions = lang_handler.parse_functions(filepath)
 
@@ -630,6 +639,12 @@ def insert_after_function(change, lines, filepath):
         # Need to add a blank line separator
         new_content_lines = ["\n"] + new_content.splitlines(True)
     
+    # Ensure the content ends with a newline
+    if new_content_lines and not new_content_lines[-1].endswith('\n'):
+        new_content_lines[-1] = new_content_lines[-1] + '\n'
+    elif not new_content_lines:  # In case new_content was empty
+        new_content_lines = ['\n']
+    
     # Insert at the right position
     lines[func_end_idx + 1:func_end_idx + 1] = new_content_lines
     
@@ -692,13 +707,15 @@ def insert_within_function(change, lines, filepath):
         None - modifies lines in place
     """
     location = change["insert_location"]
+    if "within_function" not in location:
+        raise Exception(f"within_function not in insert_location: {change}")
     function_name = location["within_function"]
-    position_marker = location.get("position_marker", "at_start")
-    
+
+    if "position_marker" not in location:
+        raise Exception(f"position_marker not in insert_location: {change}")
+    position_marker = location["position_marker"]
+
     logger.info(f"insert_within_function '{function_name}' at position '{position_marker}'")
-    
-    # Get language handler for this file
-    from jrdev.languages import get_language_for_file
     
     lang_handler = get_language_for_file(filepath)
     if not lang_handler:
@@ -747,8 +764,39 @@ def insert_within_function(change, lines, filepath):
     
     # Determine insert position based on position_marker
     insert_idx = None
-    
-    if position_marker == "at_start":
+
+    # position_marker may be a dict
+    if isinstance(position_marker, dict):
+        if "after_line" not in position_marker:
+            raise Exception(f"insert_within_function: position_marker is a dict, but after_line is not in it: {position_marker}")
+        after_line = position_marker["after_line"]
+        if isinstance(after_line, str):
+            # This is not a line number but a string to match within the function
+            line_matched = False
+            # Search for the line containing the specified text within the function
+            for i in range(func_start_idx, func_end_idx + 1):
+                if after_line.strip() in lines[i].strip():
+                    insert_idx = i + 1  # Insert after the matched line
+                    line_matched = True
+                    logger.info(f"insert_within_function matched line '{after_line}' at index {i}")
+                    break
+            
+            if not line_matched:
+                raise Exception(f"insert_within_function: Could not find line containing '{after_line}' in function '{function_name}' in '{filepath}'")
+        else:
+            # after_line is a number (relative line within the function)
+            if not isinstance(after_line, (int, float)):
+                after_line = int(after_line)  # Try to convert to integer
+                
+            # Validate that the line number is within function bounds
+            if after_line < 0 or after_line > (func_end_idx - func_start_idx):
+                raise Exception(f"insert_within_function: Line number {after_line} is out of bounds for function '{function_name}' (length: {func_end_idx - func_start_idx + 1} lines)")
+                
+            # Calculate the actual file line index
+            insert_idx = func_start_idx + after_line + 1
+            
+        logger.info(f"insert_within_function after function line {after_line} file line {insert_idx}")
+    elif position_marker == "at_start":
         # Insert after the opening brace of the function
         for i in range(func_start_idx, func_end_idx + 1):
             if "{" in lines[i]:
@@ -756,7 +804,6 @@ def insert_within_function(change, lines, filepath):
                 break
         if insert_idx is None:
             insert_idx = func_start_idx + 1  # Default fallback
-    
     elif position_marker == "before_return":
         # Find the last return statement in the function
         for i in range(func_end_idx, func_start_idx - 1, -1):
@@ -765,10 +812,11 @@ def insert_within_function(change, lines, filepath):
                 break
         if insert_idx is None:
             insert_idx = func_end_idx  # Default fallback
-    
     else:
         # Default to right after function declaration
+        # todo, this should be first line after function scope
         insert_idx = func_start_idx + 1
+        logger.info(f"insert_within_function defaulting to after func start")
     
     # Get indentation from the target line
     indentation = ""
@@ -784,6 +832,12 @@ def insert_within_function(change, lines, filepath):
             new_content_lines.append(indentation + line)
         else:
             new_content_lines.append(line)
+
+    # Ensure the content ends with a newline
+    if new_content_lines and not new_content_lines[-1].endswith('\n'):
+        new_content_lines[-1] = new_content_lines[-1] + '\n'
+    elif not new_content_lines:  # In case new_content was empty
+        new_content_lines = ['\n']
     
     # Insert the content
     lines[insert_idx:insert_idx] = new_content_lines
@@ -827,6 +881,12 @@ def insert_after_marker(change, lines, filepath):
                     new_content_lines.append(indentation + content_line)
                 else:
                     new_content_lines.append(content_line)
+
+            # Ensure the content ends with a newline
+            if new_content_lines and not new_content_lines[-1].endswith('\n'):
+                new_content_lines[-1] = new_content_lines[-1] + '\n'
+            elif not new_content_lines:  # In case new_content was empty
+                new_content_lines = ['\n']
             
             # Insert after the matching line
             lines[i+1:i+1] = new_content_lines
@@ -979,10 +1039,7 @@ def process_insert_after_changes(lines, insert_after_changes, filepath):
             # Handle the case for after_line (corrected to use after_marker instead)
             elif "after_line" in location:
                 # Copy the change and create a new insert_location with after_marker
-                marker_change = change.copy()
-                marker_change["insert_location"] = {"after_marker": location["after_line"]}
-                insert_after_marker(marker_change, lines, filepath)
-                terminal_print(f"Warning: 'after_line' is deprecated, use 'after_marker' instead", PrintType.WARNING)
+                terminal_print(f"Warning: SKIPPED CHANGED: 'after_line' is deprecated, use 'after_marker' instead", PrintType.WARNING)
                 continue
                 
             else:
@@ -990,6 +1047,314 @@ def process_insert_after_changes(lines, insert_after_changes, filepath):
         else:
             raise Exception(f"Missing insert_location in change: {change}")
             
+    return lines
+
+
+def find_function_signature(lines, function_name):
+    """
+    Find a function signature in file lines based on function name.
+    
+    Args:
+        lines: List of file lines
+        function_name: Name of the function to find
+        
+    Returns:
+        int: Index of the line containing the function signature, or -1 if not found
+    """
+    for i, line in enumerate(lines):
+        # Use a pattern to match the function name with possible return type and parameters
+        pattern = r'\b' + re.escape(function_name) + r'\s*\(.*\)'
+        if re.search(pattern, line):
+            return i
+    return -1
+
+
+def find_code_snippet(lines, code_snippet):
+    """
+    Find a code snippet in file lines.
+    
+    Args:
+        lines: List of file lines
+        code_snippet: Exact code snippet to find
+        
+    Returns:
+        tuple: (start_idx, end_idx) of the snippet, or (-1, -1) if not found
+    """
+    # Normalize line endings in the snippet
+    normalized_snippet = code_snippet.replace('\r\n', '\n').rstrip('\n')
+    snippet_lines = normalized_snippet.split('\n')
+    
+    # If the snippet is empty, return not found
+    if not snippet_lines:
+        return -1, -1
+        
+    # If the snippet is a single line, do a simple search
+    if len(snippet_lines) == 1:
+        for i, line in enumerate(lines):
+            if snippet_lines[0] in line:
+                return i, i+1
+        return -1, -1
+    
+    # For multi-line snippets, do a sliding window search
+    for i in range(len(lines) - len(snippet_lines) + 1):
+        found = True
+        for j, snippet_line in enumerate(snippet_lines):
+            line = lines[i+j].rstrip('\n')  # Remove trailing newline for comparison
+            if snippet_line not in line:
+                found = False
+                break
+        if found:
+            return i, i + len(snippet_lines)
+    
+    return -1, -1
+
+
+def replace_function_signature(lines, change, filepath):
+    """
+    Replace a function signature in file lines.
+    
+    Args:
+        lines: List of file lines
+        change: The change specification containing target_reference.function_name and new_content
+        filepath: Path to the file being modified
+        
+    Returns:
+        List: Updated list of lines
+    """
+    function_name = change["target_reference"]["function_name"]
+    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
+    
+    line_idx = find_function_signature(lines, function_name)
+    if line_idx >= 0:
+        # Replace the entire line with the new signature
+        lines[line_idx] = new_content + "\n" if not new_content.endswith("\n") else new_content
+        
+        message = f"Replaced signature for function '{function_name}' in {filepath}"
+        terminal_print(message, PrintType.INFO)
+        logger.info(message)
+    else:
+        message = f"Warning: Could not find signature for function '{function_name}' in {filepath}"
+        terminal_print(message, PrintType.WARNING)
+        logger.warning(message)
+    
+    return lines
+
+
+def replace_function_implementation(lines, change, filepath):
+    """
+    Replace a complete function implementation in file lines.
+    
+    Args:
+        lines: List of file lines
+        change: The change specification containing target_reference.function_name and new_content
+        filepath: Path to the file being modified
+        
+    Returns:
+        List: Updated list of lines
+    """
+    function_name = change["target_reference"]["function_name"]
+    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
+    
+    # Get language handler for this file
+    lang_handler = get_language_for_file(filepath)
+    if not lang_handler:
+        language = detect_language(filepath)
+        raise Exception(f"Could not find language handler for file {filepath} (detected: {language})")
+    
+    # Parse the function signature and file
+    requested_class, requested_function = lang_handler.parse_signature(function_name)
+    file_functions = lang_handler.parse_functions(filepath)
+    
+    # Find matching function
+    matched_function = None
+    for func in file_functions:
+        if func["name"] == requested_function and func.get("class") == requested_class:
+            matched_function = func
+            break
+    
+    if matched_function is None:
+        message = f"Warning: Could not find function '{function_name}' in {filepath}"
+        terminal_print(message, PrintType.WARNING)
+        logger.warning(message)
+        return lines
+    
+    # Get the start and end line indexes (convert from 1-indexed to 0-indexed)
+    start_idx = matched_function["start_line"] - 1
+    end_idx = matched_function["end_line"]
+    
+    # Prepare the new function implementation with proper line endings
+    new_lines = new_content.splitlines(True)  # Keep line endings
+    
+    # Replace the entire function
+    lines = lines[:start_idx] + new_lines + lines[end_idx:]
+    
+    message = f"Replaced function '{function_name}' in {filepath}"
+    terminal_print(message, PrintType.INFO)
+    logger.info(message)
+    
+    return lines
+
+
+def replace_code_block(lines, change, filepath):
+    """
+    Replace a code block within a function.
+    
+    Args:
+        lines: List of file lines
+        change: The change specification containing target_reference details and new_content
+        filepath: Path to the file being modified
+        
+    Returns:
+        List: Updated list of lines
+    """
+    target_ref = change["target_reference"]
+    function_name = target_ref.get("function_name")
+    start_marker = target_ref.get("start_marker")
+    end_marker = target_ref.get("end_marker")
+    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
+    
+    if not function_name or not start_marker or not end_marker:
+        raise Exception(f"Missing required target_reference fields for BLOCK replacement: {change}")
+    
+    # Get language handler for this file
+    lang_handler = get_language_for_file(filepath)
+    if not lang_handler:
+        language = detect_language(filepath)
+        raise Exception(f"Could not find language handler for file {filepath} (detected: {language})")
+    
+    # Parse the function signature and file
+    requested_class, requested_function = lang_handler.parse_signature(function_name)
+    file_functions = lang_handler.parse_functions(filepath)
+    
+    # Find matching function
+    matched_function = None
+    for func in file_functions:
+        if func["name"] == requested_function and func.get("class") == requested_class:
+            matched_function = func
+            break
+    
+    if matched_function is None:
+        message = f"Warning: Could not find function '{function_name}' in {filepath}"
+        terminal_print(message, PrintType.WARNING)
+        logger.warning(message)
+        return lines
+    
+    # Get the function bounds
+    func_start = matched_function["start_line"] - 1
+    func_end = matched_function["end_line"]
+    
+    # Find the block within the function
+    block_start = None
+    block_end = None
+    
+    for i in range(func_start, func_end):
+        if start_marker in lines[i]:
+            block_start = i
+        if end_marker in lines[i] and block_start is not None:
+            block_end = i + 1
+            break
+    
+    if block_start is None or block_end is None:
+        message = f"Warning: Could not find block in function '{function_name}' in {filepath}"
+        terminal_print(message, PrintType.WARNING)
+        logger.warning(message)
+        return lines
+    
+    # Prepare the new block with proper line endings
+    new_lines = new_content.splitlines(True)  # Keep line endings
+    
+    # Replace the block
+    lines = lines[:block_start] + new_lines + lines[block_end:]
+    
+    message = f"Replaced block in function '{function_name}' in {filepath}"
+    terminal_print(message, PrintType.INFO)
+    logger.info(message)
+    
+    return lines
+
+
+def replace_code_snippet(lines, change, filepath):
+    """
+    Replace a code snippet anywhere in the file.
+    
+    Args:
+        lines: List of file lines
+        change: The change specification containing target_reference.code_snippet and new_content
+        filepath: Path to the file being modified
+        
+    Returns:
+        List: Updated list of lines
+    """
+    target_ref = change["target_reference"]
+    code_snippet = target_ref.get("code_snippet", "")
+    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
+    
+    if not code_snippet:
+        message = f"Warning: Missing code_snippet in target_reference: {change}"
+        terminal_print(message, PrintType.WARNING)
+        logger.warning(message)
+        return lines
+    
+    # Find the code snippet
+    start_idx, end_idx = find_code_snippet(lines, code_snippet)
+    
+    if start_idx == -1 or end_idx == -1:
+        message = f"Warning: Could not find code snippet in {filepath}"
+        terminal_print(message, PrintType.WARNING)
+        logger.warning(message)
+        return lines
+    
+    # Prepare the new content with proper line endings
+    new_lines = []
+    for line in new_content.splitlines():
+        new_lines.append(line + "\n")
+    
+    # Replace the snippet
+    lines = lines[:start_idx] + new_lines + lines[end_idx:]
+    
+    message = f"Replaced code snippet in {filepath}"
+    terminal_print(message, PrintType.INFO)
+    logger.info(message)
+    
+    return lines
+
+
+def process_replace_operation(lines, change, filepath):
+    """
+    Process a REPLACE operation to replace content in a file.
+    
+    Args:
+        lines: List of file lines to modify
+        change: The change specification containing REPLACE operation details
+        filepath: Path to the file being modified
+        
+    Returns:
+        Updated list of lines
+    """
+    # Extract replacement details
+    target_type = change.get("target_type", "")
+    target_ref = change.get("target_reference", {})
+    
+    # Check for code_snippet first, as it can be used with any target_type
+    if "target_reference" in change and "code_snippet" in change["target_reference"]:
+        # Handle code_snippet replacement regardless of target_type
+        return replace_code_snippet(lines, change, filepath)
+    
+    # Process based on target type if no code_snippet
+    elif target_type == "SIGNATURE" and "function_name" in target_ref:
+        return replace_function_signature(lines, change, filepath)
+        
+    elif target_type == "FUNCTION" and "function_name" in target_ref:
+        return replace_function_implementation(lines, change, filepath)
+        
+    elif target_type == "BLOCK" and all(k in target_ref for k in ["function_name", "start_marker", "end_marker"]):
+        return replace_code_block(lines, change, filepath)
+        
+    else:
+        message = f"Warning: Unsupported REPLACE operation: {change}"
+        terminal_print(message, PrintType.WARNING)
+        logger.warning(message)
+    
     return lines
 
 
@@ -1004,15 +1369,31 @@ def apply_file_changes(changes_json):
        - after_function: to specify a function after which to insert new code
        (more reliable for LLM-based edits)
     3. Using operation=NEW to create a new file
+    4. Using operation=REPLACE to replace content in a file
     """
     # Group changes by filename
     changes_by_file = {}
     new_files = []
     files_changed = []
 
+    valid_operations = ["ADD", "DELETE", "REPLACE", "NEW", "RENAME", "NEW"]
+
     for change in changes_json["changes"]:
+        if "operation" not in change:
+            terminal_print(f"apply_file_changes: malformed change request: {change}")
+            continue
+
+        operation = change["operation"]
+        if operation not in valid_operations:
+            terminal_print(f"apply_file_changes: malformed change request, bad operation: {operation}")
+            if operation == "MODIFY":
+                operation = "REPLACE"
+                terminal_print("switching MODIFY to REPLACE")
+            else:
+                continue
+
         # Handle NEW operation separately
-        if "operation" in change and change["operation"] == "NEW":
+        if operation == "NEW":
             new_files.append(change)
             continue
             
@@ -1041,6 +1422,7 @@ def apply_file_changes(changes_json):
         # Process classic operation-based changes (start_line based)
         operation_changes = [c for c in changes if "operation" in c and "start_line" in c]
         insert_after_changes = [c for c in changes if "insert_location" in c]
+        replace_changes = [c for c in changes if "operation" in c and c["operation"] == "REPLACE"]
         
         # Process operation-based changes first
         if operation_changes:
@@ -1048,6 +1430,10 @@ def apply_file_changes(changes_json):
         
         # Process insert_after_line based changes
         lines = process_insert_after_changes(lines, insert_after_changes, filepath)
+        
+        # Process replace changes
+        for change in replace_changes:
+            lines = process_replace_operation(lines, change, filepath)
 
         # Write the updated lines back to the file
         with open(filepath, "w", encoding="utf-8") as f:
@@ -1088,9 +1474,12 @@ def apply_file_changes(changes_json):
 
 
 def check_and_apply_code_changes(response_text):
-    cutoff = cutoff_string(response_text, "```json", "```")
-    changes = manual_json_parse(cutoff)
-
+    changes = None
+    try:
+        cutoff = cutoff_string(response_text, "```json", "```")
+        changes = manual_json_parse(cutoff)
+    except Exception as e:
+        raise Exception(f"parsing failed in check_and_apply_code_changes: {str(e)}")
     if "changes" in changes:
         return apply_file_changes(changes)
     return []

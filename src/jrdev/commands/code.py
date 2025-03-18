@@ -103,7 +103,7 @@ async def send_code_request(terminal: Any, user_task: str):
     terminal_print(f"\n{model_name} is processing request...", PrintType.PROCESSING)
 
     try:
-        response_text = await stream_request(terminal.client, terminal.model, terminal.messages[terminal.model])
+        response_text = await stream_request(terminal, terminal.model, terminal.messages[terminal.model])
         # Add a new line after streaming completes
         terminal_print("", PrintType.INFO)
         
@@ -156,7 +156,7 @@ async def double_check_changed_files(terminal, filelist):
     try:
         # Don't print the stream for this validation check (print_stream=False)
         validation_response = await stream_request(
-            terminal.client, 
+            terminal, 
             terminal.model, 
             validation_messages,
             print_stream=False
@@ -184,6 +184,32 @@ async def double_check_changed_files(terminal, filelist):
         return None
 
 
+async def complete_step(terminal, step, files_to_send):
+    terminal.logger.info(f"step: {step}")
+    filepath = step["filename"]
+    terminal.logger.info("filecheck")
+    file_check = [f for f in files_to_send if f == filepath]
+    if file_check is None:
+        raise Exception(f"process_code_request unable to find file {filepath}")
+
+    terminal.logger.info("file_content")
+    file_content = get_file_contents([filepath])
+    # send request for LLM to complete changes in step
+    code_change_response = await request_code(terminal, step, file_content)
+
+    # todo some kind of sanity check here? or just one sanity check at the very end?
+
+    # Process code changes in the response
+    terminal.logger.info(f"Processing code changes from response\n RESPONSE:\n {code_change_response}")
+
+    try:
+        return check_and_apply_code_changes(code_change_response)
+    except Exception:
+        # file change failed, try again
+        terminal_print("failed step, try again later.", PrintType.ERROR)
+        return []
+
+
 async def process_code_request_response(terminal, response_prev, user_task):
     # Process file requests if present
     files_to_send = requested_files(response_prev)
@@ -201,28 +227,24 @@ async def process_code_request_response(terminal, response_prev, user_task):
 
     # turn each step into individual code changes
     files_changed_set = set()
+    failed_steps = []
     for step in steps["steps"]:
-        terminal.logger.info(f"step: {step}")
-        filepath = step["filename"]
-        terminal.logger.info("filecheck")
-        file_check = [f for f in files_to_send if f == filepath]
-        if file_check is None:
-            raise Exception(f"process_code_request unable to find file {filepath}")
+        new_file_changes = await complete_step(terminal=terminal, step=step, files_to_send=files_to_send)
+        if len(new_file_changes) == 0:
+            failed_steps.append(step)
 
-        terminal.logger.info("file_content")
-        file_content = get_file_contents([filepath])
-        # send request for LLM to complete changes in step
-        code_change_response = await request_code(terminal, step, file_content)
-
-        # todo some kind of sanity check here? or just one sanity check at the very end?
-
-        # Process code changes in the response
-        terminal.logger.info(f"Processing code changes from response\n RESPONSE:\n {code_change_response}")
-        new_file_changes = check_and_apply_code_changes(code_change_response)
         # only track each file once
         for f in new_file_changes:
             files_changed_set.add(f)
 
+    # try any failed steps again
+    for step in failed_steps:
+        terminal_print(f"Retrying step {step}", PrintType.PROCESSING)
+        new_file_changes = await complete_step(terminal=terminal, step=step, files_to_send=files_to_send)
+
+        # only track each file once
+        for f in new_file_changes:
+            files_changed_set.add(f)
 
     if len(files_changed_set):
         terminal.logger.info("send files for sanity check")
@@ -312,12 +334,16 @@ operation_promts = {
     ),
     "ADD": (
         """
-        ADD: Insert new code at a specified location using code references.
+        ADD: Insert new code at a specified location using code references. This operation will insert as a new line, be mindful of needed indentations.
            - "operation": "ADD"
            - "filename": the file to modify.
            - "insert_location": an object that indicates where to insert the new code. Options include:
                - "after_function": the name of a function after which to insert.
                - "within_function": the name of a function, along with a "position_marker" to pinpoint the insertion spot (e.g., "at_start", "before_return").
+                    - "position_marker": use this as a json object within the same object as within_function. The value 
+                    of position marker can be at_start (insert to beginning of function scope), before_return (insert right before function return) or a position_marker = {after_line: <function_line_number>}. 
+                    after_line uses the line numbers with the function name being line 0, etc. 
+                    
                - "after_marker": a custom code marker or comment present in the file.
                - "global": to insert code at the global scope.
            - "new_content": the code to insert.
@@ -337,7 +363,9 @@ operation_promts = {
                - "BLOCK": a specific block of code within a function.
                - "SIGNATURE": the function's declaration (parameters, return type, etc.).
                - "COMMENT": inline documentation or comment section.
-           - "target_reference": an object that specifies the location of the code to be replaced, such as a function name combined with a marker.
+           - "target_reference": an object that specifies the location of the code to be replaced.
+                - function_name - name of the function
+                - code_snippet (optional) - exact string match that should be removed.
            - "new_content": the replacement code.
         """
     ),
@@ -393,7 +421,7 @@ async def request_code(terminal, change_instruction, file):
     terminal.logger.info(f"Sending code request to {terminal.model}")
     terminal_print(f"\nSending code request to {terminal.model}...", PrintType.PROCESSING)
 
-    follow_up_response = await stream_request(terminal.client, terminal.model, messages)
+    follow_up_response = await stream_request(terminal, terminal.model, messages)
     terminal_print("", PrintType.INFO)
     terminal.messages[terminal.model].append({"role": "assistant", "content": follow_up_response})
     return follow_up_response
@@ -436,7 +464,7 @@ async def send_file_request(terminal, files_to_send, user_task, assistant_plan =
     terminal.logger.info(f"Sending requested files to {terminal.model}")
     terminal_print(f"\nSending requested files to {terminal.model}...", PrintType.PROCESSING)
 
-    follow_up_response = await stream_request(terminal.client, terminal.model, messages)
+    follow_up_response = await stream_request(terminal, terminal.model, messages)
     terminal_print("", PrintType.INFO)
     terminal.messages[terminal.model].append({"role": "assistant", "content": follow_up_response})
 
