@@ -34,7 +34,13 @@ async def handle_code(terminal: Any, args: List[str]) -> None:
     message = " ".join(args[1:])
 
     # Send the message with code processing enabled
-    await send_code_request(terminal, message)
+    current_model = terminal.model
+    current_messages = terminal.messages.get(terminal.model, [])
+    try:
+        await send_code_request(terminal, message)
+    finally:
+        # Clear model's messages accrued from this code session
+        terminal.messages[current_model] = current_messages
 
 
 async def send_code_request(terminal: Any, user_task: str):
