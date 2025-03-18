@@ -572,7 +572,7 @@ def insert_after_function(change, lines, filepath):
         message = f"Warning: Could not find function: '{requested_function}' class: {requested_class} in {filepath}\n  Available Functions: {file_functions}"
         terminal_print(message, PrintType.WARNING)
         logger.warning(message)
-        return
+        raise Exception(message)
 
     # Get the end line index of the function (convert from 1-indexed to 0-indexed)
     func_end_idx = matched_function["end_line"] - 1
@@ -627,6 +627,7 @@ def insert_after_function(change, lines, filepath):
         return
     
     # For non-blank content
+
     
     # Check if there's already a blank line after the function
     has_blank_line_after = (func_end_idx + 1 < len(lines) and lines[func_end_idx + 1].strip() == "")
@@ -646,9 +647,29 @@ def insert_after_function(change, lines, filepath):
         new_content_lines = ['\n']
     
     # Insert at the right position
+    indentation_hint = change.get("indentation_hint")
+    indent = indent_from_hint(indentation_hint, lines[func_end_idx])
+    orig_first_line = new_content_lines[0]
+    indent_all = True
+    if indent != "":
+        new_content_lines[0] = f"{indent}{new_content_lines[0].lstrip()}"
+        if orig_first_line == new_content_lines[0] and orig_first_line[0] == " ":
+            # no change was made, it came with white space, the other lines probably have correct indentation too
+            indent_all = True
+    else:
+        new_content_lines[0] = f"{indent}{new_content_lines[0]}"
+
+    # add indent in front of all lines
+    if indent_all:
+        i = 1
+        while i < len(new_content_lines):
+            new_content_lines[i] = f"{indent}{new_content_lines[i]}"
+            i += 1
+
+
     lines[func_end_idx + 1:func_end_idx + 1] = new_content_lines
     
-    message = f"Inserting content after function '{function_name}' in {filepath}"
+    message = f"Inserting content after function '{function_name}' in {filepath} with indent |{indent}|"
     terminal_print(message, PrintType.INFO)
     logger.info(message)
 
@@ -811,7 +832,8 @@ def insert_within_function(change, lines, filepath):
                 insert_idx = i
                 break
         if insert_idx is None:
-            insert_idx = func_end_idx  # Default fallback
+            # location combination does not make sense, raise here
+            raise Exception(f"insert_location: before_return within_function {requested_function} is not found")
     else:
         # Default to right after function declaration
         # todo, this should be first line after function scope
@@ -819,12 +841,10 @@ def insert_within_function(change, lines, filepath):
         logger.info(f"insert_within_function defaulting to after func start")
     
     # Get indentation from the target line
-    indentation = ""
-    if insert_idx < len(lines):
-        indentation_match = re.match(r'^(\s*)', lines[insert_idx])
-        if indentation_match:
-            indentation = indentation_match.group(1)
-    
+    indentation_hint = change.get("indentation_hint")
+    prev_line = lines[insert_idx - 1]
+    indentation = indent_from_hint(indentation_hint, prev_line)
+
     # Prepare the content with proper indentation
     new_content_lines = []
     for line in new_content.splitlines(True):  # Keep line endings
@@ -846,6 +866,28 @@ def insert_within_function(change, lines, filepath):
     terminal_print(message, PrintType.INFO)
     logger.info(message)
 
+
+def indent_from_hint(hint, prev_line):
+    prev_line_indent = prev_line[:len(prev_line) - len(prev_line.lstrip())]
+    indent_level = " " * 4
+    use_indentation = ""
+    if hint == "maintain_indent":
+        use_indentation = prev_line_indent
+    elif hint == "increase_indent":
+        use_indentation = prev_line_indent + indent_level
+    elif hint == "decrease_indent":
+        # Remove one indent level if possible; otherwise, use no indentation.
+        if len(prev_line_indent) >= len(indent_level):
+            use_indentation = prev_line_indent[:-len(indent_level)]
+        else:
+            use_indentation = ""
+    else:
+        # default
+        indentation_match = re.match(r'^(\s*)', prev_line)
+        if indentation_match:
+            use_indentation = indentation_match.group(1)
+    return use_indentation
+
 def insert_after_marker(change, lines, filepath):
     """
     Insert content after a specific marker in the file.
@@ -863,22 +905,24 @@ def insert_after_marker(change, lines, filepath):
     
     # Get the new content and replace escaped newlines
     new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
-    
+
+    # check indentation hint
+    indentation_hint = None
+    if "indentation_hint" in change:
+        indentation_hint = change["indentation_hint"]
+
     # Find the line to insert after
     found = False
     for i, line in enumerate(lines):
         if marker.strip() in line.strip():
-            # Determine indentation
-            indentation = ""
-            indentation_match = re.match(r'^(\s*)', line)
-            if indentation_match:
-                indentation = indentation_match.group(1)
+            # get suggested indent
+            use_indentation = indent_from_hint(indentation_hint, line)
             
             # Prepare the new content with proper indentation
             new_content_lines = []
             for content_line in new_content.splitlines(True):  # Keep line endings
                 if content_line.strip():  # Only indent non-empty lines
-                    new_content_lines.append(indentation + content_line)
+                    new_content_lines.append(use_indentation + content_line)
                 else:
                     new_content_lines.append(content_line)
 

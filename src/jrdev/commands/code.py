@@ -143,7 +143,7 @@ async def double_check_changed_files(terminal, filelist):
     validation_prompt = (
         "You are a code validator. Review the following file(s) that were just modified "
         "and check if they are properly formatted and not malformed. "
-        "ONLY respond with 'VALID' if all files look correct, or 'INVALID: [reason]' if any file appears malformed. "
+        "ONLY respond with 'VALID' if all files look correct, or 'INVALID: [filename][reason], [file2name][reason2]' if any file appears malformed. "
         "Be strict about syntax errors, indentation problems, unclosed brackets/parentheses, "
         "and other issues that would cause runtime errors. "
         "Keep your response to a single line."
@@ -349,6 +349,7 @@ operation_promts = {
                - "after_marker": a custom code marker or comment present in the file.
                - "global": to insert code at the global scope.
            - "new_content": the code to insert.
+           - "indentation_hint": give an indentation hint. The options are relative to the previous line of code's indentation level. Options: maintain_indent, increase_indent, decrease_indent, no_hint
            - "sub_type": the type of code being added. Options include:
                - "FUNCTION": a complete new function implementation.
                - "BLOCK": lines of code added within an existing function or structure.
@@ -450,7 +451,8 @@ async def send_file_request(terminal, files_to_send, user_task, assistant_plan =
         - The target location or reference (such as a function name, marker, or global scope).
         - A brief description of the intended change.
     
-        Ensure that a student can follow each step independently. Provide only the plan in your response, with no additional commentary or extraneous information.
+        Ensure that a student can follow each step independently. Provide only the plan in your response, with no 
+        additional commentary or extraneous information. Some tasks for the students may be doable in a single step.
         
         The response should be in json format example: {"steps": [{"operation_type": "ADD", "filename": "src/test_file.py", "target_location": "after function X scope end", "description": "Adjust the code so that it prints hello world"}]}
         """

@@ -43,18 +43,18 @@ async def stream_request(terminal, model, messages, print_stream=True):
         raise ValueError(f"Unknown provider for model {model}")
     
     # Create a streaming completion
-    stream = None
-    if model == "o3-mini":
-        stream = await client.chat.completions.create(
-            model=model, messages=messages, stream=True, reasoning_effort="high", extra_body={"venice_parameters":{"include_venice_system_prompt":False}}
-        )
+    if model_provider == "openai":
+        if model == "o3-mini":
+            stream = await client.chat.completions.create(model=model, messages=messages, stream=True, reasoning_effort="high")
+        else:
+            stream = await client.chat.completions.create(model=model, messages=messages, stream=True, temperature=0.0)
     elif model == "qwen-2.5-qwq-32b":
         stream = await client.chat.completions.create(
-            model=model, messages=messages, stream=True, temperature=0.0, top_p=0.95, extra_body={"venice_parameters":{"include_venice_system_prompt":False}, "frequency_penalty": 0.1}
+            model=model, messages=messages, stream=True, temperature=0.0, top_p=0.95, extra_body={"venice_parameters":{"include_venice_system_prompt":False}, "frequency_penalty": 0.3}
         )
     elif model == "deepseek-r1-671b":
         stream = await client.chat.completions.create(
-            model=model, messages=messages, stream=True, temperature=0.0, extra_body={"venice_parameters":{"include_venice_system_prompt":False}, "frequency_penalty": 0.1}
+            model=model, messages=messages, stream=True, temperature=0.0, extra_body={"venice_parameters":{"include_venice_system_prompt":False}, "frequency_penalty": 0.3}
         )
     else:
         stream = await client.chat.completions.create(
