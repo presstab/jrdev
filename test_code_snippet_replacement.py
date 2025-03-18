@@ -105,7 +105,7 @@ def another_function():
                     "target_reference": {
                         "code_snippet": "def hello_world():\n    print(\"Hello, World!\")\n    \n    # Some comment\n    value = 42\n    return value"
                     },
-                    "new_content": "def hello_world():\n    print(\"Hello, Modified World!\")\n    \n    # Updated function\n    value = 100\n    return value"
+                    "new_content": "def hello_world():\n    print(\"Hello, Modified World!\")\n\n    # Updated function\n    value = 100\n    return value"
                 }
             ]
         }
@@ -135,7 +135,7 @@ def another_function():
         actual_normalized = normalize_content(actual_content)
         expected_normalized = normalize_content("""def hello_world():
     print("Hello, Modified World!")
-    
+
     # Updated function
     value = 100
     return value

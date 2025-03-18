@@ -1100,7 +1100,8 @@ def find_code_snippet(lines, code_snippet):
         found = True
         for j, snippet_line in enumerate(snippet_lines):
             line = lines[i+j].rstrip('\n')  # Remove trailing newline for comparison
-            if snippet_line not in line:
+            # Strip whitespace for comparison to handle indentation differences
+            if snippet_line.strip() != line.strip() and snippet_line not in line:
                 found = False
                 break
         if found:
@@ -1126,6 +1127,16 @@ def replace_function_signature(lines, change, filepath):
     
     line_idx = find_function_signature(lines, function_name)
     if line_idx >= 0:
+        # Get indentation from the original line
+        indentation = ""
+        if lines[line_idx].strip():
+            # Calculate leading whitespace
+            indentation = lines[line_idx][:len(lines[line_idx]) - len(lines[line_idx].lstrip())]
+        
+        # Apply indentation to the new content if it doesn't already have it
+        if not new_content.startswith(" ") and not new_content.startswith("\t") and indentation:
+            new_content = indentation + new_content
+        
         # Replace the entire line with the new signature
         lines[line_idx] = new_content + "\n" if not new_content.endswith("\n") else new_content
         
@@ -1182,8 +1193,25 @@ def replace_function_implementation(lines, change, filepath):
     start_idx = matched_function["start_line"] - 1
     end_idx = matched_function["end_line"]
     
-    # Prepare the new function implementation with proper line endings
-    new_lines = new_content.splitlines(True)  # Keep line endings
+    # Get indentation from the original function
+    indentation = ""
+    if lines[start_idx].strip():
+        # Calculate leading whitespace
+        indentation = lines[start_idx][:len(lines[start_idx]) - len(lines[start_idx].lstrip())]
+    
+    # Prepare the new function implementation with proper line endings and indentation
+    new_lines = []
+    for i, line in enumerate(new_content.splitlines()):
+        # Skip indentation for blank lines
+        if not line.strip():
+            new_lines.append("\n")
+        else:
+            # First line or already indented lines keep their formatting
+            if i == 0 or line.startswith(" ") or line.startswith("\t"):
+                new_lines.append(line + "\n")
+            else:
+                # Apply indentation to content lines
+                new_lines.append(indentation + line + "\n")
     
     # Replace the entire function
     lines = lines[:start_idx] + new_lines + lines[end_idx:]
@@ -1260,8 +1288,24 @@ def replace_code_block(lines, change, filepath):
         logger.warning(message)
         return lines
     
-    # Prepare the new block with proper line endings
-    new_lines = new_content.splitlines(True)  # Keep line endings
+    # Get indentation from the first line of the block
+    indentation = ""
+    if lines[block_start].strip():
+        # Calculate leading whitespace
+        indentation = lines[block_start][:len(lines[block_start]) - len(lines[block_start].lstrip())]
+    
+    # Prepare the new block with proper line endings and indentation
+    new_lines = []
+    for line in new_content.splitlines():
+        # Skip indentation for blank lines
+        if not line.strip():
+            new_lines.append("\n")
+        else:
+            # Respect existing indentation in the line
+            if line.startswith(" ") or line.startswith("\t"):
+                new_lines.append(line + "\n")
+            else:
+                new_lines.append(indentation + line + "\n")
     
     # Replace the block
     lines = lines[:block_start] + new_lines + lines[block_end:]
@@ -1304,10 +1348,30 @@ def replace_code_snippet(lines, change, filepath):
         logger.warning(message)
         return lines
     
-    # Prepare the new content with proper line endings
+    # Get indentation from the first line of the snippet
+    indentation = ""
+    if lines[start_idx].strip():
+        # Calculate leading whitespace
+        indentation = lines[start_idx][:len(lines[start_idx]) - len(lines[start_idx].lstrip())]
+    
+    # Prepare the new content with proper line endings and indentation
     new_lines = []
-    for line in new_content.splitlines():
-        new_lines.append(line + "\n")
+    content_lines = new_content.splitlines()
+    for i, line in enumerate(content_lines):
+        # Process each line based on content and position
+        if not line.strip():
+            new_lines.append("\n")
+        else:
+            # Respect existing indentation in the line
+            if line.startswith(" ") or line.startswith("\t"):
+                new_lines.append(line + "\n")
+            else:
+                new_lines.append(indentation + line + "\n")
+            
+        # If this line is not the last line and is followed by an empty line,
+        # make sure we preserve the empty line
+        if i < len(content_lines) - 1 and not content_lines[i+1].strip():
+            new_lines.append("\n")
     
     # Replace the snippet
     lines = lines[:start_idx] + new_lines + lines[end_idx:]
