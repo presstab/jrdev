@@ -1,0 +1,162 @@
+import logging
+import os
+
+from jrdev.ui import terminal_print, PrintType
+from jrdev.file_operations.add import process_add_operation
+from jrdev.file_operations.delete import process_delete_operation
+from jrdev.file_operations.replace import process_replace_operation
+from jrdev.file_operations.insert import process_insert_after_changes
+from jrdev.file_utils import find_similar_file
+
+# Get the global logger instance
+logger = logging.getLogger("jrdev")
+
+
+def apply_file_changes(changes_json):
+    """
+    Apply changes to files based on the provided JSON.
+
+    The function supports multiple ways to specify changes:
+    1. Using operation=ADD/DELETE with start_line
+    2. Using insert_location object with options:
+       - after_line: to specify a line of code after which to insert
+       - after_function: to specify a function after which to insert new code
+       (more reliable for LLM-based edits)
+    3. Using operation=NEW to create a new file
+    4. Using operation=REPLACE to replace content in a file
+    """
+    # Group changes by filename
+    changes_by_file = {}
+    new_files = []
+    files_changed = []
+
+    valid_operations = ["ADD", "DELETE", "REPLACE", "NEW", "RENAME", "NEW"]
+
+    for change in changes_json["changes"]:
+        if "operation" not in change:
+            terminal_print(f"apply_file_changes: malformed change request: {change}")
+            continue
+
+        operation = change["operation"]
+        if operation not in valid_operations:
+            terminal_print(f"apply_file_changes: malformed change request, bad operation: {operation}")
+            if operation == "MODIFY":
+                operation = "REPLACE"
+                terminal_print("switching MODIFY to REPLACE")
+            else:
+                continue
+
+        # Handle NEW operation separately
+        if operation == "NEW":
+            new_files.append(change)
+            continue
+
+        filename = change["filename"]
+        changes_by_file.setdefault(filename, []).append(change)
+
+    for filename, changes in changes_by_file.items():
+        # Read the file into a list of lines
+        filepath = filename
+        if os.path.exists(filename) == False:
+            try:
+                filepath = find_similar_file(filename)
+            except Exception as e:
+                terminal_print(f"File not found: {filepath}", PrintType.ERROR)
+                continue
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            terminal_print(f"File not found: {filepath}", PrintType.ERROR)
+            continue
+        except Exception as e:
+            terminal_print(f"Error reading {filepath}: {str(e)}", PrintType.ERROR)
+            continue
+
+        # Process classic operation-based changes (start_line based)
+        operation_changes = [c for c in changes if "operation" in c and "start_line" in c]
+        insert_after_changes = [c for c in changes if "insert_location" in c]
+        replace_changes = [c for c in changes if "operation" in c and c["operation"] == "REPLACE"]
+
+        # Process operation-based changes first
+        if operation_changes:
+            lines = process_operation_changes(lines, operation_changes, filename)
+
+        # Process insert_after_line based changes
+        lines = process_insert_after_changes(lines, insert_after_changes, filepath)
+
+        # Process replace changes
+        for change in replace_changes:
+            lines = process_replace_operation(lines, change, filepath)
+
+        # Write the updated lines back to the file
+        with open(filepath, "w", encoding="utf-8") as f:
+            files_changed.append(filepath)
+            f.writelines(lines)
+            message = f"Updated {filepath}"
+            terminal_print(message, PrintType.WARNING)
+            logger.info(message)
+
+    # Process new file creations
+    for change in new_files:
+        if "filename" not in change:
+            raise Exception(f"filename not in change: {change}")
+        if "new_content" not in change:
+            raise Exception(f"new_content not in change: {change}")
+
+        filepath = change["filename"]
+        new_content = change["new_content"]
+        new_content = new_content.replace("\\n", "\n").replace("\\\"", "\"")
+
+        # Create directories if they don't exist
+        directory = os.path.dirname(filepath)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory)
+            message = f"Created directory: {directory}"
+            terminal_print(message, PrintType.INFO)
+            logger.info(message)
+
+        # Write the new file
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(new_content)
+            files_changed.append(filepath)
+            message = f"Created new file: {filepath}"
+            terminal_print(message, PrintType.WARNING)
+            logger.info(message)
+
+    return files_changed
+
+def process_operation_changes(lines, operation_changes, filename):
+    """
+    Process changes based on operation (ADD/DELETE) and start_line.
+
+    Args:
+        lines: List of file lines
+        operation_changes: List of changes with operation and start_line
+        filename: Name of the file being modified
+
+    Returns:
+        Updated list of lines
+    """
+    # Sort changes in descending order of start_line
+    operation_changes.sort(key=lambda c: c["start_line"], reverse=True)
+
+    for change in operation_changes:
+        operation = change["operation"]
+
+        if "filename" not in change:
+            raise Exception(f"filename not in change: {change}")
+
+        if operation == "DELETE" and "end_line" not in change:
+            raise Exception(f"end_line not in change: {change}")
+
+        if operation == "ADD" and "new_content" not in change:
+            raise Exception(f"new_content not in change: {change}")
+
+        # Process the operation based on its type
+        if operation == "ADD":
+            lines = process_add_operation(lines, change, filename)
+        elif operation == "DELETE":
+            lines = process_delete_operation(lines, change)
+
+    return lines

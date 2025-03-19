@@ -35,3 +35,50 @@ def get_all_supported_extensions() -> Dict[str, str]:
         Dictionary mapping file extensions to language names
     """
     return {ext: cls().language_name for ext, cls in LANGUAGE_REGISTRY.items()}
+
+
+def detect_language(filepath):
+    """
+    Detect the programming language based on file extension.
+
+    Args:
+        filepath: Path to the file
+
+    Returns:
+        str: Language identifier ('cpp', 'python', 'typescript', etc.)
+
+    Note:
+        For implementation simplicity, JavaScript files are treated as 'typescript'
+        since the same parser handles both languages.
+    """
+    ext = os.path.splitext(filepath)[1].lower()
+
+    # Map file extensions to language identifiers
+    lang_map = {
+        '.cpp': 'cpp',
+        '.cc': 'cpp',
+        '.cxx': 'cpp',
+        '.c++': 'cpp',
+        '.hpp': 'cpp',
+        '.h': 'cpp',
+        '.py': 'python',
+        '.js': 'typescript',  # Use TypeScript parser for JavaScript
+        '.jsx': 'typescript',  # React JSX also uses TypeScript parser
+        '.ts': 'typescript',
+        '.tsx': 'typescript',  # TypeScript React
+        '.go': 'go',
+        '.java': 'java',
+        '.rb': 'ruby',
+        '.rs': 'rust',
+        '.swift': 'swift',
+        '.php': 'php',
+        '.cs': 'csharp',
+    }
+
+    # Return the language or None if not recognized
+    return lang_map.get(ext)
+
+def is_headers_language(language):
+    if language == "cpp":
+        return True
+    return False

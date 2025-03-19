@@ -50,11 +50,13 @@ async def stream_request(terminal, model, messages, print_stream=True):
             stream = await client.chat.completions.create(model=model, messages=messages, stream=True, temperature=0.0)
     elif model == "qwen-2.5-qwq-32b":
         stream = await client.chat.completions.create(
-            model=model, messages=messages, stream=True, temperature=0.0, top_p=0.95, extra_body={"venice_parameters":{"include_venice_system_prompt":False}, "frequency_penalty": 0.3}
+            model=model, messages=messages, stream=True, temperature=0.0, top_p=0.95,
+            extra_body={"venice_parameters":{"include_venice_system_prompt":False}, "frequency_penalty": 0.3}
         )
     elif model == "deepseek-r1-671b":
         stream = await client.chat.completions.create(
-            model=model, messages=messages, stream=True, temperature=0.0, extra_body={"venice_parameters":{"include_venice_system_prompt":False}, "frequency_penalty": 0.3}
+            model=model, messages=messages, stream=True, temperature=0.0,
+            extra_body={"venice_parameters":{"include_venice_system_prompt":False}, "frequency_penalty": 0.3}
         )
     else:
         stream = await client.chat.completions.create(

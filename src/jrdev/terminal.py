@@ -34,7 +34,6 @@ from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
 from jrdev.models import AVAILABLE_MODELS, is_think_model
 from jrdev.llm_requests import stream_request
 from jrdev.ui import terminal_print, PrintType
-from jrdev.file_utils import requested_files, get_file_contents, check_and_apply_code_changes
 
 
 class JrDevTerminal:

@@ -12,7 +12,9 @@ from typing import Any, Dict, List
 
 from jrdev.ui import terminal_print, PrintType
 from jrdev.llm_requests import stream_request
-from jrdev.file_utils import requested_files, get_file_contents, check_and_apply_code_changes
+from jrdev.file_utils import requested_files, get_file_contents, cutoff_string, manual_json_parse
+from jrdev.file_operations.process_ops import apply_file_changes
+from jrdev.languages.utils import is_headers_language, detect_language
 
 
 async def handle_code(terminal: Any, args: List[str]) -> None:
@@ -41,6 +43,8 @@ async def handle_code(terminal: Any, args: List[str]) -> None:
     finally:
         # Clear model's messages accrued from this code session
         terminal.messages[current_model] = current_messages
+
+    # todo good entry point for devlog history here
 
 
 async def send_code_request(terminal: Any, user_task: str):
@@ -81,7 +85,7 @@ async def send_code_request(terminal: Any, user_task: str):
         "You are an expert software architect and engineer reviewing an attached project. An engineer from the project is asking for guidance on how to complete a specific task. Begin by providing a high-level analysis of the task, outlining the necessary steps and strategy without including any code changes. "
         "**CRITICAL:** Do not propose any code modifications until you have received and reviewed the full content of the relevant file(s). If the file content is not yet in your context, request it using the exact format: "
         "'get_files [\"path/to/file1.txt\", \"path/to/file2.cpp\", ...]'. This is your one chance to request files, so be sure to get all files that will be "
-        "needed to successfully complete the task. "
+        "needed to successfully complete the task. If this appears to be a language that has headers and source files (C++, etc), request both header and source."
         "Only after the complete file content is available should you suggest code changes."
     )
 
@@ -218,9 +222,54 @@ async def complete_step(terminal, step, files_to_send):
         return []
 
 
+def check_and_apply_code_changes(response_text):
+    changes = None
+    try:
+        cutoff = cutoff_string(response_text, "```json", "```")
+        changes = manual_json_parse(cutoff)
+    except Exception as e:
+        raise Exception(f"parsing failed in check_and_apply_code_changes: {str(e)}")
+    if "changes" in changes:
+        return apply_file_changes(changes)
+    return []
+
+
+
 async def process_code_request_response(terminal, response_prev, user_task):
     # Process file requests if present
     files_to_send = requested_files(response_prev)
+
+    # Check if language has headers for classes, if so make sure both header and source file are included in files_to_send
+    checked_files = set(files_to_send)
+    additional_files = []
+    
+    for file in files_to_send:
+        language = detect_language(file)
+        if is_headers_language(language):
+            base_name, ext = os.path.splitext(file)
+            
+            # If it's a header file (.h, .hpp), look for corresponding source file (.cpp, .cc)
+            if ext.lower() in ['.h', '.hpp']:
+                for source_ext in ['.cpp', '.cc', '.cxx', '.c++']:
+                    source_file = f"{base_name}{source_ext}"
+                    if os.path.exists(source_file) and source_file not in checked_files:
+                        terminal.logger.info(f"Adding corresponding source file: {source_file}")
+                        additional_files.append(source_file)
+                        checked_files.add(source_file)
+                        break
+            
+            # If it's a source file (.cpp, .cc), look for corresponding header file (.h, .hpp)
+            elif ext.lower() in ['.cpp', '.cc', '.cxx', '.c++']:
+                for header_ext in ['.h', '.hpp']:
+                    header_file = f"{base_name}{header_ext}"
+                    if os.path.exists(header_file) and header_file not in checked_files:
+                        terminal.logger.info(f"Adding corresponding header file: {header_file}")
+                        additional_files.append(header_file)
+                        checked_files.add(header_file)
+                        break
+    
+    # Add the additional files to the list
+    files_to_send.extend(additional_files)
 
     # send file requests, get a list of steps
     terminal.logger.info(f"Found file request, sending files: {files_to_send}")
