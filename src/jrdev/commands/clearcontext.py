@@ -23,6 +23,4 @@ async def handle_clearcontext(terminal, args):
     terminal_print(f"Cleared {num_files} file(s) from context.", print_type=PrintType.SUCCESS)
     
     # Clear conversation history
-    if terminal.model in terminal.messages:
-        terminal.messages[terminal.model] = []
-        terminal_print("Conversation history cleared.", print_type=PrintType.SUCCESS)
+    terminal.clear_messages()

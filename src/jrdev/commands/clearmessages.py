@@ -17,16 +17,5 @@ async def handle_clearmessages(terminal: Any, args: List[str]) -> None:
         terminal: The JrDevTerminal instance
         args: Command arguments (unused)
     """
-    # Count the number of models with message history
-    models_with_messages = list(terminal.messages.keys())
-    num_models = len(models_with_messages)
-    
-    # Clear all message histories
-    terminal.messages = {}
-    
-    if num_models > 0:
-        model_names = ", ".join(models_with_messages)
-        terminal_print(f"Cleared message history for {num_models} model(s): {model_names}", 
-                      print_type=PrintType.SUCCESS)
-    else:
-        terminal_print("No message history to clear.", print_type=PrintType.INFO)
+    terminal.clear_messages()
+    terminal_print(f"Cleared message history", print_type=PrintType.SUCCESS)

@@ -20,9 +20,7 @@ async def handle_stateinfo(terminal, args):
     terminal_print(f"  Model: {terminal.model}", print_type=PrintType.INFO)
     
     # Display message history count
-    model_count = len(terminal.messages)
-    message_count = sum(len(msgs) for msgs in terminal.messages.values()) if terminal.messages else 0
-    terminal_print(f"  Models with history: {model_count}", print_type=PrintType.INFO)
+    message_count = len(terminal.message_history)
     terminal_print(f"  Total messages: {message_count}", print_type=PrintType.INFO)
     
     # Display file processing status

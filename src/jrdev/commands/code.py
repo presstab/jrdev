@@ -35,14 +35,13 @@ async def handle_code(terminal: Any, args: List[str]) -> None:
     # Combine all arguments after the command into a single message
     message = " ".join(args[1:])
 
-    # Send the message with code processing enabled
-    current_model = terminal.model
-    current_messages = terminal.messages.get(terminal.model, [])
+    # Send the message, cache message history, and replace after
+    current_messages = terminal.message_history()
     try:
         await send_code_request(terminal, message)
     finally:
         # Clear model's messages accrued from this code session
-        terminal.messages[current_model] = current_messages
+        terminal.set_message_history(current_messages)
 
     # todo good entry point for devlog history here
 
@@ -92,15 +91,15 @@ async def send_code_request(terminal: Any, user_task: str):
     user_additional_modifier = " Here is the task to complete:"
     user_message = f"{user_additional_modifier} {user_task}"
 
-    if terminal.model not in terminal.messages:
-        terminal.messages[terminal.model] = []
-
     # Append project context if available (only needed on first run)
     if project_context:
         for key, value in project_context.items():
             user_message = f"{user_message}\n\n{key.upper()}:\n{value}"
+
+    # start message thread with no history
+    messages = []
     if dev_prompt_modifier is not None:
-        terminal.messages[terminal.model].append({"role": "system", "content": dev_prompt_modifier})
+        messages.append({"role": "system", "content": dev_prompt_modifier})
     
     # Add any additional context files stored in terminal.context
     if terminal.context:
@@ -109,18 +108,18 @@ async def send_code_request(terminal: Any, user_task: str):
             context_section += f"\n--- Context File {i+1}: {ctx['name']} ---\n{ctx['content']}\n"
         user_message += context_section
 
-    terminal.messages[terminal.model].append({"role": "user", "content": user_message})
+    messages.append({"role": "user", "content": user_message})
 
     model_name = terminal.model
     terminal_print(f"\n{model_name} is processing request...", PrintType.PROCESSING)
 
     try:
-        response_text = await stream_request(terminal, terminal.model, terminal.messages[terminal.model])
+        response_text = await stream_request(terminal, terminal.model, messages)
         # Add a new line after streaming completes
         terminal_print("", PrintType.INFO)
         
         # Always add response to messages
-        terminal.messages[terminal.model].append({"role": "assistant", "content": response_text})
+        messages.append({"role": "assistant", "content": response_text})
 
         await process_code_request_response(terminal, response_text, user_task)
     except Exception as e:
@@ -449,7 +448,8 @@ async def request_code(terminal, change_instruction, file):
 
     follow_up_response = await stream_request(terminal, terminal.model, messages)
     terminal_print("", PrintType.INFO)
-    terminal.messages[terminal.model].append({"role": "assistant", "content": follow_up_response})
+    terminal.add_message_history(follow_up_response, is_assistant=True)
+
     return follow_up_response
 
 
@@ -493,6 +493,5 @@ async def send_file_request(terminal, files_to_send, user_task, assistant_plan =
 
     follow_up_response = await stream_request(terminal, terminal.model, messages)
     terminal_print("", PrintType.INFO)
-    terminal.messages[terminal.model].append({"role": "assistant", "content": follow_up_response})
 
     return follow_up_response
