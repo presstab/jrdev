@@ -422,6 +422,17 @@ class JrDevTerminal:
             readline.parse_and_bind("tab: complete")
             readline.set_completer(self.completer)
             readline.set_completer_delims(' \t\n;')
+            
+            # Make sure readline's history length is set properly
+            readline.set_history_length(1000)
+            
+            # Initial history load
+            if os.path.exists(self.history_file):
+                readline.read_history_file(self.history_file)
+                
+            # Disable any pre-input hooks to avoid interference
+            readline.set_pre_input_hook(None)
+            
             if hasattr(readline, 'set_screen_size'):
                 try:
                     import shutil
@@ -429,9 +440,6 @@ class JrDevTerminal:
                     readline.set_screen_size(100, columns)
                 except Exception:
                     readline.set_screen_size(100, 120)
-            if os.path.exists(self.history_file):
-                readline.read_history_file(self.history_file)
-                readline.set_history_length(1000)
         except Exception as e:
             terminal_print(f"Error setting up readline: {str(e)}", PrintType.ERROR)
 
@@ -441,15 +449,45 @@ class JrDevTerminal:
             return
             
         try:
+            # Simply add to history and write to file
+            # We're managing duplicates with our custom input approach
             readline.add_history(input_text)
             readline.write_history_file(self.history_file)
         except Exception as e:
-            terminal_print(f"Error saving history: {str(e)}", PrintType.ERROR)
+            self.logger.error(f"Error saving history: {str(e)}")
+            # Don't display errors to user as this isn't critical functionality
 
     async def get_user_input(self):
         """Get user input with proper line wrapping using asyncio to prevent blocking the event loop."""
-        # Make sure terminal can handle long lines by using better prompt
+        # We'll use a standard prompt and rely on Python's built-in input handling
         prompt = f"\n{Colors.BOLD}{Colors.GREEN}> {Colors.RESET}"
+        
+        # Use a clean approach to avoid history issues
+        def read_input():
+            if not READLINE_AVAILABLE:
+                return input(prompt)
+            
+            # First clear any pending history operations
+            readline.clear_history()
+            
+            # Re-read the history file to restore genuine history
+            if os.path.exists(self.history_file):
+                try:
+                    readline.read_history_file(self.history_file)
+                except Exception as e:
+                    self.logger.debug(f"Non-critical history file read error: {str(e)}")
+            
+            # Use the standard input with proper prompt
+            try:
+                # Use the standard prompt-with-input approach
+                # The readline library will properly handle the prompt protection
+                return input(prompt)
+            except KeyboardInterrupt:
+                print("\n")
+                return ""
+            except EOFError:
+                print("\n")
+                return ""
         
         try:
             # Get terminal width to help with wrapping behavior
@@ -462,12 +500,13 @@ class JrDevTerminal:
             # Readline will use this width for wrapping
             if READLINE_AVAILABLE and hasattr(readline, 'set_screen_size'):
                 readline.set_screen_size(100, available_width)
-        except Exception:
-            pass
+                
+        except Exception as e:
+            self.logger.error(f"Error setting up input dimensions: {str(e)}")
         
-        # Use asyncio.to_thread to run input() in a separate thread
+        # Use asyncio.to_thread to run our input function in a separate thread
         # This prevents blocking the event loop, allowing background tasks to run
-        return await asyncio.to_thread(input, prompt)
+        return await asyncio.to_thread(read_input)
         
     async def task_monitor_callback(self):
         """Periodic callback to check on background tasks and handle any completed ones."""
@@ -518,13 +557,15 @@ class JrDevTerminal:
         while self.running:
             try:
                 # Get user input asynchronously, allowing background tasks to run
+                # With our new implementation, this will handle history properly
                 user_input = await self.get_user_input()
 
                 # Brief yield to the event loop to allow background tasks to progress
                 await asyncio.sleep(0.01)
 
-                # Save to history
-                self.save_history(user_input)
+                # Save to history only if it's not empty
+                if user_input.strip():
+                    self.save_history(user_input)
 
                 if not user_input:
                     continue

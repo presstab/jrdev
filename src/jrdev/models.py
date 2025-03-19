@@ -63,6 +63,14 @@ AVAILABLE_MODELS = [
         "context_tokens": 32768
     },
     {
+        "name": "mistral-31-24b",
+        "provider": "venice",
+        "is_think": False,
+        "input_cost": 5,
+        "output_cost": 20,
+        "context_tokens": 131072
+    },
+    {
         "name": "o3-mini-2025-01-31",
         "provider": "openai",
         "is_think": False,
