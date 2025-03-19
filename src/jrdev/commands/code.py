@@ -239,38 +239,6 @@ async def process_code_request_response(terminal, response_prev, user_task):
     # Process file requests if present
     files_to_send = requested_files(response_prev)
 
-    # Check if language has headers for classes, if so make sure both header and source file are included in files_to_send
-    checked_files = set(files_to_send)
-    additional_files = []
-    
-    for file in files_to_send:
-        language = detect_language(file)
-        if is_headers_language(language):
-            base_name, ext = os.path.splitext(file)
-            
-            # If it's a header file (.h, .hpp), look for corresponding source file (.cpp, .cc)
-            if ext.lower() in ['.h', '.hpp']:
-                for source_ext in ['.cpp', '.cc', '.cxx', '.c++']:
-                    source_file = f"{base_name}{source_ext}"
-                    if os.path.exists(source_file) and source_file not in checked_files:
-                        terminal.logger.info(f"Adding corresponding source file: {source_file}")
-                        additional_files.append(source_file)
-                        checked_files.add(source_file)
-                        break
-            
-            # If it's a source file (.cpp, .cc), look for corresponding header file (.h, .hpp)
-            elif ext.lower() in ['.cpp', '.cc', '.cxx', '.c++']:
-                for header_ext in ['.h', '.hpp']:
-                    header_file = f"{base_name}{header_ext}"
-                    if os.path.exists(header_file) and header_file not in checked_files:
-                        terminal.logger.info(f"Adding corresponding header file: {header_file}")
-                        additional_files.append(header_file)
-                        checked_files.add(header_file)
-                        break
-    
-    # Add the additional files to the list
-    files_to_send.extend(additional_files)
-
     # send file requests, get a list of steps
     terminal.logger.info(f"Found file request, sending files: {files_to_send}")
     response = await send_file_request(terminal, files_to_send, user_task, response_prev)
