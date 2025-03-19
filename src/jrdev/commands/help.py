@@ -62,7 +62,7 @@ async def handle_help(terminal, args):
         print_type=PrintType.COMMAND,
         end=""
     )
-    terminal_print(f" - Send coding task to LLM. LLM will request needed files and save an updated version.")
+    terminal_print(f" - Send coding task to LLM. LLM will read and edit the code.")
 
     terminal_print(
         f"  /asyncsend [filepath] <prompt>",
