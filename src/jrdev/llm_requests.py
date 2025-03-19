@@ -1,4 +1,5 @@
 import re
+import time
 from jrdev.colors import Colors
 from jrdev.ui import terminal_print, PrintType
 from jrdev.models import is_think_model, AVAILABLE_MODELS
@@ -22,6 +23,9 @@ def is_inside_think_tag(text):
 
 
 async def stream_request(terminal, model, messages, print_stream=True):
+    # Start timing the response
+    start_time = time.time()
+    
     # Determine which client to use based on the model provider
     client = None
     model_provider = None
@@ -51,7 +55,7 @@ async def stream_request(terminal, model, messages, print_stream=True):
     elif model == "qwen-2.5-qwq-32b":
         stream = await client.chat.completions.create(
             model=model, messages=messages, stream=True, temperature=0.0, top_p=0.95,
-            extra_body={"venice_parameters":{"include_venice_system_prompt":False}, "frequency_penalty": 0.3}
+            extra_body={"venice_parameters":{"include_venice_system_prompt": False}, "frequency_penalty": 0.3}
         )
     elif model == "deepseek-r1-671b":
         stream = await client.chat.completions.create(
@@ -111,8 +115,14 @@ async def stream_request(terminal, model, messages, print_stream=True):
             # print(chunk.usage.completion_tokens)
             input_tokens = chunk.usage.prompt_tokens
             output_tokens = chunk.usage.completion_tokens
+            
+            # Calculate elapsed time
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            elapsed_seconds = round(elapsed_time, 2)
+            
             if print_stream:
-                terminal_print(f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens}", PrintType.WARNING)
+                terminal_print(f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens} | Response Time: {elapsed_seconds}s", PrintType.WARNING)
             
             # Track token usage
             usage_tracker = get_instance()
