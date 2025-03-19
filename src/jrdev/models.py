@@ -8,6 +8,7 @@ Models configuration for the JrDev terminal.
 AVAILABLE_MODELS = [
     {
         "name": "deepseek-r1-671b",
+        "provider": "venice",
         "is_think": True,
         "input_cost": 35,
         "output_cost": 140,
@@ -15,6 +16,7 @@ AVAILABLE_MODELS = [
     },
     {
         "name": "qwen-2.5-coder-32b",
+        "provider": "venice",
         "is_think": False,
         "input_cost": 5,
         "output_cost": 20,
@@ -22,6 +24,7 @@ AVAILABLE_MODELS = [
     },
     {
         "name": "qwen-2.5-qwq-32b",
+        "provider": "venice",
         "is_think": True,
         "input_cost": 5,
         "output_cost": 20,
@@ -29,6 +32,7 @@ AVAILABLE_MODELS = [
     },
     {
         "name": "llama-3.3-70b",
+        "provider": "venice",
         "is_think": False,
         "input_cost": 7,
         "output_cost": 28,
@@ -36,6 +40,7 @@ AVAILABLE_MODELS = [
     },
     {
         "name": "llama-3.1-405b",
+        "provider": "venice",
         "is_think": False,
         "input_cost": 15,
         "output_cost": 60,
@@ -43,6 +48,7 @@ AVAILABLE_MODELS = [
     },
     {
         "name": "llama-3.2-3b",
+        "provider": "venice",
         "is_think": False,
         "input_cost": 2,
         "output_cost": 6,
@@ -50,10 +56,43 @@ AVAILABLE_MODELS = [
     },
     {
         "name": "dolphin-2.9.2-qwen2-72b",
+        "provider": "venice",
         "is_think": False,
         "input_cost": 7,
         "output_cost": 28,
         "context_tokens": 32768
+    },
+    {
+        "name": "o3-mini-2025-01-31",
+        "provider": "openai",
+        "is_think": False,
+        "input_cost": 7,
+        "output_cost": 28,
+        "context_tokens": 32768
+    },
+    {
+        "name": "gpt-4o",
+        "provider": "openai",
+        "is_think": False,
+        "input_cost": 10,
+        "output_cost": 30,
+        "context_tokens": 128000
+    },
+    {
+        "name": "gpt-4-turbo",
+        "provider": "openai",
+        "is_think": False,
+        "input_cost": 10,
+        "output_cost": 30,
+        "context_tokens": 128000
+    },
+    {
+        "name": "gpt-3.5-turbo",
+        "provider": "openai",
+        "is_think": False,
+        "input_cost": 5,
+        "output_cost": 15,
+        "context_tokens": 16384
     }
 ]
 

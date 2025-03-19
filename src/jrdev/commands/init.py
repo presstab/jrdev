@@ -65,7 +65,7 @@ async def get_file_summary(terminal, file_path, context_file_path, additional_co
         # No need to print the file content when doing concurrent analysis
         
         # Send the request to the LLM
-        file_analysis = await stream_request(terminal.client, terminal.model, temp_messages, print_stream=False)
+        file_analysis = await stream_request(terminal, terminal.model, temp_messages, print_stream=False)
 
         # Print the analysis
         terminal_print(f"\nFile Analysis for {file_path}:", PrintType.HEADER)
@@ -141,7 +141,7 @@ async def handle_init(terminal, args):
 
         # Send the request to the LLM
         try:
-            recommendation_response = await stream_request(client=terminal.client, model=terminal.model, messages=temp_messages)
+            recommendation_response = await stream_request(terminal, terminal.model, temp_messages)
 
             # Print the LLM's response
             terminal_print("\nLLM File Recommendations:", PrintType.HEADER)
@@ -213,7 +213,7 @@ async def handle_init(terminal, args):
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": overview_prompt}
                     ]
-                    full_overview = await stream_request(terminal.client, terminal.model, overview_messages)
+                    full_overview = await stream_request(terminal, terminal.model, overview_messages)
 
                     # Save to markdown file
                     overview_file_path = "jrdev_overview.md"

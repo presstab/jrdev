@@ -12,7 +12,9 @@ from typing import Any, Dict, List
 
 from jrdev.ui import terminal_print, PrintType
 from jrdev.llm_requests import stream_request
-from jrdev.file_utils import requested_files, get_file_contents, check_and_apply_code_changes
+from jrdev.file_utils import requested_files, get_file_contents, cutoff_string, manual_json_parse
+from jrdev.file_operations.process_ops import apply_file_changes
+from jrdev.languages.utils import is_headers_language, detect_language
 
 
 async def handle_code(terminal: Any, args: List[str]) -> None:
@@ -34,17 +36,25 @@ async def handle_code(terminal: Any, args: List[str]) -> None:
     message = " ".join(args[1:])
 
     # Send the message with code processing enabled
-    await send_code_request(terminal, message)
+    current_model = terminal.model
+    current_messages = terminal.messages.get(terminal.model, [])
+    try:
+        await send_code_request(terminal, message)
+    finally:
+        # Clear model's messages accrued from this code session
+        terminal.messages[current_model] = current_messages
+
+    # todo good entry point for devlog history here
 
 
-async def send_code_request(terminal: Any, content: str):
+async def send_code_request(terminal: Any, user_task: str):
     """
     Send a message to the LLM without processing follow-up tasks like file requests
     and code changes unless explicitly requested.
 
     Args:
         terminal: The JrDevTerminal instance
-        content: The message content to send
+        user_task: The message content to send
         process_follow_up: Whether to process follow-up tasks like file requests and code changes
     
     Returns:
@@ -52,8 +62,8 @@ async def send_code_request(terminal: Any, content: str):
     """
     terminal.logger.info(f"Sending message to model {terminal.model}")
     
-    if not isinstance(content, str):
-        error_msg = f"Expected string but got {type(content)}"
+    if not isinstance(user_task, str):
+        error_msg = f"Expected string but got {type(user_task)}"
         terminal.logger.error(error_msg)
         terminal_print(f"Error: {error_msg}", PrintType.ERROR)
         return
@@ -74,11 +84,13 @@ async def send_code_request(terminal: Any, content: str):
     dev_prompt_modifier = (
         "You are an expert software architect and engineer reviewing an attached project. An engineer from the project is asking for guidance on how to complete a specific task. Begin by providing a high-level analysis of the task, outlining the necessary steps and strategy without including any code changes. "
         "**CRITICAL:** Do not propose any code modifications until you have received and reviewed the full content of the relevant file(s). If the file content is not yet in your context, request it using the exact format: "
-        "'get_files [\"path/to/file1.txt\", \"path/to/file2.cpp\", ...]'. Only after the complete file content is available should you suggest code changes."
+        "'get_files [\"path/to/file1.txt\", \"path/to/file2.cpp\", ...]'. This is your one chance to request files, so be sure to get all files that will be "
+        "needed to successfully complete the task. If this appears to be a language that has headers and source files (C++, etc), request both header and source."
+        "Only after the complete file content is available should you suggest code changes."
     )
 
-    user_additional_modifier = " Here is the user's question or instruction:"
-    user_message = f"{user_additional_modifier} {content}"
+    user_additional_modifier = " Here is the task to complete:"
+    user_message = f"{user_additional_modifier} {user_task}"
 
     if terminal.model not in terminal.messages:
         terminal.messages[terminal.model] = []
@@ -103,14 +115,14 @@ async def send_code_request(terminal: Any, content: str):
     terminal_print(f"\n{model_name} is processing request...", PrintType.PROCESSING)
 
     try:
-        response_text = await stream_request(terminal.client, terminal.model, terminal.messages[terminal.model])
+        response_text = await stream_request(terminal, terminal.model, terminal.messages[terminal.model])
         # Add a new line after streaming completes
         terminal_print("", PrintType.INFO)
         
         # Always add response to messages
         terminal.messages[terminal.model].append({"role": "assistant", "content": response_text})
 
-        await process_code_request_response(terminal, response_text)
+        await process_code_request_response(terminal, response_text, user_task)
     except Exception as e:
         error_msg = str(e)
         terminal.logger.error(f"Error in send_code_request: {error_msg}")
@@ -141,7 +153,7 @@ async def double_check_changed_files(terminal, filelist):
     validation_prompt = (
         "You are a code validator. Review the following file(s) that were just modified "
         "and check if they are properly formatted and not malformed. "
-        "ONLY respond with 'VALID' if all files look correct, or 'INVALID: [reason]' if any file appears malformed. "
+        "ONLY respond with 'VALID' if all files look correct, or 'INVALID: [filename][reason], [file2name][reason2]' if any file appears malformed. "
         "Be strict about syntax errors, indentation problems, unclosed brackets/parentheses, "
         "and other issues that would cause runtime errors. "
         "Keep your response to a single line."
@@ -156,7 +168,7 @@ async def double_check_changed_files(terminal, filelist):
     try:
         # Don't print the stream for this validation check (print_stream=False)
         validation_response = await stream_request(
-            terminal.client, 
+            terminal, 
             terminal.model, 
             validation_messages,
             print_stream=False
@@ -167,44 +179,145 @@ async def double_check_changed_files(terminal, filelist):
         # Check if the validation response indicates the files are valid
         if validation_response.strip().startswith("VALID"):
             terminal_print("✓ Files validated successfully", PrintType.SUCCESS)
-            return True
+            return None
         elif "INVALID" in validation_response:
             # Extract the reason from the response
             reason = validation_response.split("INVALID:")[1].strip() if ":" in validation_response else "Unspecified error"
             terminal_print(f"⚠ Files may be malformed: {reason}", PrintType.ERROR)
-            return False
+            return reason
         else:
             # If the response doesn't match our expected format
             terminal_print("⚠ Could not determine if files are valid", PrintType.WARNING)
             terminal.logger.warning(f"Unexpected validation response: {validation_response}")
-            return True  # Default to true to not block the process
+            return None  # Default to true to not block the process
     except Exception as e:
         terminal.logger.error(f"Error in double_check_changed_files: {str(e)}")
         terminal_print(f"Error validating files: {str(e)}", PrintType.ERROR)
-        return True  # Default to true to not block the process
+        return None
 
 
-async def process_code_request_response(terminal, response):
-    # Process file requests if present
-    files_to_send = requested_files(response)
+async def complete_step(terminal, step, files_to_send):
+    terminal.logger.info(f"step: {step}")
+    filepath = step["filename"]
+    terminal.logger.info("filecheck")
+    file_check = [f for f in files_to_send if f == filepath]
+    if file_check is None:
+        raise Exception(f"process_code_request unable to find file {filepath}")
 
-    if files_to_send:
-        terminal.logger.info(f"Found file request, sending files: {files_to_send}")
-        response = await send_file_request(terminal, files_to_send)
-    else:
-        terminal.logger.info("No file requests found in response")
-    
+    terminal.logger.info("file_content")
+    file_content = get_file_contents([filepath])
+    # send request for LLM to complete changes in step
+    code_change_response = await request_code(terminal, step, file_content)
+
+    # todo some kind of sanity check here? or just one sanity check at the very end?
+
     # Process code changes in the response
-    terminal.logger.info("Processing code changes from response")
-    files_changed = check_and_apply_code_changes(response)
+    terminal.logger.info(f"Processing code changes from response\n RESPONSE:\n {code_change_response}")
+
+    try:
+        return check_and_apply_code_changes(code_change_response)
+    except Exception:
+        # file change failed, try again
+        terminal_print("failed step, try again later.", PrintType.ERROR)
+        return []
+
+
+def check_and_apply_code_changes(response_text):
+    changes = None
+    try:
+        cutoff = cutoff_string(response_text, "```json", "```")
+        changes = manual_json_parse(cutoff)
+    except Exception as e:
+        raise Exception(f"parsing failed in check_and_apply_code_changes: {str(e)}")
+    if "changes" in changes:
+        return apply_file_changes(changes)
+    return []
+
+
+
+async def process_code_request_response(terminal, response_prev, user_task):
+    # Process file requests if present
+    files_to_send = requested_files(response_prev)
+
+    # Check if language has headers for classes, if so make sure both header and source file are included in files_to_send
+    checked_files = set(files_to_send)
+    additional_files = []
     
-    if files_changed:
+    for file in files_to_send:
+        language = detect_language(file)
+        if is_headers_language(language):
+            base_name, ext = os.path.splitext(file)
+            
+            # If it's a header file (.h, .hpp), look for corresponding source file (.cpp, .cc)
+            if ext.lower() in ['.h', '.hpp']:
+                for source_ext in ['.cpp', '.cc', '.cxx', '.c++']:
+                    source_file = f"{base_name}{source_ext}"
+                    if os.path.exists(source_file) and source_file not in checked_files:
+                        terminal.logger.info(f"Adding corresponding source file: {source_file}")
+                        additional_files.append(source_file)
+                        checked_files.add(source_file)
+                        break
+            
+            # If it's a source file (.cpp, .cc), look for corresponding header file (.h, .hpp)
+            elif ext.lower() in ['.cpp', '.cc', '.cxx', '.c++']:
+                for header_ext in ['.h', '.hpp']:
+                    header_file = f"{base_name}{header_ext}"
+                    if os.path.exists(header_file) and header_file not in checked_files:
+                        terminal.logger.info(f"Adding corresponding header file: {header_file}")
+                        additional_files.append(header_file)
+                        checked_files.add(header_file)
+                        break
+    
+    # Add the additional files to the list
+    files_to_send.extend(additional_files)
+
+    # send file requests, get a list of steps
+    terminal.logger.info(f"Found file request, sending files: {files_to_send}")
+    response = await send_file_request(terminal, files_to_send, user_task, response_prev)
+
+    # parse steps response
+    steps = await parse_steps(response, files_to_send)
+    if "steps" not in steps or len(steps["steps"]) == 0:
+        raise Exception("failed to process steps")
+
+    terminal.logger.info(f"parsed_steps successfully: steps:\n {steps}")
+
+    # turn each step into individual code changes
+    files_changed_set = set()
+    failed_steps = []
+    for step in steps["steps"]:
+        new_file_changes = await complete_step(terminal=terminal, step=step, files_to_send=files_to_send)
+        if len(new_file_changes) == 0:
+            failed_steps.append(step)
+
+        # only track each file once
+        for f in new_file_changes:
+            files_changed_set.add(f)
+
+    # try any failed steps again
+    for step in failed_steps:
+        terminal_print(f"Retrying step {step}", PrintType.PROCESSING)
+        new_file_changes = await complete_step(terminal=terminal, step=step, files_to_send=files_to_send)
+
+        # only track each file once
+        for f in new_file_changes:
+            files_changed_set.add(f)
+
+    if len(files_changed_set):
+        terminal.logger.info("send files for sanity check")
         # Validate the changed files to ensure they're not malformed
-        is_valid = await double_check_changed_files(terminal, files_changed)
-        
-        if not is_valid:
+        model_prev = terminal.model
+        terminal.model = "qwen-2.5-coder-32b"
+        error_msg = await double_check_changed_files(terminal, files_changed_set)
+        # if error_msg is not None:
+        #     files_changed = await send_file_request(terminal, files_changed, error_msg)
+        #     error_msg = await double_check_changed_files(terminal, files_changed)
+
+        terminal.model = model_prev
+
+        if error_msg is not None:
             terminal_print(
-                "\nDetected possible issues in the changed files. Please review them manually.", 
+                "\nDetected possible issues in the changed files. Please review them manually.",
                 PrintType.WARNING
             )
             # Here you could add more sophisticated error handling or recovery
@@ -212,36 +325,205 @@ async def process_code_request_response(terminal, response):
     else:
         terminal.logger.info("No files were changed during this request")
 
+async def parse_steps(steps_text, filelist):
+    """
+    Parse steps from a text file that contains instructions for code changes,
+    and verify that all referenced files exist in the provided filelist.
+    
+    Args:
+        steps_text (str): The content of the steps text file.
+        filelist (list): List of files that are available.
+        
+    Returns:
+        dict: A dictionary containing the parsed steps.
+    """
+    from jrdev.file_utils import cutoff_string, manual_json_parse
+    import logging
+    import os
+    
+    logger = logging.getLogger("jrdev")
+    
+    # Extract the JSON content using cutoff_string
+    json_content = cutoff_string(steps_text, "```json", "```")
+    
+    # Parse the JSON content
+    steps_json = manual_json_parse(json_content)
+    
+    if "steps" not in steps_json:
+        logger.warning("No steps found in the steps file")
+        return {"steps": []}
+    
+    # Check if each filename referenced in steps exists in filelist
+    missing_files = []
+    for step in steps_json["steps"]:
+        if "filename" in step:
+            filename = step["filename"]
+            # Convert filelist paths to basenames for comparison
+            basename = os.path.basename(filename)
+            found = False
+            
+            for file_path in filelist:
+                if os.path.basename(file_path) == basename or file_path == filename:
+                    found = True
+                    break
+            
+            if not found:
+                missing_files.append(filename)
+    
+    if missing_files:
+        logger.warning(f"Files not found in filelist: {missing_files}")
+        # Add a warning to the steps_json
+        steps_json["missing_files"] = missing_files
+    
+    return steps_json
 
-async def send_file_request(terminal, files_to_send):
+
+operation_promts = {
+    "DELETE": (
+        """
+        DELETE: Remove existing code using code references rather than line numbers.
+           - "operation": "DELETE"
+           - "filename": the file to modify.
+           - "target": an object specifying what to delete. It may include:
+               - "function": the name of a function to delete.
+               - "block": a block within a function, identified by the function name and a "position_marker" (e.g., "before_return", "after_variable_declaration").
+        """
+    ),
+    "ADD": (
+        """
+        ADD: Insert new code at a specified location using code references. This operation will insert as a new line, be mindful of needed indentations.
+           - "operation": "ADD"
+           - "filename": the file to modify.
+           - "insert_location": an object that indicates where to insert the new code. Options include:
+               - "after_function": the name of a function after which to insert.
+               - "within_function": the name of a function, along with a "position_marker" to pinpoint the insertion spot (e.g., "at_start", "before_return").
+                    - "position_marker": use this as a json object within the same object as within_function. The value 
+                    of position marker can be at_start (insert to beginning of function scope), before_return (insert right before function return) or a position_marker = {after_line: <function_line_number>}. 
+                    after_line uses the line numbers with the function name being line 0, etc. 
+                    
+               - "after_marker": a custom code marker or comment present in the file.
+               - "global": to insert code at the global scope.
+           - "new_content": the code to insert.
+           - "indentation_hint": give an indentation hint. The options are relative to the previous line of code's indentation level. Options: maintain_indent, increase_indent, decrease_indent, no_hint
+           - "sub_type": the type of code being added. Options include:
+               - "FUNCTION": a complete new function implementation.
+               - "BLOCK": lines of code added within an existing function or structure.
+               - "COMMENT": inline documentation or comment updates.
+        """
+    ),
+    "REPLACE": (
+        """
+        REPLACE: Replace an existing code block with new content.
+           - "operation": "REPLACE"
+           - "filename": the file to modify.
+           - "target_type": the type of code to be replaced. Options include:
+               - "FUNCTION": the entire function implementation.
+               - "BLOCK": a specific block of code within a function.
+               - "SIGNATURE": the function's declaration (parameters, return type, etc.).
+               - "COMMENT": inline documentation or comment section.
+           - "target_reference": an object that specifies the location of the code to be replaced.
+                - function_name - name of the function
+                - code_snippet (optional) - exact string match that should be removed.
+           - "new_content": the replacement code.
+        """
+    ),
+    "RENAME": (
+        """
+        RENAME: Change the name of an identifier and update its references.
+           - "filename": the file to modify.
+           - "operation": "RENAME"
+           - "target_type": the type of identifier (e.g., "FUNCTION", "CLASS", "VARIABLE").
+           - "old_name": the current name.
+           - "new_name": the new name.
+           - "update_references": (optional) a boolean indicating whether to update all occurrences of the identifier.
+        """
+    ),
+    "NEW": (
+        """
+        NEW: Create a new file.
+           - "operation": "NEW"
+           - "filename": the path of the new file to create.
+           - "new_content": the entire content of the new file.
+        """
+    )
+}
+
+async def request_code(terminal, change_instruction, file):
+    op_type = change_instruction["operation_type"]
+    operation_prompt = operation_promts[op_type]
+    dev_msg = (
+        f"""
+        You are an expert software engineer and code reviewer and have been tasked with a simple one step operation. 
+        Format your response as a JSON object with a "changes" key that contains an array of modifications. You may only 
+        use the following operation to complete the task: {operation_prompt}
+        
+        Wrap your response in ```json and ``` markers. Use \\n for line breaks in new_content. 
+        Do not include any additional commentary or explanation outside the JSON.
+        """
+    )
+
+    prompt = (
+        f"""
+        You have been tasked with using the {op_type} operation to {change_instruction["description"]}. This should be 
+        applied to the supplied file {change_instruction["filename"]} and you will need to locate the proper location in 
+        the code to apply this change. The target location is {change_instruction["target_location"]}. Operations should 
+        only be applied to this location, or else the task will fail.
+        """
+    )
+
+    # construct and send message to LLM
+    messages = []
+    messages.append({"role": "system", "content": dev_msg})
+    messages.append({"role": "user", "content": file})
+    messages.append({"role": "user", "content": prompt})
+    terminal.logger.info(f"Sending code request to {terminal.model}")
+    terminal_print(f"\nSending code request to {terminal.model}...", PrintType.PROCESSING)
+
+    follow_up_response = await stream_request(terminal, terminal.model, messages)
+    terminal_print("", PrintType.INFO)
+    terminal.messages[terminal.model].append({"role": "assistant", "content": follow_up_response})
+    return follow_up_response
+
+
+async def send_file_request(terminal, files_to_send, user_task, assistant_plan = None):
     terminal.logger.info(f"Detected file request: {files_to_send}")
     terminal_print(f"\nDetected file request: {files_to_send}", PrintType.INFO)
+
     files_content = get_file_contents(files_to_send)
 
     dev_msg = (
         """
-        You are an expert software engineer and code reviewer. Instead of rewriting the entire file, provide only the necessary modifications as a diff. Format your response as a JSON object with a "changes" key that contains an array of changes. Each change should include:
+        Instructions:
+        You are a professor of computer science, currently teaching a basic CS1000 course to some new students with 
+        little experience programming. The requested task is one that will be given to the students.
+        CRITICAL: Do not provide any code for the students, only textual aide. 
+        
+        Generate a plan of discrete steps. The plan must be formatted as a numbered list where each step corresponds to a single operation (ADD, DELETE, REPLACE, 
+        RENAME, or NEW). Each step should be self-contained and include:
 
-        - "filename": the name of the file to modify.
-        - "start_line": the starting line number where the change should occur.
-        - "end_line": the ending line number to be replaced. For an insertion (with no lines to replace), set "start_line" equal to "end_line" to indicate that new content should be inserted at that position.
-        - "new_content": the new code that should replace the specified lines or be inserted at the given point.
-
-        Do not include any additional commentary or explanation.
+        - The operation type.
+        - Filename
+        - The target location or reference (such as a function name, marker, or global scope).
+        - A brief description of the intended change.
+    
+        Ensure that a student can follow each step independently. Provide only the plan in your response, with no 
+        additional commentary or extraneous information. Some tasks for the students may be doable in a single step.
+        
+        The response should be in json format example: {"steps": [{"operation_type": "ADD", "filename": "src/test_file.py", "target_location": "after function X scope end", "description": "Adjust the code so that it prints hello world"}]}
         """
     )
 
-    follow_up_message = (
-        f"As you rewrite this code, leave the code as unchanged as possible, except for the areas"
-        f" where code changes are needed to complete the task. For example, leave all comments and don't"
-        f" 'clean up' the code. These requested files will give you the needed context to make changes to the code:{files_content}")
-    terminal.messages[terminal.model].append({"role": "user", "content": follow_up_message})
-    terminal.messages[terminal.model].append({"role": "system", "content": dev_msg})
-
+    #construct and send message to LLM
+    messages = []
+    messages.append({"role": "system", "content": dev_msg})
+    if assistant_plan is not None:
+        messages.append({"role": "assistant", "content": assistant_plan})
+    messages.append({"role": "user", "content": f"Task To Accomplish: {user_task}"})
+    messages.append({"role": "user", "content": files_content})
     terminal.logger.info(f"Sending requested files to {terminal.model}")
     terminal_print(f"\nSending requested files to {terminal.model}...", PrintType.PROCESSING)
-    follow_up_response = await stream_request(terminal.client, terminal.model,
-                                              terminal.messages[terminal.model])
+
+    follow_up_response = await stream_request(terminal, terminal.model, messages)
     terminal_print("", PrintType.INFO)
     terminal.messages[terminal.model].append({"role": "assistant", "content": follow_up_response})
 

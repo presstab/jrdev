@@ -1,0 +1,14 @@
+```json
+{
+  "changes": [
+    {
+      "filename": "tests/mock/price_chart_widget.py",
+      "insert_location": {
+        "after_function": "PriceChartWidget.__del__"
+      },
+      "new_content": "\n",
+      "sub_type": "BLOCK"
+    }
+  ]
+}
+```

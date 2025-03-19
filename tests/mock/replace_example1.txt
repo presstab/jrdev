@@ -1,0 +1,15 @@
+```json
+{
+  "changes": [
+    {
+      "operation": "REPLACE",
+      "filename": "assetbox.h",
+      "target_type": "SIGNATURE",
+      "target_reference": {
+        "function_name": "GetAssetName"
+      },
+      "new_content": "const QString& GetAssetName() const;"
+    }
+  ]
+}
+```

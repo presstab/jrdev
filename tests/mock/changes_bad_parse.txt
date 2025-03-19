@@ -1,0 +1,33 @@
+```json
+{
+  "changes": [
+    {
+      "operation": "ADD",
+      "filename": "assetbox.h",
+      "insert_location": {
+        "global": true
+      },
+      "new_content": "#include <QMouseEvent>\n",
+      "sub_type": "BLOCK"
+    },
+    {
+      "operation": "ADD",
+      "filename": "assetbox.h",
+      "insert_location": {
+        "after_function": "UpdateColor"
+      },
+      "new_content": "signals:\n    void clicked();",
+      "sub_type": "BLOCK"
+    },
+    {
+      "operation": "ADD",
+      "filename": "assetbox.h",
+      "insert_location": {
+        "after_function": "UpdateColor"
+      },
+      "new_content": "protected:\n    virtual void mousePressEvent(QMouseEvent *event) override;",
+      "sub_type": "BLOCK"
+    }
+  ]
+}
+```

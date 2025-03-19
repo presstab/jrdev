@@ -34,7 +34,6 @@ from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
 from jrdev.models import AVAILABLE_MODELS, is_think_model
 from jrdev.llm_requests import stream_request
 from jrdev.ui import terminal_print, PrintType
-from jrdev.file_utils import requested_files, get_file_contents, check_and_apply_code_changes
 
 
 class JrDevTerminal:
@@ -47,19 +46,36 @@ class JrDevTerminal:
         from dotenv import load_dotenv
         load_dotenv()
         
-        api_key = os.getenv("VENICE_API_KEY")
-        if not api_key:
+        # Initialize API clients
+        self.venice_client = None
+        self.openai_client = None
+        
+        # Get Venice API key
+        venice_api_key = os.getenv("VENICE_API_KEY")
+        if not venice_api_key:
             error_msg = "VENICE_API_KEY not found in .env file"
             self.logger.error(error_msg)
             terminal_print(f"Error: {error_msg}", PrintType.ERROR)
             sys.exit(1)
-            
-        self.client = AsyncOpenAI(
-            api_key=api_key,
+        
+        # Initialize Venice client
+        self.venice_client = AsyncOpenAI(
+            api_key=venice_api_key,
             organization=None,
             project=None,
             base_url="https://api.venice.ai/api/v1",
         )
+        
+        # Get OpenAI API key (optional)
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if openai_api_key:
+            self.logger.info("OpenAI API key found, initializing OpenAI client")
+            # Initialize OpenAI client
+            self.openai_client = AsyncOpenAI(
+                api_key=openai_api_key
+            )
+        else:
+            self.logger.info("No OpenAI API key found, OpenAI models will not be available")
         self.model = "deepseek-r1-671b"
         self.running = True
         self.messages = {} #model -> messages
@@ -179,7 +195,7 @@ class JrDevTerminal:
 
         try:
             # Pass the print_stream parameter to control whether to print the model's response
-            response_text = await stream_request(self.client, self.model, messages, print_stream)
+            response_text = await stream_request(self, self.model, messages, print_stream)
             self.logger.info("Successfully received response from model")
             
             # Add response to messages

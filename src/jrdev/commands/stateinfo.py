@@ -35,7 +35,10 @@ async def handle_stateinfo(terminal, args):
     terminal_print(f"  Context files: {context_count}", print_type=PrintType.INFO)
     
     # Display API details
-    terminal_print(f"  API base URL: {terminal.client.base_url}", print_type=PrintType.INFO)
+    if terminal.venice_client:
+        terminal_print(f"  Venice API base URL: {terminal.venice_client.base_url}", print_type=PrintType.INFO)
+    if terminal.openai_client:
+        terminal_print(f"  OpenAI API configured", print_type=PrintType.INFO)
     
     # If the terminal has any file context loaded
     project_files = {

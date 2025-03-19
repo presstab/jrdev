@@ -4,34 +4,125 @@
 Help command implementation for the JrDev terminal.
 """
 
-from jrdev.ui import terminal_print, PrintType
+from jrdev.ui import terminal_print, PrintType, COLORS, FORMAT_MAP
 
 
 async def handle_help(terminal, args):
     """
-    Handle the /help command to display available commands.
-
-    Args:
-        terminal: The JrDevTerminal instance
-        args: Command arguments (unused)
+    Handle the /help command to display available commands categorized.
     """
     terminal_print("Available commands:", print_type=PrintType.HEADER)
-    terminal_print("  /exit - Exit the terminal", print_type=PrintType.COMMAND)
-    terminal_print("  /model <model_name> - Change the model", print_type=PrintType.COMMAND)
-    terminal_print("  /models - List all available models", print_type=PrintType.COMMAND)
-    terminal_print("  /addcontext <file_path or pattern> - Add file(s) to the LLM context window", print_type=PrintType.COMMAND)
-    terminal_print("  /viewcontext [number] - View the content in the LLM context window", print_type=PrintType.COMMAND)
-    terminal_print("  /clearcontext - Clear context files and conversation history", print_type=PrintType.COMMAND)
-    terminal_print("  /clearmessages - Clear message history for all models", print_type=PrintType.COMMAND)
-    terminal_print("  /process on|off - Enable or disable automatic file processing", print_type=PrintType.COMMAND)
-    terminal_print("  /code <message> - Send message with code processing enabled", print_type=PrintType.COMMAND)
-    terminal_print("  /asyncsend [filepath] <prompt> - Send message in background and optionally save to a file", print_type=PrintType.COMMAND)
-    terminal_print("  /tasks - List all active background tasks", print_type=PrintType.COMMAND)
-    terminal_print("  /cancel <task_id>|all - Cancel background task(s)", print_type=PrintType.COMMAND)
+
+    # Basic commands
+    terminal_print("Basic:", print_type=PrintType.SUBHEADER)
     terminal_print(
-        "  /init [filename] - Generate file tree, analyze files, and create project overview",
-        print_type=PrintType.COMMAND
+        f"  /exit",
+        print_type=PrintType.COMMAND,
+        end=""
     )
-    terminal_print("  /stateinfo - Display current terminal state information", print_type=PrintType.COMMAND)
-    terminal_print("  /cost - Display session cost breakdown by model", print_type=PrintType.COMMAND)
-    terminal_print("  /help - Show this help message", print_type=PrintType.COMMAND)
+    terminal_print(f" - Exit the terminal")
+    terminal_print(
+        f"  /help",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Show this help message")
+    terminal_print(
+        f"  /model <model_name>",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Change model")
+    terminal_print(
+        f"  /models",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - List all available models")
+    terminal_print(
+        f"  /cost",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Display session costs")
+
+    # Use AI commands
+    terminal_print("Use AI:", print_type=PrintType.SUBHEADER)
+    terminal_print(
+        f"  /init",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Index important project files and familiarize LLM with project")
+
+    # Add experimental tag to code command with green color
+    exp_tag = f"{COLORS['BRIGHT_GREEN']}(WIP){FORMAT_MAP[PrintType.COMMAND]}"
+    terminal_print(
+        f"  /code <message> {exp_tag}",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Send coding task to LLM. LLM will read and edit the code.")
+
+    terminal_print(
+        f"  /asyncsend [filepath] <prompt>",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Send message in background and save to a file")
+
+    # Add default tag to chat command with yellow color
+    default_tag = f"{COLORS['BRIGHT_YELLOW']}(default){FORMAT_MAP[PrintType.COMMAND]}"
+    terminal_print(
+        f"  /chat <message> {default_tag}",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Chat with the AI about your project (using no command will default here)")
+
+    terminal_print(
+        f"  /tasks",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - List active background tasks")
+
+    terminal_print(
+        f"  /cancel <task_id>|all",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Cancel background tasks")
+
+    # Context Control commands
+    terminal_print("Context Control:", print_type=PrintType.SUBHEADER)
+    terminal_print(
+        f"  /addcontext <file_path or pattern>",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Add file(s) to the LLM context window")
+    terminal_print(
+        f"  /viewcontext [number]",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - View the LLM context window content")
+    terminal_print(
+        f"  /clearcontext",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Clear context and conversation history")
+    terminal_print(
+        f"  /clearmessages",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Clear message history for all models")
+    terminal_print(
+        f"  /stateinfo",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Display terminal state information")

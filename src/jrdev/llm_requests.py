@@ -1,7 +1,7 @@
 import re
 from jrdev.colors import Colors
 from jrdev.ui import terminal_print, PrintType
-from jrdev.models import is_think_model
+from jrdev.models import is_think_model, AVAILABLE_MODELS
 from jrdev.usage import get_instance
 
 
@@ -21,11 +21,48 @@ def is_inside_think_tag(text):
     return think_open > think_close
 
 
-async def stream_request(client, model, messages, print_stream=True):
+async def stream_request(terminal, model, messages, print_stream=True):
+    # Determine which client to use based on the model provider
+    client = None
+    model_provider = None
+    
+    # Find the model in AVAILABLE_MODELS
+    for entry in AVAILABLE_MODELS:
+        if entry["name"] == model:
+            model_provider = entry["provider"]
+            break
+    
+    # Select the appropriate client based on provider
+    if model_provider == "venice":
+        client = terminal.venice_client
+    elif model_provider == "openai":
+        client = terminal.openai_client
+        if not client:
+            raise ValueError(f"OpenAI API key not configured but model {model} requires it")
+    else:
+        raise ValueError(f"Unknown provider for model {model}")
+    
     # Create a streaming completion
-    stream = await client.chat.completions.create(
-        model=model, messages=messages, stream=True
-    )
+    if model_provider == "openai":
+        if model == "o3-mini":
+            stream = await client.chat.completions.create(model=model, messages=messages, stream=True, reasoning_effort="high")
+        else:
+            stream = await client.chat.completions.create(model=model, messages=messages, stream=True, temperature=0.0)
+    elif model == "qwen-2.5-qwq-32b":
+        stream = await client.chat.completions.create(
+            model=model, messages=messages, stream=True, temperature=0.0, top_p=0.95,
+            extra_body={"venice_parameters":{"include_venice_system_prompt":False}, "frequency_penalty": 0.3}
+        )
+    elif model == "deepseek-r1-671b":
+        stream = await client.chat.completions.create(
+            model=model, messages=messages, stream=True, temperature=0.0,
+            extra_body={"venice_parameters":{"include_venice_system_prompt":False}, "frequency_penalty": 0.3}
+        )
+    else:
+        stream = await client.chat.completions.create(
+            model=model, messages=messages, stream=True, temperature=0.0,
+            extra_body={"venice_parameters": {"include_venice_system_prompt": False}}
+        )
 
     uses_think = is_think_model(model)
     response_text = ""

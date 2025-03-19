@@ -1,13 +1,14 @@
 import re
 import os
 import glob
-import difflib
 from difflib import SequenceMatcher
-import numbers
-import fnmatch
-import pprint
+import logging
 
 from jrdev.ui import terminal_print, PrintType
+
+
+# Get the global logger instance
+logger = logging.getLogger("jrdev")
 
 
 def requested_files(text):
@@ -97,7 +98,8 @@ def get_file_contents(file_list):
 
     formatted_content = ""
     for path, content in file_contents.items():
-        formatted_content += f"\n\n--- {path} ---\n{content}"
+        formatted_content += f"\n\n--- BEGIN FILE: {path} ---\n{content}\n--- END FILE: {path} ---\n"
+
     return formatted_content
 
 
@@ -171,6 +173,8 @@ def manual_json_parse(text):
             #todo handle if valid json is on same line
 
         num_start = -1
+        # We'll handle boolean values in the character loop instead
+        # to avoid processing them when they're inside quotes
 
         i = -1
         for char in line:
@@ -178,6 +182,18 @@ def manual_json_parse(text):
 
             if char == ":" and skip_colon:
                 skip_colon = False
+                continue
+
+            # Handle boolean literals - but only outside of quotes
+            if pending_key and not quote_open and i + 4 <= len(line) and line[i:i+4] == "true":
+                stack[-1][pending_key] = True
+                pending_key = ""
+                i += 3  # Skip the rest of 'true'
+                continue
+            if pending_key and not quote_open and i + 5 <= len(line) and line[i:i+5] == "false":
+                stack[-1][pending_key] = False
+                pending_key = ""
+                i += 4  # Skip the rest of 'false'
                 continue
 
             if char == "\"":
@@ -247,22 +263,20 @@ def manual_json_parse(text):
 
                 #check if this is last digit
                 if i + 1 < len(line):
-
                     if line[i+1] in nums:
                         continue
-                    #last instance, now compile as full number
-                    num_str = line[num_start:(num_end+1)]
-                    num_start = -1
-                    n = int(num_str)
-                    if pending_key:
-                        stack[-1][pending_key] = n
-                        pending_key = ""
-                    elif isinstance(stack[-1], list):
-                        stack[-1].append(n)
-                    else:
-                        raise Exception(f"UNHANDLED NUMBER**** {num_str}")
+
+                #last instance, now compile as full number
+                num_str = line[num_start:(num_end+1)]
+                num_start = -1
+                n = int(num_str)
+                if pending_key:
+                    stack[-1][pending_key] = n
+                    pending_key = ""
+                elif isinstance(stack[-1], list):
+                    stack[-1].append(n)
                 else:
-                    raise Exception(f"UNHANDLED NUMBER 266: {char}")
+                    raise Exception(f"UNHANDLED NUMBER* 264*** {num_str}")
                 continue
 
             # object start
@@ -307,57 +321,3 @@ def manual_json_parse(text):
                 continue
 
     return main_object
-
-
-def apply_file_changes(changes_json):
-    # Group changes by filename
-    changes_by_file = {}
-    files_changed = []
-
-    for change in changes_json["changes"]:
-        filename = change["filename"]
-        changes_by_file.setdefault(filename, []).append(change)
-
-    for filename, changes in changes_by_file.items():
-        # Read the file into a list of lines
-        with open(filename, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-
-        # Sort changes in descending order of start_line
-        changes.sort(key=lambda c: c["start_line"], reverse=True)
-
-        for change in changes:
-            if "start_line" not in change:
-                raise Exception(f"start_line not in change: {change}")
-            if "end_line" not in change:
-                raise Exception(f"end_line not in change: {change}")
-            if "filename" not in change:
-                raise Exception(f"filename not in change: {change}")
-            if "new_content" not in change:
-                raise Exception(f"new_content not in change: {change}")
-
-            new_content = change["new_content"]
-            new_content = new_content.replace("\\n", "\n").replace("\\\"", "\"")
-
-            # Convert 1-indexed line numbers to 0-indexed indices
-            start_idx = change["start_line"] - 1
-            # end_line is inclusive, so the slice should stop at end_line index
-            end_idx = change["end_line"]
-            # Replace the specified block with the new content
-            new_lines = [line + "\n" for line in new_content.split("\n")]
-            lines = lines[:start_idx] + new_lines + lines[end_idx:]
-
-        # Write the updated lines back to the file
-        with open(filename, "w", encoding="utf-8") as f:
-            files_changed.append(filename)
-            f.writelines(lines)
-
-        return files_changed
-
-def check_and_apply_code_changes(response_text):
-    cutoff = cutoff_string(response_text, "```json", "```")
-    changes = manual_json_parse(cutoff)
-
-    if "changes" in changes:
-        return apply_file_changes(changes)
-    return []
