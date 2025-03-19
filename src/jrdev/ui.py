@@ -21,6 +21,7 @@ class PrintType(Enum):
     WARNING = auto()     # Warning messages
     COMMAND = auto()     # Command output
     HEADER = auto()      # Headers/titles
+    SUBHEADER = auto()   # Category headers
 
 
 # ANSI color codes
@@ -58,8 +59,10 @@ FORMAT_MAP: Dict[PrintType, str] = {
     PrintType.USER: COLORS["BRIGHT_YELLOW"],
     PrintType.SUCCESS: COLORS["BRIGHT_GREEN"] + COLORS["BOLD"],
     PrintType.WARNING: COLORS["BRIGHT_YELLOW"] + COLORS["BOLD"],
-    PrintType.COMMAND: COLORS["BRIGHT_BLUE"],
-    PrintType.HEADER: COLORS["BRIGHT_WHITE"] + COLORS["BOLD"] + COLORS["UNDERLINE"],
+    PrintType.COMMAND: COLORS["BRIGHT_BLUE"] + COLORS["BOLD"],
+    PrintType.HEADER: (COLORS["BRIGHT_WHITE"] + COLORS["BOLD"] +
+                        COLORS["UNDERLINE"]),
+    PrintType.SUBHEADER: COLORS["BRIGHT_WHITE"] + COLORS["BOLD"],
 }
 
 
@@ -96,9 +99,9 @@ def terminal_print(
         else:
             logger.info(message)
         return
-    
     # In main thread, print to terminal as usual
     format_code = FORMAT_MAP.get(print_type, COLORS["RESET"])
     formatted_prefix = f"{format_code}{prefix} " if prefix else format_code
 
-    print(f"{formatted_prefix}{message}{COLORS['RESET']}", end=end, flush=flush)
+    print(f"{formatted_prefix}{message}{COLORS['RESET']}",
+          end=end, flush=flush)
