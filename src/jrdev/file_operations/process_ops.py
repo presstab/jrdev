@@ -1,7 +1,10 @@
 import logging
 import os
+import tempfile
+from difflib import unified_diff
+import shutil
 
-from jrdev.ui import terminal_print, PrintType
+from jrdev.ui import terminal_print, PrintType, display_diff, prompt_for_confirmation
 from jrdev.file_operations.add import process_add_operation
 from jrdev.file_operations.delete import process_delete_operation
 from jrdev.file_operations.replace import process_replace_operation
@@ -10,6 +13,72 @@ from jrdev.file_utils import find_similar_file
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
+
+
+def write_with_confirmation(filepath, content):
+    """
+    Writes content to a temporary file, shows diff, and asks for user confirmation
+    before writing to the actual file.
+
+    Args:
+        filepath (str): Path to the file to write to
+        content (list or str): Content to write to the file
+
+    Returns:
+        bool: True if write was confirmed and successful, False otherwise
+    """
+    # Convert content to string if it's a list of lines
+    if isinstance(content, list):
+        content_str = ''.join(content)
+    else:
+        content_str = content
+
+    # Create a temporary file
+    with tempfile.NamedTemporaryFile(
+            delete=False, mode='w', encoding='utf-8') as temp_file:
+        temp_file_path = temp_file.name
+        temp_file.write(content_str)
+
+    try:
+        # Read original file content if it exists
+        original_content = ""
+        if os.path.exists(filepath):
+            with open(filepath, 'r', encoding='utf-8') as f:
+                original_content = f.read()
+
+        # Generate diff
+        original_lines = original_content.splitlines(True)
+        new_lines = content_str.splitlines(True)
+
+        diff = list(unified_diff(
+            original_lines,
+            new_lines,
+            fromfile=f'a/{filepath}',
+            tofile=f'b/{filepath}',
+            n=3
+        ))
+
+        # Display diff using the UI function
+        display_diff(diff)
+        
+        # Ask for confirmation using the UI function
+        if prompt_for_confirmation("Apply these changes?"):
+            # Copy temp file to destination
+            directory = os.path.dirname(filepath)
+            if directory and not os.path.exists(directory):
+                os.makedirs(directory)
+            shutil.copy2(temp_file_path, filepath)
+            terminal_print(f"Changes applied to {filepath}", PrintType.SUCCESS)
+            return True
+        else:
+            terminal_print(f"Changes to {filepath} discarded", PrintType.WARNING)
+            return False
+
+    finally:
+        # Clean up the temporary file
+        os.unlink(temp_file_path)
+
+    return False
 
 
 def apply_file_changes(changes_json):
@@ -39,7 +108,8 @@ def apply_file_changes(changes_json):
 
         operation = change["operation"]
         if operation not in valid_operations:
-            terminal_print(f"apply_file_changes: malformed change request, bad operation: {operation}")
+            terminal_print(
+                f"apply_file_changes: malformed change request, bad operation: {operation}")
             if operation == "MODIFY":
                 operation = "REPLACE"
                 terminal_print("switching MODIFY to REPLACE")
@@ -57,10 +127,10 @@ def apply_file_changes(changes_json):
     for filename, changes in changes_by_file.items():
         # Read the file into a list of lines
         filepath = filename
-        if os.path.exists(filename) == False:
+        if not os.path.exists(filename):
             try:
                 filepath = find_similar_file(filename)
-            except Exception as e:
+            except Exception:
                 terminal_print(f"File not found: {filepath}", PrintType.ERROR)
                 continue
         try:
@@ -76,7 +146,8 @@ def apply_file_changes(changes_json):
         # Process classic operation-based changes (start_line based)
         operation_changes = [c for c in changes if "operation" in c and "start_line" in c]
         insert_after_changes = [c for c in changes if "insert_location" in c]
-        replace_changes = [c for c in changes if "operation" in c and c["operation"] == "REPLACE"]
+        replace_changes = [
+            c for c in changes if "operation" in c and c["operation"] == "REPLACE"]
 
         # Process operation-based changes first
         if operation_changes:
@@ -89,12 +160,13 @@ def apply_file_changes(changes_json):
         for change in replace_changes:
             lines = process_replace_operation(lines, change, filepath)
 
-        # Write the updated lines back to the file
-        with open(filepath, "w", encoding="utf-8") as f:
+        # Write the updated lines to a temp file, show diff, and ask for confirmation
+        if write_with_confirmation(filepath, lines):
             files_changed.append(filepath)
-            f.writelines(lines)
             message = f"Updated {filepath}"
-            terminal_print(message, PrintType.WARNING)
+            logger.info(message)
+        else:
+            message = f"Update to {filepath} was cancelled by user"
             logger.info(message)
 
     # Process new file creations
@@ -116,15 +188,17 @@ def apply_file_changes(changes_json):
             terminal_print(message, PrintType.INFO)
             logger.info(message)
 
-        # Write the new file
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(new_content)
+        # Write the new file with confirmation
+        if write_with_confirmation(filepath, new_content):
             files_changed.append(filepath)
             message = f"Created new file: {filepath}"
-            terminal_print(message, PrintType.WARNING)
+            logger.info(message)
+        else:
+            message = f"Creation of {filepath} was cancelled by user"
             logger.info(message)
 
     return files_changed
+
 
 def process_operation_changes(lines, operation_changes, filename):
     """

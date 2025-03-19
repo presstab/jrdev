@@ -7,7 +7,7 @@ UI utilities for JrDev terminal interface.
 import threading
 import logging
 from enum import Enum, auto
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 class PrintType(Enum):
@@ -105,3 +105,44 @@ def terminal_print(
 
     print(f"{formatted_prefix}{message}{COLORS['RESET']}",
           end=end, flush=flush)
+
+
+def display_diff(diff_lines: List[str]) -> None:
+    """
+    Display a unified diff to the terminal with color-coded additions and deletions.
+    
+    Args:
+        diff_lines: List of lines from a unified diff
+    """
+    if not diff_lines:
+        terminal_print("No changes detected in file content.", PrintType.WARNING)
+        return
+    
+    terminal_print("File changes diff:", PrintType.HEADER)
+    for line in diff_lines:
+        if line.startswith('+'):
+            terminal_print(line.rstrip(), PrintType.SUCCESS)
+        elif line.startswith('-'):
+            terminal_print(line.rstrip(), PrintType.ERROR)
+        else:
+            terminal_print(line.rstrip())
+
+
+def prompt_for_confirmation(prompt_text: str = "Apply these changes?") -> bool:
+    """
+    Prompt the user for a yes/no confirmation.
+    
+    Args:
+        prompt_text: The text to display when prompting the user
+        
+    Returns:
+        bool: True if user confirmed, False otherwise
+    """
+    while True:
+        response = input(f"\n{prompt_text} (y/n): ").lower().strip()
+        if response in ('y', 'yes'):
+            return True
+        elif response in ('n', 'no'):
+            return False
+        else:
+            terminal_print("Please enter 'y' or 'n'", PrintType.ERROR)
