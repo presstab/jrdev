@@ -5,7 +5,7 @@ Models command implementation for the JrDev terminal.
 """
 from typing import Any, List, TypedDict, cast
 
-from jrdev.models import AVAILABLE_MODELS
+from jrdev.models import AVAILABLE_MODELS, VCU_Value
 from jrdev.ui import terminal_print, PrintType
 
 
@@ -64,6 +64,7 @@ async def handle_models(terminal: Any, args: List[str]) -> None:
     terminal_print(separator, print_type=PrintType.INFO)
 
     # Print table rows
+    vcu_usd = VCU_Value()
     for model in sorted_models:
         model_name = model["name"]
         is_think = model["is_think"]
@@ -72,8 +73,8 @@ async def handle_models(terminal: Any, args: List[str]) -> None:
         context_tokens = model["context_tokens"]
 
         think_status = "Reasoning" if is_think else "Standard"
-        input_cost_str = f"${input_cost/1000:.3f}/1K"
-        output_cost_str = f"${output_cost/1000:.3f}/1K"
+        input_cost_str = f"${input_cost/100*vcu_usd:.3f}/10K"
+        output_cost_str = f"${output_cost/100*vcu_usd:.3f}/10K"
         context_str = f"{context_tokens//1024}K"
 
         # Add asterisk for selected model

@@ -15,5 +15,5 @@ async def handle_clear(terminal, args):
         terminal: The JrDevTerminal instance
         args: Command arguments (unused)
     """
-    terminal.messages = []
+    terminal.clear_messages()
     terminal_print("Conversation history cleared.", print_type=PrintType.SUCCESS)

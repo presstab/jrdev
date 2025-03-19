@@ -14,6 +14,7 @@ import logging
 from openai import AsyncOpenAI
 
 from jrdev.logger import setup_logger
+from jrdev.file_utils import requested_files, get_file_contents
 
 # Cross-platform readline support
 try:
@@ -78,7 +79,7 @@ class JrDevTerminal:
             self.logger.info("No OpenAI API key found, OpenAI models will not be available")
         self.model = "deepseek-r1-671b"
         self.running = True
-        self.messages = {} #model -> messages
+        self.messages = []
         
         # Project files dict to track various files used by the application
         self.project_files = {
@@ -139,6 +140,40 @@ class JrDevTerminal:
             terminal_print(f"Unknown command: {cmd}", PrintType.ERROR)
             terminal_print("Type /help for available commands", PrintType.INFO)
 
+    def set_message_history(self, messages):
+        self.messages = messages
+
+    def add_message_history(self, text, is_assistant=False):
+        self.messages.append({"role": "assistant" if is_assistant else "user", "content": text})
+
+    def message_history(self):
+        return self.messages
+
+    def clear_messages(self):
+        self.messages.clear()
+
+    def remove_project_message(self):
+        self.messages = [message for message in self.messages if "Project Details" not in message["content"]]
+
+    def get_project_message(self):
+        return next((message for message in self.messages if "Project Details" in message["content"]), None)
+
+    def add_project_message(self):
+        # Remove project message if it already exists
+        self.remove_project_message()
+
+        # Read project context files if they exist
+        project_context = {}
+        for key, filename in self.project_files.items():
+            try:
+                if os.path.exists(filename):
+                    with open(filename, "r") as f:
+                        project_context[key] = f.read()
+            except Exception as e:
+                terminal_print(f"Warning: Could not read {filename}: {str(e)}", PrintType.WARNING)
+
+        self.messages.append({"role": "user", "content": f"Project Details: {project_context}"})
+
     
     async def send_message(self, content, writepath=None, print_stream=True):
         """
@@ -161,45 +196,64 @@ class JrDevTerminal:
             terminal_print(f"Error: {error_msg}", PrintType.ERROR)
             return None
 
-        # Read project context files if they exist
-        project_context = {}
-        for key, filename in self.project_files.items():
-            try:
-                if os.path.exists(filename):
-                    with open(filename, "r") as f:
-                        project_context[key] = f.read()
-            except Exception as e:
-                terminal_print(f"Warning: Could not read {filename}: {str(e)}", PrintType.WARNING)
-
         user_additional_modifier = " Here is the user's question or instruction:"
         user_message = f"{user_additional_modifier} {content}"
+        file_content = ""
 
-        # Append project context if available (only needed on first run)
-        if project_context:
-            for key, value in project_context.items():
-                user_message = f"{user_message}\n\n{key.upper()}:\n{value}"
+        # Append project context (will delete previous instances of it)
+        self.add_project_message()
+        project_message = self.get_project_message()
 
         # Add any additional context files stored in self.context
         if self.context:
             context_section = "\n\nUSER CONTEXT:\n"
             for i, ctx in enumerate(self.context):
                 context_section += f"\n--- Context File {i + 1}: {ctx['name']} ---\n{ctx['content']}\n"
-            user_message += context_section
+            file_content += context_section
 
-        # Add the user message to the persistent message history
+        # Make a temp messages list for initial request to llm to analyze what this request needs
         messages = []
+        messages.append({"role": "user", "content": f"Supporting Context: {file_content}"})
+        if project_message is not None:
+            messages.append(project_message)
         messages.append({"role": "user", "content": user_message})
+
+        # Add first step to quickly identify if certain files should be included with this
+        dev_msg = (
+            """
+            Identify if the current supplied files are sufficient for an assistant to answer the users request. Try to match 
+             key words from the user's request to a specific related file. Questions about messaged history do not need a file attached. 
+             If you can not place a likely match, then reply only with "sufficient". Your job 
+            is solely to reply with "sufficient" or "insufficient" with a get files request in this format: 'get_files [\"path/to/file1.txt\", \"path/to/file2.cpp\", ...]'
+            """
+        )
+        messages.insert(0, {"role": "system", "content": dev_msg})
+        terminal_print(f"\nmistral-31-24b is interpreting request...", PrintType.PROCESSING)
+        needed_files_response = await stream_request(self, "mistral-31-24b", messages, print_stream=False)
+
+        files_to_send = requested_files(needed_files_response)
+        if files_to_send:
+            terminal_print(f"Adding files: {files_to_send}")
+        if len(files_to_send) > 0:
+            new_content = get_file_contents(files_to_send)
+            if len(new_content) > 0:
+                file_content = f"{file_content}\n{new_content}"
+                self.logger.info(f"Added content: {file_content}")
+
+        # use model's message thread
+        self.add_message_history(f"Supporting Context: {file_content}")
+        self.add_message_history(user_message)
 
         model_name = self.model
         terminal_print(f"\n{model_name} is processing request...", PrintType.PROCESSING)
 
         try:
             # Pass the print_stream parameter to control whether to print the model's response
-            response_text = await stream_request(self, self.model, messages, print_stream)
+            response_text = await stream_request(self, self.model, self.message_history(), print_stream)
             self.logger.info("Successfully received response from model")
             
             # Add response to messages
-            #self.messages[self.model].append({"role": "assistant", "content": response_text})
+            self.add_message_history(response_text, is_assistant=True)
             
             if writepath is None:
                 return response_text

@@ -5,6 +5,7 @@ from difflib import SequenceMatcher
 import logging
 
 from jrdev.ui import terminal_print, PrintType
+from jrdev.languages.utils import detect_language, is_headers_language
 
 
 # Get the global logger instance
@@ -13,6 +14,7 @@ logger = logging.getLogger("jrdev")
 
 def requested_files(text):
     match = re.search(r"get_files\s+(\[.*?\])", text, re.DOTALL)
+    file_list = []
     if match:
         file_list_str = match.group(1)
         file_list_str = file_list_str.replace("'", '"')
@@ -21,8 +23,42 @@ def requested_files(text):
         except Exception as e:
             terminal_print(f"Error parsing file list: {str(e)}", PrintType.ERROR)
             file_list = []
+
+    if file_list == []:
         return file_list
-    return []
+
+    # Check if language has headers for classes, if so make sure both header and source file are included in files_to_send
+    checked_files = set(file_list)
+    additional_files = []
+
+    for file in file_list:
+        language = detect_language(file)
+        if is_headers_language(language):
+            base_name, ext = os.path.splitext(file)
+
+            # If it's a header file (.h, .hpp), look for corresponding source file (.cpp, .cc)
+            if ext.lower() in ['.h', '.hpp']:
+                for source_ext in ['.cpp', '.cc', '.cxx', '.c++']:
+                    source_file = f"{base_name}{source_ext}"
+                    if os.path.exists(source_file) and source_file not in checked_files:
+                        logger.info(f"Adding corresponding source file: {source_file}")
+                        additional_files.append(source_file)
+                        checked_files.add(source_file)
+                        break
+
+            # If it's a source file (.cpp, .cc), look for corresponding header file (.h, .hpp)
+            elif ext.lower() in ['.cpp', '.cc', '.cxx', '.c++']:
+                for header_ext in ['.h', '.hpp']:
+                    header_file = f"{base_name}{header_ext}"
+                    if os.path.exists(header_file) and header_file not in checked_files:
+                        logger.info(f"Adding corresponding header file: {header_file}")
+                        additional_files.append(header_file)
+                        checked_files.add(header_file)
+                        break
+
+    # Add the additional files to the list
+    file_list.extend(additional_files)
+    return file_list
 
 
 def find_similar_file(file_path):
@@ -92,9 +128,9 @@ def get_file_contents(file_list):
                     with open(similar_file, "r") as f:
                         file_contents[file_path] = f.read()
                 else:
-                    file_contents[file_path] = f"Error: File not found: {file_path}"
+                    terminal_print(f"Error reading file {file_path}: {str(e)}", PrintType.ERROR)
         except Exception as e:
-            file_contents[file_path] = f"Error reading file {file_path}: {str(e)}"
+            terminal_print(f"Error reading file {file_path}: {str(e)}", PrintType.ERROR)
 
     formatted_content = ""
     for path, content in file_contents.items():
