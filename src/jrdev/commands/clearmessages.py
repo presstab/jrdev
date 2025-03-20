@@ -6,7 +6,7 @@ ClearMessages command implementation for the JrDev terminal.
 
 from typing import Any, List
 
-from jrdev.ui import terminal_print, PrintType
+from jrdev.ui.ui import terminal_print, PrintType
 
 
 async def handle_clearmessages(terminal: Any, args: List[str]) -> None:

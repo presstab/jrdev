@@ -4,7 +4,8 @@ import tempfile
 from difflib import unified_diff
 import shutil
 
-from jrdev.ui import terminal_print, PrintType, display_diff, prompt_for_confirmation
+from jrdev.ui.ui import terminal_print, PrintType, display_diff, prompt_for_confirmation
+from jrdev.ui.diff_editor import curses_editor
 from jrdev.file_operations.add import process_add_operation
 from jrdev.file_operations.delete import process_delete_operation
 from jrdev.file_operations.replace import process_replace_operation
@@ -63,24 +64,52 @@ def write_with_confirmation(filepath, content):
         # Display diff using the UI function
         display_diff(diff)
         
-        # Ask for confirmation using the UI function
-        response, message = prompt_for_confirmation("Apply these changes?")
-        
-        if response == 'yes':
-            # Copy temp file to destination
-            directory = os.path.dirname(filepath)
-            if directory and not os.path.exists(directory):
-                os.makedirs(directory)
-            shutil.copy2(temp_file_path, filepath)
-            terminal_print(f"Changes applied to {filepath}", PrintType.SUCCESS)
-            return True, None
-        elif response == 'no':
-            terminal_print(f"Changes to {filepath} discarded", PrintType.WARNING)
-            return False, None
-        elif response == 'request_change':
-            terminal_print(f"Changes to {filepath} not applied, feedback requested", PrintType.WARNING)
-            # TODO: Handle the user's feedback message
-            return False, message
+        while True:
+            # Ask for confirmation using the UI function
+            response, message = prompt_for_confirmation("Apply these changes?")
+            
+            if response == 'yes':
+                # Copy temp file to destination
+                directory = os.path.dirname(filepath)
+                if directory and not os.path.exists(directory):
+                    os.makedirs(directory)
+                shutil.copy2(temp_file_path, filepath)
+                terminal_print(f"Changes applied to {filepath}", PrintType.SUCCESS)
+                return True, None
+            elif response == 'no':
+                terminal_print(f"Changes to {filepath} discarded", PrintType.WARNING)
+                return False, None
+            elif response == 'request_change':
+                terminal_print(f"Changes to {filepath} not applied, feedback requested", PrintType.WARNING)
+                return False, message
+            elif response == 'edit':
+                
+                # Convert diff to a list of lines for the editor
+                edited_diff = curses_editor(diff)
+                
+                if edited_diff:
+                    # The user saved changes in the editor
+                    
+                    # Write the edited content to a new temp file
+                    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as new_temp_file:
+                        new_temp_path = new_temp_file.name
+                        new_temp_file.write('\n'.join(edited_diff))
+                    
+                    # Show the new diff
+                    terminal_print("Updated changes:", PrintType.HEADER)
+                    display_diff(edited_diff)
+                    
+                    # Update the temp file path to the new one
+                    os.unlink(temp_file_path)
+                    temp_file_path = new_temp_path
+                    
+                    # Continue the loop to prompt again with the updated diff
+                    terminal_print("Edited changes prepared. Please confirm:", PrintType.INFO)
+                else:
+                    # User quit without saving or an error occurred
+                    terminal_print("Edit cancelled or no changes made.", PrintType.WARNING)
+                    # Continue the confirmation loop
+                    continue
 
     finally:
         # Clean up the temporary file
@@ -177,7 +206,6 @@ def apply_file_changes(changes_json):
         else:
             if user_message:
                 message = f"Update to {filepath} was not applied. User requested changes: {user_message}"
-                # TODO: Handle the user's feedback message for requested changes
                 return {"success": False, "change_requested": user_message}
             else:
                 message = f"Update to {filepath} was cancelled by user"

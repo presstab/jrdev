@@ -5,7 +5,7 @@ ViewContext command implementation for the JrDev terminal.
 """
 import os
 
-from jrdev.ui import terminal_print, PrintType
+from jrdev.ui.ui import terminal_print, PrintType
 
 
 async def handle_viewcontext(terminal, args):

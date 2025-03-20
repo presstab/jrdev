@@ -4,7 +4,7 @@
 Clear command implementation for the JrDev terminal.
 """
 
-from jrdev.ui import terminal_print, PrintType
+from jrdev.ui.ui import terminal_print, PrintType
 
 
 async def handle_clear(terminal, args):

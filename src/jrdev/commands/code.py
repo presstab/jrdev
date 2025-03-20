@@ -10,7 +10,7 @@ import os
 import logging
 from typing import Any, Dict, List
 
-from jrdev.ui import terminal_print, PrintType
+from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.llm_requests import stream_request
 from jrdev.file_utils import requested_files, get_file_contents, cutoff_string, manual_json_parse
 from jrdev.file_operations.process_ops import apply_file_changes

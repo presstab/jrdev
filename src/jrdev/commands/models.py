@@ -6,7 +6,7 @@ Models command implementation for the JrDev terminal.
 from typing import Any, List, TypedDict, cast
 
 from jrdev.models import AVAILABLE_MODELS, VCU_Value
-from jrdev.ui import terminal_print, PrintType
+from jrdev.ui.ui import terminal_print, PrintType
 
 
 class ModelInfo(TypedDict):

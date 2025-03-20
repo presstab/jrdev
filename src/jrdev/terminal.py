@@ -34,7 +34,7 @@ from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
                             handle_tasks, handle_viewcontext)
 from jrdev.models import AVAILABLE_MODELS, is_think_model
 from jrdev.llm_requests import stream_request
-from jrdev.ui import terminal_print, PrintType
+from jrdev.ui.ui import terminal_print, PrintType
 
 
 class JrDevTerminal:

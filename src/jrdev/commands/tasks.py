@@ -9,7 +9,7 @@ from typing import Any, List
 import asyncio
 import time
 
-from jrdev.ui import terminal_print, PrintType
+from jrdev.ui.ui import terminal_print, PrintType
 
 
 async def handle_tasks(terminal: Any, args: List[str]) -> None:

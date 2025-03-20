@@ -4,7 +4,7 @@ import glob
 from difflib import SequenceMatcher
 import logging
 
-from jrdev.ui import terminal_print, PrintType
+from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.languages.utils import detect_language, is_headers_language
 
 
