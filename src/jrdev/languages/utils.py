@@ -68,6 +68,8 @@ def detect_language(filepath):
         '.tsx': 'typescript',  # TypeScript React
         '.go': 'go',
         '.java': 'java',
+        '.kt': 'kotlin',
+        '.kts': 'kotlin',     # Kotlin script files
         '.rb': 'ruby',
         '.rs': 'rust',
         '.swift': 'swift',
