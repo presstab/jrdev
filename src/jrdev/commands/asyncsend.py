@@ -9,7 +9,7 @@ without waiting for the response to be returned to the terminal.
 from typing import Any, List
 import os
 
-from jrdev.ui import terminal_print, PrintType
+from jrdev.ui.ui import terminal_print, PrintType
 
 
 async def handle_asyncsend(terminal: Any, args: List[str]) -> None:

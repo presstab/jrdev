@@ -7,7 +7,7 @@ Controls whether to process file requests and code changes in LLM responses.
 
 from typing import Any, List
 
-from jrdev.ui import terminal_print, PrintType
+from jrdev.ui.ui import terminal_print, PrintType
 
 
 async def handle_process(terminal: Any, args: List[str]) -> None:

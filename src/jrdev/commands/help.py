@@ -4,7 +4,7 @@
 Help command implementation for the JrDev terminal.
 """
 
-from jrdev.ui import terminal_print, PrintType, COLORS, FORMAT_MAP
+from jrdev.ui.ui import terminal_print, PrintType, COLORS, FORMAT_MAP
 
 
 def format_command_with_args(command, args=None):

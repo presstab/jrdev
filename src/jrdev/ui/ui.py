@@ -7,7 +7,10 @@ UI utilities for JrDev terminal interface.
 import threading
 import logging
 from enum import Enum, auto
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+# Get the global logger instance
+logger = logging.getLogger("jrdev")
 
 
 class PrintType(Enum):
@@ -105,3 +108,55 @@ def terminal_print(
 
     print(f"{formatted_prefix}{message}{COLORS['RESET']}",
           end=end, flush=flush)
+
+
+def display_diff(diff_lines: List[str]) -> None:
+    """
+    Display a unified diff to the terminal with color-coded additions and deletions.
+    
+    Args:
+        diff_lines: List of lines from a unified diff
+    """
+    if not diff_lines:
+        terminal_print("No changes detected in file content.", PrintType.WARNING)
+        return
+    
+    terminal_print("File changes diff:", PrintType.HEADER)
+    for line in diff_lines:
+        if line.startswith('+'):
+            terminal_print(line.rstrip(), PrintType.SUCCESS)
+        elif line.startswith('-'):
+            terminal_print(line.rstrip(), PrintType.ERROR)
+        else:
+            terminal_print(line.rstrip())
+
+
+def prompt_for_confirmation(prompt_text: str = "Apply these changes?") -> tuple[str, Optional[str]]:
+    """
+    Prompt the user for confirmation with options to apply, reject, request changes,
+    or edit the changes in a text editor.
+    
+    Args:
+        prompt_text: The text to display when prompting the user
+        
+    Returns:
+        Tuple of (response, message):
+            - response: 'yes', 'no', 'request_change', or 'edit'
+            - message: User's feedback message when requesting changes,
+                      or edited content when editing, None otherwise
+    """
+    while True:
+        response = input(f"\n{prompt_text} ✅ Yes [y] | ❌ No [n] | 🔄 Request Change [r] | ✏️  Edit [e]: ").lower().strip()
+        if response in ('y', 'yes'):
+            return 'yes', None
+        elif response in ('n', 'no'):
+            return 'no', None
+        elif response in ('r', 'request', 'request_change'):
+            terminal_print("Please enter your requested changes:", PrintType.INFO)
+            message = input("> ")
+            return 'request_change', message
+        elif response in ('e', 'edit'):
+            terminal_print("Opening editor... (Ctrl+S/Alt+W to save, Ctrl+Q/Alt+Q/ESC to quit)", PrintType.INFO)
+            return 'edit', None
+        else:
+            terminal_print("Please enter 'y', 'n', 'r', or 'e'", PrintType.ERROR)

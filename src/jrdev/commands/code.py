@@ -10,7 +10,7 @@ import os
 import logging
 from typing import Any, Dict, List
 
-from jrdev.ui import terminal_print, PrintType
+from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.llm_requests import stream_request
 from jrdev.file_utils import requested_files, get_file_contents, cutoff_string, manual_json_parse
 from jrdev.file_operations.process_ops import apply_file_changes
@@ -195,7 +195,7 @@ async def double_check_changed_files(terminal, filelist):
         return None
 
 
-async def complete_step(terminal, step, files_to_send):
+async def complete_step(terminal, step, files_to_send, retry_message=None):
     terminal.logger.info(f"step: {step}")
     filepath = step["filename"]
     terminal.logger.info("filecheck")
@@ -206,7 +206,7 @@ async def complete_step(terminal, step, files_to_send):
     terminal.logger.info("file_content")
     file_content = get_file_contents([filepath])
     # send request for LLM to complete changes in step
-    code_change_response = await request_code(terminal, step, file_content)
+    code_change_response = await request_code(terminal, step, file_content, retry_message)
 
     # todo some kind of sanity check here? or just one sanity check at the very end?
 
@@ -214,7 +214,15 @@ async def complete_step(terminal, step, files_to_send):
     terminal.logger.info(f"Processing code changes from response\n RESPONSE:\n {code_change_response}")
 
     try:
-        return check_and_apply_code_changes(code_change_response)
+        result = check_and_apply_code_changes(code_change_response)
+        if result["success"]:
+            return result["files_changed"]
+
+        if "change_requested" in result:
+            retry_message = result["change_requested"]
+            terminal_print("retry step with user feedback")
+            return await complete_step(terminal, step, files_to_send, retry_message)
+
     except Exception:
         # file change failed, try again
         terminal_print("failed step, try again later.", PrintType.ERROR)
@@ -230,7 +238,8 @@ def check_and_apply_code_changes(response_text):
         raise Exception(f"parsing failed in check_and_apply_code_changes: {str(e)}")
     if "changes" in changes:
         return apply_file_changes(changes)
-    return []
+
+    return {"success": False}
 
 
 
@@ -415,7 +424,8 @@ operation_promts = {
     )
 }
 
-async def request_code(terminal, change_instruction, file):
+
+async def request_code(terminal, change_instruction, file, additional_prompt=None):
     op_type = change_instruction["operation_type"]
     operation_prompt = operation_promts[op_type]
     dev_msg = (
@@ -437,6 +447,8 @@ async def request_code(terminal, change_instruction, file):
         only be applied to this location, or else the task will fail.
         """
     )
+    if additional_prompt is not None:
+        prompt = f"{prompt} {additional_prompt}"
 
     # construct and send message to LLM
     messages = []

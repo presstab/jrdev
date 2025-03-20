@@ -9,7 +9,7 @@ import re
 
 from jrdev.treechart import generate_tree, generate_compact_tree
 from jrdev.llm_requests import stream_request
-from jrdev.ui import terminal_print, PrintType
+from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.file_utils import requested_files
 
 # Create an asyncio lock for safe file access

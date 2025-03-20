@@ -2,7 +2,7 @@
 import asyncio
 from typing import List, Dict, Any, Tuple, cast
 
-from jrdev.ui import terminal_print, PrintType
+from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.models import get_model_cost, VCU_Value, AVAILABLE_MODELS
 from jrdev.usage import get_instance
 

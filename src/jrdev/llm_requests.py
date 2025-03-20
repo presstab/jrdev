@@ -1,7 +1,7 @@
 import re
 import time
 from jrdev.colors import Colors
-from jrdev.ui import terminal_print, PrintType
+from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.models import is_think_model, AVAILABLE_MODELS
 from jrdev.usage import get_instance
 
