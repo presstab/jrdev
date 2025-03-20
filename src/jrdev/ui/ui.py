@@ -6,8 +6,18 @@ UI utilities for JrDev terminal interface.
 
 import threading
 import logging
+import platform
 from enum import Enum, auto
 from typing import Any, Dict, List, Optional, Tuple
+
+# Initialize colorama for Windows terminal color support
+if platform.system() == 'Windows':
+    try:
+        import colorama
+        colorama.init()
+    except ImportError:
+        # If colorama isn't installed, colors may not work correctly on Windows
+        pass
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -131,7 +141,7 @@ def display_diff(diff_lines: List[str]) -> None:
             terminal_print(line.rstrip())
 
 
-def prompt_for_confirmation(prompt_text: str = "Apply these changes?") -> tuple[str, Optional[str]]:
+def prompt_for_confirmation(prompt_text: str = "Apply these changes?") -> Tuple[str, Optional[str]]:
     """
     Prompt the user for confirmation with options to apply, reject, request changes,
     or edit the changes in a text editor.

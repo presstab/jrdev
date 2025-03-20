@@ -3,6 +3,7 @@ import os
 import tempfile
 from difflib import unified_diff
 import shutil
+import platform
 
 from jrdev.ui.ui import terminal_print, PrintType, display_diff, prompt_for_confirmation
 from jrdev.ui.diff_editor import curses_editor
