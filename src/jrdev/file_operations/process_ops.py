@@ -25,7 +25,9 @@ def write_with_confirmation(filepath, content):
         content (list or str): Content to write to the file
 
     Returns:
-        bool: True if write was confirmed and successful, False otherwise
+        Tuple of (result, message):
+            - result: True if write was confirmed and successful, False otherwise
+            - message: User feedback if they requested changes, None otherwise
     """
     # Convert content to string if it's a list of lines
     if isinstance(content, list):
@@ -62,23 +64,29 @@ def write_with_confirmation(filepath, content):
         display_diff(diff)
         
         # Ask for confirmation using the UI function
-        if prompt_for_confirmation("Apply these changes?"):
+        response, message = prompt_for_confirmation("Apply these changes?")
+        
+        if response == 'yes':
             # Copy temp file to destination
             directory = os.path.dirname(filepath)
             if directory and not os.path.exists(directory):
                 os.makedirs(directory)
             shutil.copy2(temp_file_path, filepath)
             terminal_print(f"Changes applied to {filepath}", PrintType.SUCCESS)
-            return True
-        else:
+            return True, None
+        elif response == 'no':
             terminal_print(f"Changes to {filepath} discarded", PrintType.WARNING)
-            return False
+            return False, None
+        elif response == 'request_change':
+            terminal_print(f"Changes to {filepath} not applied, feedback requested", PrintType.WARNING)
+            # TODO: Handle the user's feedback message
+            return False, message
 
     finally:
         # Clean up the temporary file
         os.unlink(temp_file_path)
 
-    return False
+    return False, None
 
 
 def apply_file_changes(changes_json):
@@ -161,13 +169,19 @@ def apply_file_changes(changes_json):
             lines = process_replace_operation(lines, change, filepath)
 
         # Write the updated lines to a temp file, show diff, and ask for confirmation
-        if write_with_confirmation(filepath, lines):
+        result, user_message = write_with_confirmation(filepath, lines)
+        if result:
             files_changed.append(filepath)
             message = f"Updated {filepath}"
             logger.info(message)
         else:
-            message = f"Update to {filepath} was cancelled by user"
-            logger.info(message)
+            if user_message:
+                message = f"Update to {filepath} was not applied. User requested changes: {user_message}"
+                # TODO: Handle the user's feedback message for requested changes
+                return {"success": False, "change_requested": user_message}
+            else:
+                message = f"Update to {filepath} was cancelled by user"
+                return {"success": False}
 
     # Process new file creations
     for change in new_files:
@@ -189,15 +203,20 @@ def apply_file_changes(changes_json):
             logger.info(message)
 
         # Write the new file with confirmation
-        if write_with_confirmation(filepath, new_content):
+        result, user_message = write_with_confirmation(filepath, new_content)
+        if result:
             files_changed.append(filepath)
             message = f"Created new file: {filepath}"
             logger.info(message)
         else:
-            message = f"Creation of {filepath} was cancelled by user"
+            if user_message:
+                message = f"Creation of {filepath} was not applied. User requested changes: {user_message}"
+                return {"success": False, "change_requested": user_message}
+            else:
+                message = f"Creation of {filepath} was cancelled by user"
             logger.info(message)
 
-    return files_changed
+    return {"success": True, "files_changed": files_changed}
 
 
 def process_operation_changes(lines, operation_changes, filename):

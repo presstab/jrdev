@@ -128,21 +128,27 @@ def display_diff(diff_lines: List[str]) -> None:
             terminal_print(line.rstrip())
 
 
-def prompt_for_confirmation(prompt_text: str = "Apply these changes?") -> bool:
+def prompt_for_confirmation(prompt_text: str = "Apply these changes?") -> tuple[str, Optional[str]]:
     """
-    Prompt the user for a yes/no confirmation.
+    Prompt the user for confirmation with options to apply, reject, or request changes.
     
     Args:
         prompt_text: The text to display when prompting the user
         
     Returns:
-        bool: True if user confirmed, False otherwise
+        Tuple of (response, message):
+            - response: 'yes', 'no', or 'request_change'
+            - message: User's feedback message when requesting changes, None otherwise
     """
     while True:
-        response = input(f"\n{prompt_text} (y/n): ").lower().strip()
+        response = input(f"\n{prompt_text} (y/n/r - request change): ").lower().strip()
         if response in ('y', 'yes'):
-            return True
+            return 'yes', None
         elif response in ('n', 'no'):
-            return False
+            return 'no', None
+        elif response in ('r', 'request', 'request_change'):
+            terminal_print("Please enter your requested changes:", PrintType.INFO)
+            message = input("> ")
+            return 'request_change', message
         else:
-            terminal_print("Please enter 'y' or 'n'", PrintType.ERROR)
+            terminal_print("Please enter 'y', 'n', or 'r'", PrintType.ERROR)
