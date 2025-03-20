@@ -4,6 +4,7 @@ import tempfile
 from difflib import unified_diff
 import shutil
 import platform
+import re
 
 from jrdev.ui.ui import terminal_print, PrintType, display_diff, prompt_for_confirmation
 from jrdev.ui.diff_editor import curses_editor
@@ -15,6 +16,71 @@ from jrdev.file_utils import find_similar_file
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
+
+
+def apply_diff_to_content(original_content, diff_lines):
+    """
+    Apply edited diff lines to original content.
+    
+    Args:
+        original_content (str): The original file content
+        diff_lines (list): The edited diff lines
+        
+    Returns:
+        str: The new content with diff applied
+    """
+    # We need to parse the diff and apply the changes
+    original_lines = original_content.splitlines()
+    result_lines = original_lines.copy()
+    
+    # Parse the unified diff
+    current_line = 0
+    hunk_start = None
+    hunk_offset = 0
+    
+    # Skip the header lines (path info)
+    while current_line < len(diff_lines) and not diff_lines[current_line].startswith('@@'):
+        current_line += 1
+    
+    while current_line < len(diff_lines):
+        line = diff_lines[current_line]
+        
+        # New hunk
+        if line.startswith('@@'):
+            # Parse the @@ -a,b +c,d @@ line to get line numbers
+            match = re.match(r'@@ -(\d+),(\d+) \+(\d+),(\d+) @@', line)
+            if match:
+                old_start, old_count, new_start, new_count = map(int, match.groups())
+                hunk_start = old_start - 1  # 0-based indexing
+                hunk_offset = 0
+            current_line += 1
+            continue
+        
+        # Deleted line (starts with -)
+        elif line.startswith('-'):
+            if hunk_start + hunk_offset < len(result_lines):
+                # Remove this line
+                result_lines.pop(hunk_start + hunk_offset)
+            current_line += 1
+            continue
+            
+        # Added line (starts with +)
+        elif line.startswith('+'):
+            # Insert new line
+            result_lines.insert(hunk_start + hunk_offset, line[1:])
+            hunk_offset += 1
+            current_line += 1
+            continue
+            
+        # Context line (starts with ' ' or is empty)
+        else:
+            # Skip context lines but increment the line counter
+            if line.startswith(' '):
+                line = line[1:]  # Remove the leading space
+            hunk_offset += 1
+            current_line += 1
+            
+    return '\n'.join(result_lines)
 
 
 def write_with_confirmation(filepath, content):
@@ -91,21 +157,38 @@ def write_with_confirmation(filepath, content):
                 if edited_diff:
                     # The user saved changes in the editor
                     
-                    # Write the edited content to a new temp file
-                    with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as new_temp_file:
-                        new_temp_path = new_temp_file.name
-                        new_temp_file.write('\n'.join(edited_diff))
-                    
-                    # Show the new diff
-                    terminal_print("Updated changes:", PrintType.HEADER)
-                    display_diff(edited_diff)
-                    
-                    # Update the temp file path to the new one
-                    os.unlink(temp_file_path)
-                    temp_file_path = new_temp_path
-                    
-                    # Continue the loop to prompt again with the updated diff
-                    terminal_print("Edited changes prepared. Please confirm:", PrintType.INFO)
+                    # Apply the edited diff to the original content
+                    try:
+                        # Generate new content by applying the edited diff
+                        new_content_str = apply_diff_to_content(original_content, edited_diff)
+                        
+                        # Write the new content to a new temp file
+                        with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as new_temp_file:
+                            new_temp_path = new_temp_file.name
+                            new_temp_file.write(new_content_str)
+                        
+                        # Generate a new diff to show the user what will be applied
+                        new_diff = list(unified_diff(
+                            original_lines,
+                            new_content_str.splitlines(True),
+                            fromfile=f'a/{filepath}',
+                            tofile=f'b/{filepath}',
+                            n=3
+                        ))
+                        
+                        # Show the new diff
+                        terminal_print("Updated changes:", PrintType.HEADER)
+                        display_diff(new_diff)
+                        
+                        # Update the temp file path to the new one
+                        os.unlink(temp_file_path)
+                        temp_file_path = new_temp_path
+                        
+                        # Continue the loop to prompt again with the updated diff
+                        terminal_print("Edited changes prepared. Please confirm:", PrintType.INFO)
+                    except Exception as e:
+                        terminal_print(f"Error applying diff: {str(e)}", PrintType.ERROR)
+                        continue
                 else:
                     # User quit without saving or an error occurred
                     terminal_print("Edit cancelled or no changes made.", PrintType.WARNING)
