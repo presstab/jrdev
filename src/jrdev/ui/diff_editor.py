@@ -30,7 +30,17 @@ def curses_editor(content: List[str]) -> List[str]:
     A simple curses-based text editor for editing content in the terminal.
     
     Features:
+    - Shows the full file content with diff markers, not just a diff snippet
+    - Lines are displayed with markers to indicate changes:
+      - Lines starting with ' ' are unchanged context lines
+      - Lines starting with '+' are additions/modifications
+      - Lines starting with '-' are deletions
     - Regular editing mode for text modifications
+    - Enhanced navigation:
+      - Page Up/Down: Navigate through pages
+      - Home/End: Go to start/end of current line
+      - Ctrl+Home (Ctrl+A): Go to start of file
+      - Ctrl+End (Ctrl+E): Go to end of file
     - Move mode (toggle with Ctrl+O) that allows:
       - Moving added lines (starting with '+') up and down with arrow keys
       - Adjusting indentation (add/remove spaces) with left/right arrow keys
@@ -42,10 +52,11 @@ def curses_editor(content: List[str]) -> List[str]:
       - Cancel selection with Esc
     
     Args:
-        content: List of strings representing each line of content to edit
+        content: List of strings representing each line of content to edit, 
+                with diff markers (' ', '+', '-') at the beginning of each line
 
     Returns:
-        List of strings with the edited content
+        List of strings with the edited content, preserving diff markers
     """
     # Check if curses is available
     if curses is None:
@@ -53,7 +64,7 @@ def curses_editor(content: List[str]) -> List[str]:
         print("On Windows, install the windows-curses package: pip install windows-curses")
         return content
         
-    result = []  # Default empty result in case of error
+    result = content.copy()  # Initialize with original content so we return this if no edits made
 
     def signal_handler(sig, frame):
         # Restore terminal settings if interrupted
@@ -104,7 +115,7 @@ def curses_editor(content: List[str]) -> List[str]:
             selected_lines = set()  # Set of selected line indices
 
             # Status messages
-            status_message = "EDIT MODE | Ctrl+S or Alt+W: Save | Ctrl+Q, Alt+Q, or ESC: Quit | Ctrl+O: Toggle Move Mode | Arrows: Navigate"
+            status_message = "EDIT MODE | Ctrl+S: Save | Ctrl+Q/ESC: Quit | Ctrl+O: Toggle Move Mode | Arrows: Navigate | PgUp/PgDn: Page Up/Down | Home/End: Line Start/End | Ctrl+Home/End: File Start/End"
 
             # Main editor loop
             while True:
@@ -120,8 +131,8 @@ def curses_editor(content: List[str]) -> List[str]:
                 if current_line >= offset_y + display_height:
                     offset_y = current_line - display_height + 1
 
-                # Display the text with line numbers
-                for i in range(min(display_height, len(lines))):
+                # Display the text with line numbers - show as much as will fit
+                for i in range(display_height):
                     line_idx = i + offset_y
                     if line_idx < len(lines):
                         line = lines[line_idx]
@@ -130,8 +141,6 @@ def curses_editor(content: List[str]) -> List[str]:
                         stdscr.addstr(i, 0, line_num)
 
                         # Line content with color
-                        line_idx = i + offset_y
-                        
                         # Choose the appropriate color based on line type and selection status
                         if line_idx in selected_lines:
                             # Selected line gets the selection highlight
@@ -150,6 +159,10 @@ def curses_editor(content: List[str]) -> List[str]:
                     current_status = "MOVE MODE | ↑↓: Move Lines | ←→: Adjust Indentation | Ctrl+A: Select Lines | Ctrl+O: Exit Move Mode"
                 else:
                     current_status = status_message
+                
+                # Add file position indicator
+                position_info = f" | Line {current_line+1}/{len(lines)} | "
+                current_status += position_info
                 
                 if curses.has_colors():
                     stdscr.addstr(height-1, 0, current_status.ljust(width)[:width-1],
@@ -370,11 +383,30 @@ def curses_editor(content: List[str]) -> List[str]:
                     elif key == curses.KEY_END:
                         current_col = len(lines[current_line])
                     elif key == curses.KEY_PPAGE:  # Page Up
+                        # Move up a full page
                         current_line = max(0, current_line - display_height)
+                        # Also update offset to ensure proper scrolling
+                        offset_y = max(0, offset_y - display_height)
                         current_col = min(current_col, len(lines[current_line]))
                     elif key == curses.KEY_NPAGE:  # Page Down
+                        # Move down a full page
                         current_line = min(len(lines) - 1, current_line + display_height)
+                        # Also update offset to ensure proper scrolling
+                        if current_line > offset_y + display_height - 1:
+                            offset_y = max(0, current_line - display_height + 1)
                         current_col = min(current_col, len(lines[current_line]))
+                    # Ctrl+Home - go to start of file
+                    elif key == 1: # ASCII code for Ctrl+a but we're using it as Ctrl+Home
+                        current_line = 0
+                        current_col = 0
+                        offset_y = 0
+                    # Ctrl+End - go to end of file
+                    elif key == 5: # ASCII code for Ctrl+e but we're using it as Ctrl+End
+                        current_line = len(lines) - 1
+                        current_col = len(lines[current_line])
+                        # Adjust offset to keep the last line in view
+                        if current_line >= offset_y + display_height:
+                            offset_y = max(0, current_line - display_height + 1)
                     elif key == 10:  # Enter/Return
                         # Split the line
                         new_line = lines[current_line][current_col:]
@@ -409,7 +441,9 @@ def curses_editor(content: List[str]) -> List[str]:
 
         # Run the editor
         curses.wrapper(editor)
-        return result or content  # Return the edited content or original if empty
+        # If 'result' is empty, we didn't hit Ctrl+S (user exited without saving)
+        # so we should return the original content to avoid corruption
+        return result
 
     finally:
         # Restore the original signal handler

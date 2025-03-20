@@ -151,16 +151,178 @@ def write_with_confirmation(filepath, content):
                 return False, message
             elif response == 'edit':
                 
-                # Convert diff to a list of lines for the editor
-                edited_diff = curses_editor(diff)
+                # Display the full file content instead of just the diff
+                full_content_lines = original_content.splitlines()
                 
-                if edited_diff:
-                    # The user saved changes in the editor
+                # Add diff markers to show which lines would be changed
+                diff_markers = {}
+                line_offset = 0
+                hunk_start = None
+                
+                # Debug information
+                terminal_print(f"Processing diff with {len(diff)} lines", PrintType.INFO)
+                
+                # First pass: Parse the diff to understand where changes are
+                current_line = 0
+                hunk_data = []  # Store all parsed hunks for better processing
+                
+                # Parse all hunks from the diff
+                while current_line < len(diff):
+                    line = diff[current_line]
                     
-                    # Apply the edited diff to the original content
+                    # Skip header lines
+                    if line.startswith('---') or line.startswith('+++') or line.startswith('diff'):
+                        current_line += 1
+                        continue
+                    
+                    # New hunk - extract line numbers
+                    if line.startswith('@@'):
+                        match = re.match(r'@@ -(\d+),(\d+) \+(\d+),(\d+) @@', line)
+                        if match:
+                            old_start, old_count, new_start, new_count = map(int, match.groups())
+                            hunk_start = old_start - 1  # 0-based indexing
+                            
+                            # Start tracking a new hunk
+                            current_hunk = {
+                                'start': hunk_start,
+                                'old_count': old_count,
+                                'lines': []
+                            }
+                            
+                            # Read all lines in this hunk and store them
+                            current_line += 1
+                            while current_line < len(diff) and not diff[current_line].startswith('@@'):
+                                current_hunk['lines'].append(diff[current_line])
+                                current_line += 1
+                            
+                            # Store the completed hunk
+                            hunk_data.append(current_hunk)
+                            logger.info(f"Add hunk {current_hunk}")
+                            continue
+                        else:
+                            # Invalid hunk format, skip this line
+                            current_line += 1
+                            continue
+                    
+                    # Any other line, just skip
+                    current_line += 1
+                
+                # Process all hunks to build diff markers
+                for hunk in hunk_data:
+                    hunk_start = hunk['start']
+                    line_offset = 0
+                    
+                    # Process each line in the hunk
+                    for line in hunk['lines']:
+                        # Deleted line (starts with -)
+                        if line.startswith('-'):
+                            position = hunk_start + line_offset
+                            if 0 <= position < len(full_content_lines):
+                                diff_markers[position] = "delete"
+                            line_offset += 1
+                        
+                        # Added line (starts with '+')
+                        elif line.startswith('+'):
+                            position = hunk_start + line_offset
+                            # If we have a corresponding deletion, this is a replacement
+                            if position in diff_markers and diff_markers[position] == "delete":
+                                # This is a replacement (delete old, add new)
+                                diff_markers[position] = ("replace", line[1:])
+                            else:
+                                # This is a new line to be added
+                                if position >= len(full_content_lines):
+                                    # Append to the end
+                                    full_content_lines.append("+" + line[1:])
+                                else:
+                                    # Insert before the current line
+                                    diff_markers[position] = ("add", line[1:])
+                            line_offset += 1
+                        
+                        # Context line (may start with space or be empty)
+                        elif len(line) > 0 and line[0] == ' ':
+                            # Regular context line
+                            line_offset += 1
+                        else:
+                            # Skip other lines (e.g., empty lines, no-newline indicators)
+                            line_offset += 1
+                            pass
+                
+                # Second pass: Prepare the content with markers
+                marked_content = []
+                insertions = {}  # Track insertions: {line_idx: [lines to insert before this line]}
+
+                # First handle insertions separately to avoid messing up indices
+                for idx in diff_markers:
+                    marker = diff_markers[idx]
+                    if isinstance(marker, tuple) and marker[0] == "add":
+                        # Store lines to be inserted
+                        if idx not in insertions:
+                            insertions[idx] = []
+                        insertions[idx].append("+" + marker[1])
+
+                # Now process the content with markers
+                for idx, line in enumerate(full_content_lines):
+                    # First add any inserted lines before this position
+                    if idx in insertions:
+                        for inserted_line in insertions[idx]:
+                            marked_content.append(inserted_line)
+                    
+                    # Then handle the current line
+                    if idx in diff_markers:
+                        marker = diff_markers[idx]
+                        if marker == "delete":
+                            # Line to be deleted
+                            marked_content.append("-" + line)
+                        elif isinstance(marker, tuple):
+                            if marker[0] == "replace":
+                                # Show both the deleted line and the replacement line
+                                marked_content.append("-" + line)  # Original line marked for deletion
+                                marked_content.append("+" + marker[1])  # New line marked as addition
+                            # Skip "add" markers as they were handled in the insertions phase
+                        else:
+                            # Any other marker type - treat as unchanged
+                            marked_content.append(" " + line)
+                    else:
+                        # Unchanged line
+                        marked_content.append(" " + line)
+                
+                # Open the editor with the full marked content
+                edited_content = curses_editor(marked_content)
+                
+                # Check if there were any actual changes made
+                # Compare the content that was sent to the editor with what came back
+                content_changed = edited_content != marked_content
+                
+                if edited_content and content_changed:
+                    # The user saved changes in the editor
                     try:
-                        # Generate new content by applying the edited diff
-                        new_content_str = apply_diff_to_content(original_content, edited_diff)
+                        # Convert edited content back to a regular file (removing markers)
+                        new_content_lines = []
+                        skip_next = False
+                        
+                        for i, line in enumerate(edited_content):
+                            if skip_next:
+                                skip_next = False
+                                continue
+                                
+                            # Unchanged lines (space prefix) - keep as is
+                            if line.startswith(" "):
+                                new_content_lines.append(line[1:])
+                            
+                            # Added lines (plus prefix) - keep but remove marker
+                            elif line.startswith("+"):
+                                new_content_lines.append(line[1:])
+                            
+                            # Deleted lines (minus prefix) - check for replacement pattern
+                            elif line.startswith("-"):
+                                # Check if this deleted line is followed by an added line (replacement pattern)
+                                if i < len(edited_content) - 1 and edited_content[i + 1].startswith("+"):
+                                    # This is a replacement - skip this line and let the next iteration handle the added line
+                                    skip_next = True  # Skip the deletion, we'll process the addition in the next iteration
+                                # Otherwise, it's just a deletion - skip it entirely
+                        
+                        new_content_str = "\n".join(new_content_lines)
+                        terminal_print(f"Processed edited content into {len(new_content_lines)} lines", PrintType.INFO)
                         
                         # Write the new content to a new temp file
                         with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as new_temp_file:
@@ -190,8 +352,11 @@ def write_with_confirmation(filepath, content):
                         terminal_print(f"Error applying diff: {str(e)}", PrintType.ERROR)
                         continue
                 else:
-                    # User quit without saving or an error occurred
-                    terminal_print("Edit cancelled or no changes made.", PrintType.WARNING)
+                    # User quit without saving or no changes were made
+                    if edited_content and not content_changed:
+                        terminal_print("No changes were made in the editor.", PrintType.INFO)
+                    else:
+                        terminal_print("Edit cancelled.", PrintType.WARNING)
                     # Continue the confirmation loop
                     continue
 
