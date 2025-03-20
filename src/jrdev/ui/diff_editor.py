@@ -1,8 +1,22 @@
-import curses
 import os
 import signal
 import platform
+import sys
 from typing import List
+
+# Import curses with Windows compatibility
+try:
+    import curses
+except ImportError:
+    if platform.system() == 'Windows':
+        try:
+            import windows_curses as curses
+        except ImportError:
+            # If windows_curses isn't installed, provide error message
+            curses = None
+    else:
+        # If not Windows and curses isn't available, there's a problem
+        curses = None
 
 
 def disable_flow_control():
@@ -21,6 +35,12 @@ def curses_editor(content: List[str]) -> List[str]:
     Returns:
         List of strings with the edited content
     """
+    # Check if curses is available
+    if curses is None:
+        print("Error: The curses library is not available.")
+        print("On Windows, install the windows-curses package: pip install windows-curses")
+        return content
+        
     result = []  # Default empty result in case of error
 
     def signal_handler(sig, frame):
