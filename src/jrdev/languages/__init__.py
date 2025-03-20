@@ -7,6 +7,8 @@ from jrdev.languages.cpp_lang import CppLang
 from jrdev.languages.python_lang import PythonLang
 from jrdev.languages.typescript_lang import TypeScriptLang
 from jrdev.languages.go_lang import GoLang
+from jrdev.languages.java_lang import JavaLang
+from jrdev.languages.kotlin_lang import KotlinLang
 
 # Registry of language handlers by file extension
 LANGUAGE_REGISTRY = {
@@ -29,6 +31,13 @@ LANGUAGE_REGISTRY = {
     
     # Go
     '.go': GoLang,
+    
+    # Java
+    '.java': JavaLang,
+    
+    # Kotlin
+    '.kt': KotlinLang,
+    '.kts': KotlinLang,
 }
 
 def get_language_for_file(filepath):

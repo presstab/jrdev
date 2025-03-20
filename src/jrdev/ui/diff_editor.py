@@ -1,12 +1,14 @@
 import curses
 import os
 import signal
+import platform
 from typing import List
 
 
 def disable_flow_control():
     """Disables flow control to allow Ctrl+S to work in some terminals."""
-    os.system("stty -ixon")
+    if platform.system() != 'Windows':
+        os.system("stty -ixon")
 
 
 def curses_editor(content: List[str]) -> List[str]:
