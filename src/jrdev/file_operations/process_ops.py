@@ -197,7 +197,6 @@ def write_with_confirmation(filepath, content):
                             
                             # Store the completed hunk
                             hunk_data.append(current_hunk)
-                            logger.info(f"Add hunk {current_hunk}")
                             continue
                         else:
                             # Invalid hunk format, skip this line
@@ -260,13 +259,38 @@ def write_with_confirmation(filepath, content):
                             insertions[idx] = []
                         insertions[idx].append("+" + marker[1])
 
+                # insertions have to be added into hunks - todo probably a better way to do this above instead of reprocess?
+                insertions_combined = {}
+                current_start = None
+                current_group = []
+                prev_line = None
+
+                for line_num in sorted(insertions.keys()):
+                    if current_start is None:  # First entry
+                        current_start = line_num
+                        current_group = insertions[line_num].copy()
+                        prev_line = line_num
+                    elif line_num == prev_line + 1:  # Consecutive line number
+                        current_group.extend(insertions[line_num])
+                        prev_line = line_num
+                    else:  # Non-consecutive, start new group
+                        insertions_combined[current_start] = current_group
+                        current_start = line_num
+                        current_group = insertions[line_num].copy()
+                        prev_line = line_num
+
+                # Add the final group
+                if current_start is not None:
+                    insertions_combined[current_start] = current_group
+
                 # Now process the content with markers
                 for idx, line in enumerate(full_content_lines):
+
                     # First add any inserted lines before this position
-                    if idx in insertions:
-                        for inserted_line in insertions[idx]:
+                    if idx in insertions_combined:
+                        for inserted_line in insertions_combined[idx]:
                             marked_content.append(inserted_line)
-                    
+
                     # Then handle the current line
                     if idx in diff_markers:
                         marker = diff_markers[idx]
@@ -278,7 +302,9 @@ def write_with_confirmation(filepath, content):
                                 # Show both the deleted line and the replacement line
                                 marked_content.append("-" + line)  # Original line marked for deletion
                                 marked_content.append("+" + marker[1])  # New line marked as addition
-                            # Skip "add" markers as they were handled in the insertions phase
+                            elif marker[0] == "add":
+                                # content already inserted in the insertions above, now add original line content
+                                marked_content.append(line)
                         else:
                             # Any other marker type - treat as unchanged
                             marked_content.append(" " + line)
@@ -296,30 +322,21 @@ def write_with_confirmation(filepath, content):
                 if edited_content and content_changed:
                     # The user saved changes in the editor
                     try:
-                        # Convert edited content back to a regular file (removing markers)
+                        # Clean markers and display whitespace from edited content
                         new_content_lines = []
-                        skip_next = False
                         
                         for i, line in enumerate(edited_content):
-                            if skip_next:
-                                skip_next = False
-                                continue
-                                
-                            # Unchanged lines (space prefix) - keep as is
-                            if line.startswith(" "):
-                                new_content_lines.append(line[1:])
-                            
-                            # Added lines (plus prefix) - keep but remove marker
-                            elif line.startswith("+"):
-                                new_content_lines.append(line[1:])
-                            
-                            # Deleted lines (minus prefix) - check for replacement pattern
-                            elif line.startswith("-"):
-                                # Check if this deleted line is followed by an added line (replacement pattern)
-                                if i < len(edited_content) - 1 and edited_content[i + 1].startswith("+"):
-                                    # This is a replacement - skip this line and let the next iteration handle the added line
-                                    skip_next = True  # Skip the deletion, we'll process the addition in the next iteration
-                                # Otherwise, it's just a deletion - skip it entirely
+                            cleaned_line = line
+                            # line does not need to have \n on it
+                            if cleaned_line.endswith("\n"):
+                                cleaned_line = cleaned_line.strip("\n")
+
+                            # strip out added space, +, or -
+                            if cleaned_line.startswith(" ") or cleaned_line.startswith("+") or cleaned_line.startswith("-"):
+                                new_content_lines.append(cleaned_line[1:])
+                            else:
+                                # user may have deleted space in front, just add raw line as default
+                                new_content_lines.append(cleaned_line)
                         
                         new_content_str = "\n".join(new_content_lines)
                         terminal_print(f"Processed edited content into {len(new_content_lines)} lines", PrintType.INFO)
