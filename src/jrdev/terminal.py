@@ -1,20 +1,35 @@
 #!/usr/bin/env python3
-"""
-Terminal interface for interacting with JrDev's LLM models
-using OpenAI-compatible APIs.
-"""
 
-import asyncio
-import sys
-import platform
+"""
+Main terminal interface for the JrDev CLI.
+"""
 import os
 import re
+import sys
+import time
+import json
+import shutil
 import logging
+import asyncio
+import traceback
+import platform
+from typing import Dict, List, Any, Optional, Set, Tuple, Union, cast
 
+# OpenAI client for API requests
 from openai import AsyncOpenAI
 
+# JrDev modules
 from jrdev.logger import setup_logger
 from jrdev.file_utils import requested_files, get_file_contents, add_to_gitignore
+from jrdev.models import get_available_models, AVAILABLE_MODELS, is_think_model
+from jrdev.llm_requests import stream_request
+from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.colors import Colors
+from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
+                         handle_clearcontext, handle_clearmessages, handle_code,
+                         handle_cost, handle_exit, handle_help, handle_init,
+                         handle_model, handle_models, handle_process,
+                         handle_stateinfo, handle_tasks, handle_viewcontext)
 
 # Cross-platform readline support
 try:
@@ -25,17 +40,6 @@ try:
     READLINE_AVAILABLE = True
 except ImportError:
     READLINE_AVAILABLE = False
-
-from jrdev.colors import Colors
-from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
-                            handle_clearcontext, handle_clearmessages, handle_code, handle_cost, 
-                            handle_exit, handle_help, handle_init, handle_model, 
-                            handle_models, handle_process, handle_stateinfo, 
-                            handle_tasks, handle_viewcontext)
-from jrdev.models import AVAILABLE_MODELS, is_think_model
-from jrdev.llm_requests import stream_request
-from jrdev.file_utils import JRDEV_DIR
-from jrdev.ui.ui import terminal_print, PrintType
 
 
 class JrDevTerminal:
@@ -85,6 +89,9 @@ class JrDevTerminal:
         self.running = True
         self.messages = []
         
+        # Cache for model names
+        self.model_names_cache = None
+        
         # Project files dict to track various files used by the application
         self.project_files = {
             "filetree": f"{JRDEV_DIR}jrdev_filetree.txt",
@@ -128,21 +135,51 @@ class JrDevTerminal:
         self.history_file = os.path.expanduser("~/.jrdev_history")
         self.setup_readline()
 
+    async def update_model_names_cache(self):
+        """
+        Update the cache of available model names.
+        This method is called before using model-related commands.
+        """
+        try:
+            self.logger.info("Updating model names cache")
+            models = await get_available_models(force_refresh=True)
+            self.model_names_cache = [model["name"] for model in models]
+            self.logger.info(f"Model names cache updated: {len(self.model_names_cache)} models found")
+            return self.model_names_cache
+        except Exception as e:
+            self.logger.error(f"Error updating model names cache: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            # Return an empty list as fallback
+            return []
+
     async def handle_command(self, command):
         cmd_parts = command.split()
         if not cmd_parts:
             return
-
+            
         cmd = cmd_parts[0].lower()
-
+        
+        # Logging command
+        self.logger.info(f"Command received: {cmd}")
+        
         if cmd in self.command_handlers:
-            self.logger.info(f"Executing command: {cmd}")
-            return await self.command_handlers[cmd](self, cmd_parts)
+            try:
+                # Update model names cache if using model-related commands
+                if cmd == "/models":
+                    await self.update_model_names_cache()
+                    
+                return await self.command_handlers[cmd](self, cmd_parts)
+            except Exception as e:
+                self.logger.error(f"Error handling command {cmd}: {e}")
+                terminal_print(f"Error: {e}", print_type=PrintType.ERROR)
+                import traceback
+                self.logger.error(traceback.format_exc())
         else:
             self.logger.warning(f"Unknown command attempted: {cmd}")
-            terminal_print(f"Unknown command: {cmd}", PrintType.ERROR)
-            terminal_print("Type /help for available commands", PrintType.INFO)
-
+            terminal_print(f"Unknown command: {cmd}", print_type=PrintType.ERROR)
+            terminal_print("Type /help for available commands", print_type=PrintType.INFO)
+            
     def set_message_history(self, messages):
         self.messages = messages
 
