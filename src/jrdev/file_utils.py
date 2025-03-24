@@ -265,7 +265,8 @@ def manual_json_parse(text):
                                 quote_text = ""
                                 continue
                             else:
-                                raise Exception("UNHANDLED QUOTE END")
+                                logger.info(f"UNHANDLED QUOTE END 268 char: {char} line:{line}")
+                                raise Exception("malformed JSON")
                     else:
                         # last character of this line.. no comma end? probably last in a container?
                         if pending_key:
@@ -278,7 +279,8 @@ def manual_json_parse(text):
                             quote_text = ""
                             continue
                         else:
-                            raise Exception("UNHANDLED QUOTE END 230")
+                            logger.info(f"UNHANDLED QUOTE END 230 char: {char} line:{line}")
+                            raise Exception("malformed JSON")
                     continue
                 else:
                     #start of new quote
@@ -312,7 +314,8 @@ def manual_json_parse(text):
                 elif isinstance(stack[-1], list):
                     stack[-1].append(n)
                 else:
-                    raise Exception(f"UNHANDLED NUMBER* 264*** {num_str}")
+                    logger.info(f"UNHANDLED NUMBER* 264*** {num_str}")
+                    raise Exception("malformed JSON")
                 continue
 
             # object start

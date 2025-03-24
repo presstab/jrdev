@@ -223,6 +223,8 @@ async def complete_step(terminal, step, files_to_send, retry_message=None):
             terminal_print("retry step with user feedback")
             return await complete_step(terminal, step, files_to_send, retry_message)
 
+        raise Exception("Failed to apply any code changes")
+
     except Exception:
         # file change failed, try again
         terminal_print("failed step, try again later.", PrintType.ERROR)
