@@ -14,7 +14,7 @@ import logging
 from openai import AsyncOpenAI
 
 from jrdev.logger import setup_logger
-from jrdev.file_utils import requested_files, get_file_contents
+from jrdev.file_utils import requested_files, get_file_contents, add_to_gitignore
 
 # Cross-platform readline support
 try:
@@ -43,6 +43,9 @@ class JrDevTerminal:
         # Set up logging
         self.logger = setup_logger(JRDEV_DIR)
         self.logger.info("Initializing JrDevTerminal")
+        
+        # Check if jrdev/ is in gitignore and add it if not
+        self._check_gitignore()
         
         # Load environment variables from .env file
         from dotenv import load_dotenv
@@ -467,6 +470,25 @@ class JrDevTerminal:
         
         return None
 
+    def _check_gitignore(self):
+        """
+        Check if JRDEV_DIR is in the .gitignore file and add it if not.
+        This helps ensure that jrdev generated files don't get committed to git.
+        """
+        try:
+            gitignore_path = ".gitignore"
+            
+            # Check if the gitignore pattern exists and add if it doesn't
+            gitignore_pattern = f"{JRDEV_DIR}*"
+            
+            # Add the pattern to gitignore
+            # The add_to_gitignore function already checks if the pattern exists
+            result = add_to_gitignore(gitignore_path, gitignore_pattern)
+
+            self.logger.info(f"Gitignore check completed: {'pattern added' if result else 'pattern already exists'}")
+        except Exception as e:
+            self.logger.error(f"Error checking gitignore: {str(e)}")
+    
     def setup_readline(self):
         """Set up the readline module for command history and tab completion."""
         if not READLINE_AVAILABLE:

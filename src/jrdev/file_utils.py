@@ -183,6 +183,56 @@ def write_string_to_file(filename: str, content: str):
         file.write(content)
 
 
+def add_to_gitignore(gitignore_path: str, ignore_str: str, create_if_dne: bool = False) -> bool:
+    """
+    Append a pattern to a .gitignore file. Creates the file if it doesn't exist.
+    
+    Args:
+        gitignore_path: The path to the .gitignore file
+        ignore_str: The pattern to add to the .gitignore file
+        
+    Returns:
+        True if the pattern was added successfully, False otherwise
+    """
+    try:
+        # Make sure the pattern is properly formatted
+        ignore_pattern = ignore_str.strip()
+        
+        # Check if the file exists
+        if os.path.exists(gitignore_path):
+            # Read existing contents to check if the pattern already exists
+            with open(gitignore_path, 'r') as f:
+                lines = f.read().splitlines()
+                
+            # Check if pattern already exists
+            if ignore_pattern in lines:
+                return True
+                
+            # Add a newline at the end if needed
+            needs_newline = lines and lines[-1] != ""
+                
+            # Append the pattern to the file
+            with open(gitignore_path, 'a') as f:
+                if needs_newline:
+                    f.write("\n")
+                f.write(f"{ignore_pattern}\n")
+                
+            terminal_print(f"Added '{ignore_pattern}' to {gitignore_path}", PrintType.SUCCESS)
+        elif create_if_dne:
+            # File doesn't exist, create it with the pattern
+            with open(gitignore_path, 'w') as f:
+                f.write(f"{ignore_pattern}\n")
+                
+            terminal_print(f"Created {gitignore_path} with pattern '{ignore_pattern}'", PrintType.SUCCESS)
+            
+        return True
+        
+    except Exception as e:
+        terminal_print(f"Error adding to gitignore: {str(e)}", PrintType.ERROR)
+        logger.error(f"Error adding to gitignore: {str(e)}")
+        return False
+
+
 def manual_json_parse(text):
     """
     Manually parses a JSON-like text by processing it line by line.
