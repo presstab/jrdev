@@ -102,9 +102,9 @@ async def handle_init(terminal, args):
         if len(args) > 1:
             output_file = args[1]
 
-        # Generate the tree structure using the token-efficient format
+        # Generate the tree structure using the token-efficient format and respect .gitignore
         current_dir = os.getcwd()
-        tree_output = generate_compact_tree(current_dir, output_file)
+        tree_output = generate_compact_tree(current_dir, output_file, use_gitignore=True)
 
         terminal_print(f"File tree generated and saved to {output_file}", PrintType.SUCCESS)
 
