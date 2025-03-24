@@ -5,12 +5,113 @@ Tree chart utility for generating file structure diagrams.
 """
 
 import os
-import sys
+import re
 from pathlib import Path
+from fnmatch import fnmatch
+from typing import List, Dict, Optional, Union, Any
 
 
-def generate_compact_tree(directory=None, output_file=None, max_depth=None,
-                        exclude_dirs=None, exclude_files=None, include_files=None):
+def parse_gitignore(directory: str) -> List[str]:
+    """
+    Parse .gitignore file in the specified directory and return patterns.
+    
+    Args:
+        directory: The directory containing the .gitignore file.
+        
+    Returns:
+        A list of ignore patterns.
+    """
+    gitignore_path = os.path.join(directory, '.gitignore')
+    ignore_patterns: List[str] = []
+    
+    if os.path.exists(gitignore_path):
+        try:
+            with open(gitignore_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    # Skip empty lines and comments
+                    if line and not line.startswith('#'):
+                        # Handle negation patterns (those starting with !)
+                        ignore_patterns.append(line)
+        except Exception:
+            # If there's an error reading the file, just continue without patterns
+            pass
+            
+    return ignore_patterns
+
+
+def is_ignored_by_gitignore(path: Union[str, Path], patterns: List[str], root_dir: str) -> bool:
+    """
+    Check if a path should be ignored based on gitignore patterns.
+    
+    Args:
+        path: The path to check.
+        patterns: List of gitignore patterns.
+        root_dir: The root directory for relative paths.
+        
+    Returns:
+        True if the path should be ignored, False otherwise.
+    """
+    if not patterns:
+        return False
+        
+    # Get relative path from root directory
+    rel_path = os.path.relpath(str(path), root_dir)
+    
+    # Replace backslashes with forward slashes for cross-platform compatibility
+    rel_path = rel_path.replace(os.sep, '/')
+    
+    # Check each pattern
+    for pattern in patterns:
+        negated = pattern.startswith('!')
+        if negated:
+            pattern = pattern[1:]
+        
+        # Handle directory-specific patterns (ending with /)
+        is_dir_pattern = pattern.endswith('/')
+        if is_dir_pattern:
+            pattern = pattern[:-1]
+            if not os.path.isdir(path):
+                continue
+        
+        # Convert gitignore pattern to fnmatch pattern
+        if pattern.startswith('/'):
+            # Anchored pattern - match from root
+            pattern = pattern[1:]
+            match_path = rel_path
+        else:
+            # Unanchored pattern - can match anywhere
+            if '/' in pattern:
+                # If pattern has slashes, match the whole path
+                match_path = rel_path
+            else:
+                # If pattern has no slashes, match just the basename
+                match_path = os.path.basename(rel_path)
+        
+        # Use fnmatch for pattern matching
+        matched = fnmatch(match_path, pattern)
+        
+        # Handle /** patterns (match all subdirectories)
+        if not matched and '/**' in pattern:
+            # Replace /** with a regex that matches any number of directories
+            regex_pattern = pattern.replace('/**', '(/.*)?')
+            matched = bool(re.match(f"^{regex_pattern}$", match_path))
+        
+        if matched:
+            return not negated
+            
+    return False
+
+
+def generate_compact_tree(
+    directory: Optional[str] = None,
+    output_file: Optional[str] = None,
+    max_depth: Optional[int] = None,
+    exclude_dirs: Optional[List[str]] = None,
+    exclude_files: Optional[List[str]] = None,
+    include_files: Optional[List[str]] = None,
+    use_gitignore: bool = True
+) -> str:
     """
     Generate a more token-efficient representation of the directory structure.
 
@@ -21,6 +122,7 @@ def generate_compact_tree(directory=None, output_file=None, max_depth=None,
         exclude_dirs: List of directory names to exclude.
         exclude_files: List of filename patterns to exclude.
         include_files: List of filename patterns to include (overrides exclude_files).
+        use_gitignore: Whether to respect .gitignore patterns. Defaults to True.
 
     Returns:
         String representation of the directory tree.
@@ -32,21 +134,40 @@ def generate_compact_tree(directory=None, output_file=None, max_depth=None,
         exclude_dirs = ['.git', '__pycache__', '.venv', 'venv', 'node_modules', '.idea', '.vscode']
     
     if exclude_files is None:
-        exclude_files = ['*.pyc', '*.pyo', '*~', '.DS_Store', 'Thumbs.db']
+        exclude_files = ['*.pyc', '*.pyo', '*~', '.DS_Store', 'Thumbs.db', '.env', '*.env']
+
+    if '.env' not in exclude_files:
+        exclude_files.append('.env')
     
     # Convert to Path object
     directory_path = Path(directory)
     base_dir = directory_path.name
     
+    # Parse .gitignore file if it exists and we're using it
+    gitignore_patterns: List[str] = []
+    if use_gitignore:
+        gitignore_patterns = parse_gitignore(directory)
+        if gitignore_patterns:
+            print(f"Using .gitignore patterns: {gitignore_patterns}")
+    
     # Structure to hold paths in a nested dictionary
-    file_dict = {}
+    file_dict: Dict[str, Any] = {}
     
-    def should_exclude_dir(dir_name):
+    def should_exclude_dir(dir_path: Path, dir_name: str) -> bool:
         """Check if directory should be excluded."""
-        return dir_name.startswith('.') or dir_name in exclude_dirs
+        # First check built-in exclusions
+        if dir_name.startswith('.') or dir_name in exclude_dirs:
+            return True
+        
+        # Then check gitignore patterns
+        if use_gitignore and gitignore_patterns:
+            return is_ignored_by_gitignore(dir_path, gitignore_patterns, directory)
+            
+        return False
     
-    def should_exclude_file(file_name):
+    def should_exclude_file(file_path: Path, file_name: str) -> bool:
         """Check if file should be excluded."""
+        # First check include patterns if specified
         if include_files is not None:
             # If include_files is specified, only include these files
             for pattern in include_files:
@@ -54,7 +175,7 @@ def generate_compact_tree(directory=None, output_file=None, max_depth=None,
                     return False
             return True
         
-        # Exclude files based on exclude_files patterns
+        # Then check built-in exclusions
         if file_name.startswith('.'):
             return True
         
@@ -62,9 +183,13 @@ def generate_compact_tree(directory=None, output_file=None, max_depth=None,
             if Path(file_name).match(pattern):
                 return True
         
+        # Finally check gitignore patterns
+        if use_gitignore and gitignore_patterns:
+            return is_ignored_by_gitignore(file_path, gitignore_patterns, directory)
+            
         return False
     
-    def collect_files(current_path, path_parts=None, depth=0):
+    def collect_files(current_path: Path, path_parts: Optional[List[str]] = None, depth: int = 0) -> None:
         """Collect all files into a nested dictionary structure."""
         if max_depth is not None and depth > max_depth:
             return
@@ -79,12 +204,12 @@ def generate_compact_tree(directory=None, output_file=None, max_depth=None,
             for entry in entries:
                 entry_path = current_path / entry
                 
-                if entry_path.is_dir() and not should_exclude_dir(entry):
+                if entry_path.is_dir() and not should_exclude_dir(entry_path, entry):
                     # Recursively process subdirectory
                     new_path_parts = path_parts + [entry]
                     collect_files(entry_path, new_path_parts, depth + 1)
                     
-                elif entry_path.is_file() and not should_exclude_file(entry):
+                elif entry_path.is_file() and not should_exclude_file(entry_path, entry):
                     # Add file to the list
                     files.append(entry)
             
@@ -107,9 +232,9 @@ def generate_compact_tree(directory=None, output_file=None, max_depth=None,
     collect_files(directory_path)
     
     # Generate compact JSON-like output
-    lines = [f"ROOT={base_dir}"]
+    lines: List[str] = [f"ROOT={base_dir}"]
     
-    def format_dict(d, prefix=""):
+    def format_dict(d: Dict[str, Any], prefix: str = "") -> None:
         """Format the nested dictionary into compact representation."""
         # Process files at this level
         if "_files" in d:
@@ -135,8 +260,15 @@ def generate_compact_tree(directory=None, output_file=None, max_depth=None,
     return output
 
 
-def generate_tree(directory=None, output_file=None, max_depth=None,
-                  exclude_dirs=None, exclude_files=None, include_files=None):
+def generate_tree(
+    directory: Optional[str] = None,
+    output_file: Optional[str] = None,
+    max_depth: Optional[int] = None,
+    exclude_dirs: Optional[List[str]] = None,
+    exclude_files: Optional[List[str]] = None,
+    include_files: Optional[List[str]] = None,
+    use_gitignore: bool = True
+) -> str:
     """
     Generate a tree representation of the directory structure.
 
@@ -147,6 +279,7 @@ def generate_tree(directory=None, output_file=None, max_depth=None,
         exclude_dirs: List of directory names to exclude.
         exclude_files: List of filename patterns to exclude.
         include_files: List of filename patterns to include (overrides exclude_files).
+        use_gitignore: Whether to respect .gitignore patterns. Defaults to True.
 
     Returns:
         String representation of the directory tree.
@@ -158,20 +291,37 @@ def generate_tree(directory=None, output_file=None, max_depth=None,
         exclude_dirs = ['.git', '__pycache__', '.venv', 'venv', 'node_modules', '.idea', '.vscode']
     
     if exclude_files is None:
-        exclude_files = ['*.pyc', '*.pyo', '*~', '.DS_Store', 'Thumbs.db']
+        exclude_files = ['*.pyc', '*.pyo', '*~', '.DS_Store', 'Thumbs.db', '.env', '*.env']
+
+    if '.env' not in exclude_files:
+        exclude_files.append('.env')
     
     # Convert to Path object
     directory_path = Path(directory)
     
+    # Parse .gitignore file if it exists and we're using it
+    gitignore_patterns: List[str] = []
+    if use_gitignore:
+        gitignore_patterns = parse_gitignore(directory)
+    
     # Get the top-level directory name
-    result = [f"Directory structure of: {directory_path}\n"]
+    result: List[str] = [f"Directory structure of: {directory_path}\n"]
     
-    def should_exclude_dir(dir_name):
+    def should_exclude_dir(dir_path: Path, dir_name: str) -> bool:
         """Check if directory should be excluded."""
-        return dir_name.startswith('.') or dir_name in exclude_dirs
+        # First check built-in exclusions
+        if dir_name.startswith('.') or dir_name in exclude_dirs:
+            return True
+        
+        # Then check gitignore patterns
+        if use_gitignore and gitignore_patterns:
+            return is_ignored_by_gitignore(dir_path, gitignore_patterns, directory)
+            
+        return False
     
-    def should_exclude_file(file_name):
+    def should_exclude_file(file_path: Path, file_name: str) -> bool:
         """Check if file should be excluded."""
+        # First check include patterns if specified
         if include_files is not None:
             # If include_files is specified, only include these files
             for pattern in include_files:
@@ -187,9 +337,13 @@ def generate_tree(directory=None, output_file=None, max_depth=None,
             if Path(file_name).match(pattern):
                 return True
         
+        # Finally check gitignore patterns
+        if use_gitignore and gitignore_patterns:
+            return is_ignored_by_gitignore(file_path, gitignore_patterns, directory)
+            
         return False
     
-    def walk_directory(path, prefix="", depth=0):
+    def walk_directory(path: Path, prefix: str = "", depth: int = 0) -> None:
         """Recursively walk the directory tree."""
         if max_depth is not None and depth > max_depth:
             return
@@ -200,9 +354,9 @@ def generate_tree(directory=None, output_file=None, max_depth=None,
         # Sort entries for consistent output
         for entry in sorted(os.listdir(path)):
             entry_path = path / entry
-            if entry_path.is_dir() and not should_exclude_dir(entry):
+            if entry_path.is_dir() and not should_exclude_dir(entry_path, entry):
                 dirs.append(entry)
-            elif entry_path.is_file() and not should_exclude_file(entry):
+            elif entry_path.is_file() and not should_exclude_file(entry_path, entry):
                 files.append(entry)
         
         # Process directories
@@ -245,7 +399,7 @@ def generate_tree(directory=None, output_file=None, max_depth=None,
     return output
 
 
-def main():
+def main() -> None:
     """Command-line interface for the tree chart utility."""
     directory = os.getcwd()
     

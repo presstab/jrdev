@@ -5,6 +5,7 @@ Stateinfo command implementation for the JrDev terminal.
 Displays current terminal state information.
 """
 
+from jrdev.file_utils import JRDEV_DIR
 from jrdev.ui.ui import terminal_print, PrintType
 
 
@@ -40,10 +41,9 @@ async def handle_stateinfo(terminal, args):
     
     # If the terminal has any file context loaded
     project_files = {
-        "filetree": "jrdev_filetree.txt",
-        "filecontext": "jrdev_filecontext.md",
-        "overview": "jrdev_overview.md",
-        "code_change_example": "code_change_example.json"
+        "filetree": f"{JRDEV_DIR}jrdev_filetree.txt",
+        "filecontext": f"{JRDEV_DIR}jrdev_filecontext.md",
+        "overview": f"{JRDEV_DIR}jrdev_overview.md",
     }
     
     loaded_files = []
