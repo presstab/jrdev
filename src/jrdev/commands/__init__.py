@@ -2,6 +2,7 @@
 Command implementations for the JrDev terminal.
 """
 
+import os
 from jrdev.commands.addcontext import handle_addcontext
 from jrdev.commands.asyncsend import handle_asyncsend
 from jrdev.commands.cancel import handle_cancel
@@ -18,8 +19,6 @@ from jrdev.commands.process import handle_process
 from jrdev.commands.stateinfo import handle_stateinfo
 from jrdev.commands.tasks import handle_tasks
 from jrdev.commands.viewcontext import handle_viewcontext
-# Debug commands
-from jrdev.commands.debug import handle_modelswin
 
 __all__ = [
     "handle_addcontext",
@@ -37,7 +36,10 @@ __all__ = [
     "handle_stateinfo",
     "handle_tasks",
     "handle_cost",
-    "handle_viewcontext",
-    # Debug commands
-    "handle_modelswin",
+    "handle_viewcontext"
 ]
+
+# Debug commands
+if os.getenv("JRDEV_DEBUG"):  # Only include in debug mode
+    from jrdev.commands.debug import handle_modelswin
+    __all__ += ["handle_modelswin"]

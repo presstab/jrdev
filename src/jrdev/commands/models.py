@@ -4,7 +4,7 @@
 Models command implementation for the JrDev terminal.
 """
 import os
-from typing import Any, List, TypedDict, cast, Optional
+from typing_extensions import Any, List, TypedDict, cast, Optional
 
 # Import curses with Windows compatibility
 try:
@@ -14,7 +14,6 @@ except ImportError:
     curses = None
     CURSES_AVAILABLE = False
 
-from jrdev.models import get_available_models, AVAILABLE_MODELS
 from jrdev.model_utils import VCU_Value
 from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.ui.model_selector import interactive_model_selector, text_based_model_selector
@@ -39,14 +38,9 @@ async def handle_models(terminal: Any, args: List[str]) -> None:
         terminal: The JrDevTerminal instance
         args: Command arguments (unused)
     """
-    # Use cached model names
-    if terminal.model_names_cache is None:
-        terminal_print("Model list is still being initialized. Please try again in a moment.", 
-                      print_type=PrintType.INFO)
-        return
 
-    # Get all models from AVAILABLE_MODELS
-    models_list = AVAILABLE_MODELS.copy()
+    # Get all models
+    models_list = terminal.get_models()
     
     # Sort models first by provider, then by name alphabetically
     models = parse_obj_as(List[ModelInfo], models_list)

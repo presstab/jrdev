@@ -4,6 +4,7 @@
 Main terminal interface for the JrDev CLI.
 """
 import os
+import argparse
 import re
 import sys
 import time
@@ -14,14 +15,15 @@ import asyncio
 import traceback
 import platform
 from typing import Dict, List, Any, Optional, Set, Tuple, Union, cast
-
-# OpenAI client for API requests
 from openai import AsyncOpenAI
+from dotenv import load_dotenv
 
 # JrDev modules
 from jrdev.logger import setup_logger
-from jrdev.file_utils import requested_files, get_file_contents, add_to_gitignore
-from jrdev.models import get_available_models, AVAILABLE_MODELS, is_think_model, HARDCODED_MODELS
+from jrdev.file_utils import requested_files, get_file_contents, add_to_gitignore, JRDEV_DIR
+from jrdev.models import fetch_venice_models
+from jrdev.model_list import ModelList
+from jrdev.model_utils import is_think_model, load_hardcoded_models
 from jrdev.llm_requests import stream_request
 from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.colors import Colors
@@ -29,8 +31,7 @@ from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
                          handle_clearcontext, handle_clearmessages, handle_code,
                          handle_cost, handle_exit, handle_help, handle_init,
                          handle_model, handle_models, handle_process,
-                         handle_stateinfo, handle_tasks, handle_viewcontext,
-                         handle_modelswin)
+                         handle_stateinfo, handle_tasks, handle_viewcontext)
 
 # Cross-platform readline support
 try:
@@ -53,7 +54,6 @@ class JrDevTerminal:
         self._check_gitignore()
         
         # Load environment variables from .env file
-        from dotenv import load_dotenv
         load_dotenv()
         
         # Initialize API clients
@@ -90,8 +90,8 @@ class JrDevTerminal:
         self.running = True
         self.messages = []
         
-        # Cache for model names
-        self.model_names_cache = None
+        # Thread safe list of models
+        self.model_list = ModelList()
         
         # Project files dict to track various files used by the application
         self.project_files = {
@@ -130,49 +130,57 @@ class JrDevTerminal:
             "/tasks": handle_tasks,
             "/cancel": handle_cancel,
             "/code": handle_code,
-            # Debug commands
-            "/modelswin": handle_modelswin,
         }
+
+        # Debug commands
+        if os.getenv("JRDEV_DEBUG"):  # Only include in debug mode
+            from jrdev.commands.debug import handle_modelswin
+            self.command_handlers["/modelswin"] = handle_modelswin
         
         # Set up readline for command history
         self.history_file = os.path.expanduser("~/.jrdev_history")
         self.setup_readline()
 
+        # setup initial models
+        self.model_list.set_model_list(load_hardcoded_models())
+
+    def get_models(self):
+        return self.model_list.get_model_list()
+
+    def get_model_names(self):
+        current_models = self.get_models()
+        return [model["name"] for model in current_models]
+
     async def update_model_names_cache(self):
         """Update the model names cache in the background."""
         try:
             # Get current models from API
-            models = await get_available_models(client=self.venice_client, force_refresh=True)
+            models = await fetch_venice_models(client=self.venice_client)
             
             if not models:
                 self.logger.warning("Failed to fetch models from API")
                 return
                 
-            # Get list of hardcoded model names from HARDCODED_MODELS
-            hardcoded_names = {model["name"] for model in HARDCODED_MODELS}
+            # Get current models
+            current_models = self.get_models()
+            current_model_names = [model["name"] for model in current_models]
             
             # Find new models that aren't in the hardcoded list
-            new_models = [model for model in models if model["name"] not in hardcoded_names]
+            new_models = [model for model in models if model["name"] not in current_model_names]
             
             if new_models:
                 # Print new models in a nice format
-                print("\nNew models discovered:")
+                self.logger.info("\nNew models discovered:")
                 for model in new_models:
-                    print(f"  • {model['name']} ({model['provider']})")
-                print()
+                    self.logger.info(f"  • {model['name']} ({model['provider']})")
                 
                 # Update model_list.json file with new models
                 try:
-                    # Get the path to the model_list.json file
-                    import os
-                    from jrdev.model_utils import load_hardcoded_models
-                    
                     # Get the directory where the module is located
                     current_dir = os.path.dirname(os.path.abspath(__file__))
                     json_path = os.path.join(current_dir, "model_list.json")
                     
                     # Read the existing model list
-                    import json
                     with open(json_path, "r") as f:
                         model_list_data = json.load(f)
                     
@@ -194,18 +202,12 @@ class JrDevTerminal:
                         json.dump(model_list_data, f, indent=4)
                     
                     self.logger.info(f"Updated model_list.json with {len(new_models)} new models")
+
+                    # add new models
+                    venice_models = [model for model in models if model["provider"] == "venice"]
+                    self.model_list.append_model_list(venice_models)
                 except Exception as e:
                     self.logger.error(f"Error updating model_list.json: {e}")
-                
-            # Update the cache with all model names
-            self.model_names_cache = {model["name"] for model in models}
-            
-            # Update AVAILABLE_MODELS to include new models
-            openai_models = [model for model in HARDCODED_MODELS if model["provider"] == "openai"]
-            venice_models = [model for model in models if model["provider"] == "venice"]
-            AVAILABLE_MODELS.clear()
-            AVAILABLE_MODELS.extend(venice_models + openai_models)
-            
         except Exception as e:
             self.logger.error(f"Error updating model names cache: {e}")
 
@@ -433,7 +435,7 @@ class JrDevTerminal:
                 
                 # If the command is /model, provide model name completions
                 if command == "/model":
-                    model_names = [model["name"] for model in AVAILABLE_MODELS]
+                    model_names = [model["name"] for model in self.get_model_names()]
                     matches = [name for name in model_names if name.startswith(args_prefix)]
                     
                     # If there's only one match and we've pressed tab once (state == 0)
@@ -785,7 +787,7 @@ class JrDevTerminal:
 async def main(model=None):
     terminal = JrDevTerminal()
     if model:
-        model_names = [m["name"] for m in AVAILABLE_MODELS]
+        model_names = [m["name"] for m in terminal.get_model_names()]
         if model in model_names:
             terminal.model = model
     await terminal.run_terminal()
@@ -793,13 +795,8 @@ async def main(model=None):
 
 def run_cli():
     """Entry point for the command-line interface."""
-    import argparse
-    
-    # Get list of available model names for argparse choices
-    model_names = [model["name"] for model in AVAILABLE_MODELS]
     
     parser = argparse.ArgumentParser(description="JrDev Terminal - LLM model interface")
-    parser.add_argument("--model", help="Specify the LLM model to use", choices=model_names)
     parser.add_argument("--version", action="store_true", help="Show version information")
     
     args = parser.parse_args()
@@ -809,7 +806,7 @@ def run_cli():
         sys.exit(0)
         
     try:
-        asyncio.run(main(args.model))
+        asyncio.run(main())
     except KeyboardInterrupt:
         terminal_print("\nExiting JrDev terminal...", PrintType.INFO)
         sys.exit(0)

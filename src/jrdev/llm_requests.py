@@ -2,7 +2,7 @@ import re
 import time
 from jrdev.colors import Colors
 from jrdev.ui.ui import terminal_print, PrintType
-from jrdev.models import is_think_model, AVAILABLE_MODELS
+from jrdev.model_utils import is_think_model
 from jrdev.usage import get_instance
 
 
@@ -31,7 +31,8 @@ async def stream_request(terminal, model, messages, print_stream=True):
     model_provider = None
     
     # Find the model in AVAILABLE_MODELS
-    for entry in AVAILABLE_MODELS:
+    available_models = terminal.get_models()
+    for entry in available_models:
         if entry["name"] == model:
             model_provider = entry["provider"]
             break
@@ -68,7 +69,7 @@ async def stream_request(terminal, model, messages, print_stream=True):
             extra_body={"venice_parameters": {"include_venice_system_prompt": False}}
         )
 
-    uses_think = is_think_model(model)
+    uses_think = is_think_model(model, terminal.get_models())
     response_text = ""
     first_chunk = True
 

@@ -3,7 +3,6 @@
 """
 Model command implementation for the JrDev terminal.
 """
-from jrdev.models import get_available_models, AVAILABLE_MODELS
 from jrdev.ui.ui import terminal_print, PrintType
 
 
@@ -15,13 +14,8 @@ async def handle_model(terminal, args):
         terminal: The JrDevTerminal instance
         args: Command arguments
     """
-    # Use cached model names
-    if terminal.model_names_cache is None:
-        terminal_print("Model list is still being initialized. Please try again in a moment.", 
-                      print_type=PrintType.INFO)
-        return
 
-    model_names = terminal.model_names_cache
+    model_names = terminal.get_model_names()
     
     if len(args) > 1:
         requested_model = args[1]
