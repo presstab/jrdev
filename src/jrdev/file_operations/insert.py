@@ -221,6 +221,56 @@ def insert_after_line(change, lines, filepath):
         logger.warning(message)
 
 
+def insert_argument(change, lines, function_name, func_start_idx, func_end_idx, argument_pos):
+    # Find the function call line with parameters
+    for i in range(func_start_idx, func_end_idx + 1):
+        if function_name in lines[i] and "(" in lines[i]:
+            opening_idx = lines[i].find("(")
+            closing_idx = lines[i].find(")", opening_idx)
+            new_content = change["new_content"].strip()
+            has_comma = new_content.endswith(", ") or new_content.endswith(",")
+            if new_content.startswith(" ") is False:
+                new_content = f" {new_content}"
+
+            # todo, don't add comma if it is last argument
+            # If content already has comma or it's the last argument, no comma needed
+            needs_comma = not has_comma
+            
+            if closing_idx == -1:
+                # Handle multi-line args in a simplified way
+                for j in range(i + 1, func_end_idx + 1):
+                    if ")" in lines[j]:
+                        closing_idx = lines[j].find(")")
+                        if needs_comma:
+                            lines[j] = (lines[j][:closing_idx] + ", " +
+                                    new_content + lines[j][closing_idx:])
+                        else:
+                            # If content already has comma or it's last arg, don't add comma
+                            content_to_insert = new_content
+                            if has_comma:
+                                # Remove trailing comma if present in the content
+                                content_to_insert = content_to_insert.rstrip(",").rstrip()
+                            lines[j] = (lines[j][:closing_idx] + " " +
+                                    content_to_insert + lines[j][closing_idx:])
+                        break
+            else:
+                # Single line args - simple insertion
+                args = lines[i][opening_idx + 1:closing_idx].split(",")
+                
+                # Remove any trailing commas in the content if it has them
+                content_to_insert = new_content
+                if has_comma:
+                    content_to_insert = content_to_insert.rstrip(",").rstrip()
+                    
+                args.insert(argument_pos, content_to_insert)
+                
+                # Join with proper commas (no need to add them in the content)
+                lines[i] = (lines[i][:opening_idx + 1] +
+                            ",".join(args) + lines[i][closing_idx:])
+            logger.info(f"Inserted argument at position {argument_pos} in function '{function_name}'")
+            return
+
+
 def insert_within_function(change, lines, filepath):
     """
     Insert content within a function at a specific position.
@@ -247,11 +297,13 @@ def insert_within_function(change, lines, filepath):
     # Find matching function
     matched_function = find_function(function_name, filepath)
     if matched_function is None:
+        logger.info(f"failed to match function: {function_name}")
         raise LookupError(f"{function_name}")
 
     # Get the start and end line indexes (convert from 1-indexed to 0-indexed)
     func_start_idx = matched_function["start_line"] - 1
     func_end_idx = matched_function["end_line"] - 1
+    logger.info(f"func_start {func_start_idx} func_end {func_end_idx}")
 
     # Prepare the new content and replace escaped newlines
     new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
@@ -260,11 +312,18 @@ def insert_within_function(change, lines, filepath):
     insert_idx = None
 
     # position_marker may be a dict
-    if isinstance(position_marker, dict):
-        if "after_line" not in position_marker:
-            raise Exception \
-                (f"insert_within_function: position_marker is a dict, but after_line is not in it: {position_marker}")
-        after_line = position_marker["after_line"]
+    if isinstance(position_marker, dict) is False:
+        logger.info("position_marker is malformed, not an object")
+        raise ValueError("position_marker")
+
+    argument_pos = position_marker.get("argument_pos")
+    after_line = position_marker.get("after_line")
+    at_start = position_marker.get("at_start")
+    before_return = position_marker.get("before_return")
+
+    if argument_pos is not None:
+        return insert_argument(change, lines, function_name, func_start_idx, func_end_idx, argument_pos)
+    elif after_line is not None:
         if isinstance(after_line, str):
             # This is not a line number but a string to match within the function
             line_matched = False
@@ -277,8 +336,8 @@ def insert_within_function(change, lines, filepath):
                     break
 
             if not line_matched:
-                raise Exception \
-                    (f"insert_within_function: Could not find line containing '{after_line}' in function '{function_name}' in '{filepath}'")
+                logger.info(f"insert_within_function: Could not find line containing '{after_line}' in function '{function_name}' in '{filepath}'")
+                raise ValueError("after_line")
         else:
             # after_line is a number (relative line within the function)
             if not isinstance(after_line, (int, float)):
@@ -293,7 +352,7 @@ def insert_within_function(change, lines, filepath):
             insert_idx = func_start_idx + after_line + 1
 
         logger.info(f"insert_within_function after function line {after_line} file line {insert_idx}")
-    elif position_marker == "at_start":
+    elif at_start is not None:
         # Insert after the opening brace of the function
         for i in range(func_start_idx, func_end_idx + 1):
             if "{" in lines[i]:
@@ -301,7 +360,7 @@ def insert_within_function(change, lines, filepath):
                 break
         if insert_idx is None:
             insert_idx = func_start_idx + 1  # Default fallback
-    elif position_marker == "before_return":
+    elif before_return is not None:
         # Find the last return statement in the function
         for i in range(func_end_idx, func_start_idx - 1, -1):
             if re.search(r'\breturn\b', lines[i]):
@@ -312,7 +371,6 @@ def insert_within_function(change, lines, filepath):
             raise Exception(f"insert_location: before_return within_function {matched_function} is not found")
     else:
         # Default to right after function declaration
-        # todo, this should be first line after function scope
         insert_idx = func_start_idx + 1
         logger.info(f"insert_within_function defaulting to after func start")
 
