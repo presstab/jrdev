@@ -18,6 +18,8 @@ from jrdev.commands.process import handle_process
 from jrdev.commands.stateinfo import handle_stateinfo
 from jrdev.commands.tasks import handle_tasks
 from jrdev.commands.viewcontext import handle_viewcontext
+# Debug commands
+from jrdev.commands.debug import handle_modelswin
 
 __all__ = [
     "handle_addcontext",
@@ -36,4 +38,6 @@ __all__ = [
     "handle_tasks",
     "handle_cost",
     "handle_viewcontext",
+    # Debug commands
+    "handle_modelswin",
 ]

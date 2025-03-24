@@ -4,10 +4,17 @@
 Models configuration for the JrDev terminal.
 """
 import os
-import json
 import time
 import logging
-from typing import Dict, List, Optional, Any, cast
+from typing import Dict, List, Any
+from openai import AsyncOpenAI
+
+from jrdev.model_utils import (
+    load_hardcoded_models,
+    get_model_cost as get_model_cost_util,
+    is_think_model as is_think_model_util,
+    VCU_Value
+)
 
 # Get the global logger
 logger = logging.getLogger("jrdev")
@@ -15,117 +22,22 @@ logger = logging.getLogger("jrdev")
 # Cache for Venice models to avoid frequent API calls
 VENICE_MODELS_CACHE = {
     "models": None,
-    "timestamp": 0,
-    "cache_duration": 60 * 60  # Cache for 1 hour
+    "timestamp": 0
 }
 
-# List of hardcoded models as fallback
-HARDCODED_MODELS = [
-    {
-        "name": "deepseek-r1-671b",
-        "provider": "venice",
-        "is_think": True,
-        "input_cost": 35,
-        "output_cost": 140,
-        "context_tokens": 131072
-    },
-    {
-        "name": "qwen-2.5-coder-32b",
-        "provider": "venice",
-        "is_think": False,
-        "input_cost": 5,
-        "output_cost": 20,
-        "context_tokens": 32768
-    },
-    {
-        "name": "qwen-2.5-qwq-32b",
-        "provider": "venice",
-        "is_think": True,
-        "input_cost": 5,
-        "output_cost": 20,
-        "context_tokens": 32768
-    },
-    {
-        "name": "llama-3.3-70b",
-        "provider": "venice",
-        "is_think": False,
-        "input_cost": 7,
-        "output_cost": 28,
-        "context_tokens": 65536
-    },
-    {
-        "name": "llama-3.1-405b",
-        "provider": "venice",
-        "is_think": False,
-        "input_cost": 15,
-        "output_cost": 60,
-        "context_tokens": 65536
-    },
-    {
-        "name": "llama-3.2-3b",
-        "provider": "venice",
-        "is_think": False,
-        "input_cost": 2,
-        "output_cost": 6,
-        "context_tokens": 131072
-    },
-    {
-        "name": "dolphin-2.9.2-qwen2-72b",
-        "provider": "venice",
-        "is_think": False,
-        "input_cost": 7,
-        "output_cost": 28,
-        "context_tokens": 32768
-    },
-    {
-        "name": "mistral-31-24b",
-        "provider": "venice",
-        "is_think": False,
-        "input_cost": 5,
-        "output_cost": 20,
-        "context_tokens": 131072
-    },
-    {
-        "name": "o3-mini-2025-01-31",
-        "provider": "openai",
-        "is_think": False,
-        "input_cost": 7,
-        "output_cost": 28,
-        "context_tokens": 32768
-    },
-    {
-        "name": "gpt-4o",
-        "provider": "openai",
-        "is_think": False,
-        "input_cost": 10,
-        "output_cost": 30,
-        "context_tokens": 128000
-    },
-    {
-        "name": "gpt-4-turbo",
-        "provider": "openai",
-        "is_think": False,
-        "input_cost": 10,
-        "output_cost": 30,
-        "context_tokens": 128000
-    },
-    {
-        "name": "gpt-3.5-turbo",
-        "provider": "openai",
-        "is_think": False,
-        "input_cost": 5,
-        "output_cost": 15,
-        "context_tokens": 16384
-    }
-]
+# Load hardcoded models
+HARDCODED_MODELS = load_hardcoded_models()
 
 # Initialize with hardcoded models
 AVAILABLE_MODELS = HARDCODED_MODELS.copy()
 
-async def fetch_venice_models() -> List[Dict[str, Any]]:
+async def fetch_venice_models(client: AsyncOpenAI) -> List[Dict[str, Any]]:
     """
     Fetch available models from Venice API.
     
+    Args:
+        client: AsyncOpenAI client to use for the request
+        
     Returns:
         List of models in the JrDev format, or None if the API call fails
     """
@@ -135,15 +47,6 @@ async def fetch_venice_models() -> List[Dict[str, Any]]:
         return None
 
     try:
-        # Use existing OpenAI client
-        from openai import AsyncOpenAI
-        
-        # Create a client for the Venice API
-        client = AsyncOpenAI(
-            api_key=api_key,
-            base_url="https://api.venice.ai/api/v1"
-        )
-        
         # Make the API request - using models.list() method instead of raw_response
         response = await client.models.list()
         
@@ -205,20 +108,16 @@ def should_update_cache():
     Check if the cache should be updated.
     
     Returns:
-        bool: True if cache should be updated, False otherwise
+        bool: True if cache is empty, False otherwise
     """
-    current_time = time.time()
-    # Update if cache is empty or expired
-    return (
-        VENICE_MODELS_CACHE["models"] is None or 
-        current_time - VENICE_MODELS_CACHE["timestamp"] > VENICE_MODELS_CACHE["cache_duration"]
-    )
+    return VENICE_MODELS_CACHE["models"] is None
 
-async def get_available_models(force_refresh=False):
+async def get_available_models(client=None, force_refresh=False):
     """
     Get available models, either from cache or by fetching from API.
     
     Args:
+        client: Optional AsyncOpenAI client to use for API requests
         force_refresh: Force a refresh regardless of cache status
         
     Returns:
@@ -226,10 +125,14 @@ async def get_available_models(force_refresh=False):
     """
     global AVAILABLE_MODELS
     
+    # If no client is provided, just return the current AVAILABLE_MODELS
+    if client is None:
+        return AVAILABLE_MODELS
+        
     # Check if we need to update the cache
     if force_refresh or should_update_cache():
         # Fetch models from Venice API
-        venice_models = await fetch_venice_models()
+        venice_models = await fetch_venice_models(client)
         
         if venice_models:
             # Cache the fetched models
@@ -245,23 +148,26 @@ async def get_available_models(force_refresh=False):
     
     return AVAILABLE_MODELS
 
-def is_think_model(model):
-    for entry in AVAILABLE_MODELS:
-        if entry["name"] == model:
-            return entry["is_think"]
+def is_think_model(model: str) -> bool:
+    """
+    Check if a model is a "think" model.
+    
+    Args:
+        model: Name of the model to check
+        
+    Returns:
+        True if the model is a think model, False otherwise
+    """
+    return is_think_model_util(model, AVAILABLE_MODELS)
 
-    return False
-
-
-def get_model_cost(model):
-    """model input and output cost per million tokens (cost denominated in VCU)"""
-    for entry in AVAILABLE_MODELS:
-        if entry["name"] == model:
-            return {"input_cost": entry["input_cost"], "output_cost": entry["output_cost"]}
-
-    return None
-
-
-def VCU_Value():
-    """VCU dollar value"""
-    return 0.1
+def get_model_cost(model: str) -> Dict[str, int]:
+    """
+    Get model input and output cost per million tokens (cost denominated in VCU).
+    
+    Args:
+        model: Name of the model to get costs for
+        
+    Returns:
+        Dictionary with input_cost and output_cost, or None if model not found
+    """
+    return get_model_cost_util(model, AVAILABLE_MODELS)

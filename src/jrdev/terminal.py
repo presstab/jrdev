@@ -21,7 +21,7 @@ from openai import AsyncOpenAI
 # JrDev modules
 from jrdev.logger import setup_logger
 from jrdev.file_utils import requested_files, get_file_contents, add_to_gitignore
-from jrdev.models import get_available_models, AVAILABLE_MODELS, is_think_model
+from jrdev.models import get_available_models, AVAILABLE_MODELS, is_think_model, HARDCODED_MODELS
 from jrdev.llm_requests import stream_request
 from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.colors import Colors
@@ -29,7 +29,8 @@ from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
                          handle_clearcontext, handle_clearmessages, handle_code,
                          handle_cost, handle_exit, handle_help, handle_init,
                          handle_model, handle_models, handle_process,
-                         handle_stateinfo, handle_tasks, handle_viewcontext)
+                         handle_stateinfo, handle_tasks, handle_viewcontext,
+                         handle_modelswin)
 
 # Cross-platform readline support
 try:
@@ -129,6 +130,8 @@ class JrDevTerminal:
             "/tasks": handle_tasks,
             "/cancel": handle_cancel,
             "/code": handle_code,
+            # Debug commands
+            "/modelswin": handle_modelswin,
         }
         
         # Set up readline for command history
@@ -136,22 +139,94 @@ class JrDevTerminal:
         self.setup_readline()
 
     async def update_model_names_cache(self):
-        """
-        Update the cache of available model names.
-        This method is called before using model-related commands.
-        """
+        """Update the model names cache in the background."""
         try:
-            self.logger.info("Updating model names cache")
-            models = await get_available_models(force_refresh=True)
-            self.model_names_cache = [model["name"] for model in models]
-            self.logger.info(f"Model names cache updated: {len(self.model_names_cache)} models found")
-            return self.model_names_cache
+            # Get current models from API
+            models = await get_available_models(client=self.venice_client, force_refresh=True)
+            
+            if not models:
+                self.logger.warning("Failed to fetch models from API")
+                return
+                
+            # Get list of hardcoded model names from HARDCODED_MODELS
+            hardcoded_names = {model["name"] for model in HARDCODED_MODELS}
+            
+            # Find new models that aren't in the hardcoded list
+            new_models = [model for model in models if model["name"] not in hardcoded_names]
+            
+            if new_models:
+                # Print new models in a nice format
+                print("\nNew models discovered:")
+                for model in new_models:
+                    print(f"  • {model['name']} ({model['provider']})")
+                print()
+                
+                # Update model_list.json file with new models
+                try:
+                    # Get the path to the model_list.json file
+                    import os
+                    from jrdev.model_utils import load_hardcoded_models
+                    
+                    # Get the directory where the module is located
+                    current_dir = os.path.dirname(os.path.abspath(__file__))
+                    json_path = os.path.join(current_dir, "model_list.json")
+                    
+                    # Read the existing model list
+                    import json
+                    with open(json_path, "r") as f:
+                        model_list_data = json.load(f)
+                    
+                    # Add new models to the list
+                    for model in new_models:
+                        # Create a model entry with default values
+                        new_entry = {
+                            "name": model["name"],
+                            "provider": model["provider"],
+                            "is_think": model["is_think"],
+                            "input_cost": 0,  # Default to 0 for now
+                            "output_cost": 0,  # Default to 0 for now
+                            "context_tokens": model["context_tokens"]
+                        }
+                        model_list_data["models"].append(new_entry)
+                    
+                    # Write the updated list back to the file
+                    with open(json_path, "w") as f:
+                        json.dump(model_list_data, f, indent=4)
+                    
+                    self.logger.info(f"Updated model_list.json with {len(new_models)} new models")
+                except Exception as e:
+                    self.logger.error(f"Error updating model_list.json: {e}")
+                
+            # Update the cache with all model names
+            self.model_names_cache = {model["name"] for model in models}
+            
+            # Update AVAILABLE_MODELS to include new models
+            openai_models = [model for model in HARDCODED_MODELS if model["provider"] == "openai"]
+            venice_models = [model for model in models if model["provider"] == "venice"]
+            AVAILABLE_MODELS.clear()
+            AVAILABLE_MODELS.extend(venice_models + openai_models)
+            
         except Exception as e:
             self.logger.error(f"Error updating model names cache: {e}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            # Return an empty list as fallback
-            return []
+
+    async def _schedule_model_updates(self):
+        """Background task to periodically update model list."""
+        try:
+            # Perform an immediate update when the terminal starts
+            await self.update_model_names_cache()
+        except Exception as e:
+            self.logger.error(f"Initial model update failed: {e}")
+            
+        # Then enter the periodic update loop
+        while self.running:
+            try:
+                # Update every hour
+                await asyncio.sleep(3600)
+                await self.update_model_names_cache()
+            except Exception as e:
+                self.logger.error(f"Error in model update task: {e}")
+                # Wait a bit before retrying on error
+                await asyncio.sleep(60)
 
     async def handle_command(self, command):
         cmd_parts = command.split()
@@ -165,10 +240,6 @@ class JrDevTerminal:
         
         if cmd in self.command_handlers:
             try:
-                # Update model names cache if using model-related commands
-                if cmd == "/models":
-                    await self.update_model_names_cache()
-                    
                 return await self.command_handlers[cmd](self, cmd_parts)
             except Exception as e:
                 self.logger.error(f"Error handling command {cmd}: {e}")
@@ -666,6 +737,10 @@ class JrDevTerminal:
         # Start the task monitor
         self.task_monitor = asyncio.create_task(self._schedule_task_monitor())
         self.logger.info("Task monitor started")
+        
+        # Start the model update task
+        model_update_task = asyncio.create_task(self._schedule_model_updates())
+        self.logger.info("Model update task started")
 
         while self.running:
             try:
