@@ -304,7 +304,7 @@ def write_with_confirmation(filepath, content):
                                 marked_content.append("+" + marker[1])  # New line marked as addition
                             elif marker[0] == "add":
                                 # content already inserted in the insertions above, now add original line content
-                                marked_content.append(line)
+                                marked_content.append(" " + line)
                         else:
                             # Any other marker type - treat as unchanged
                             marked_content.append(" " + line)
@@ -402,7 +402,7 @@ def apply_file_changes(changes_json):
     new_files = []
     files_changed = []
 
-    valid_operations = ["ADD", "DELETE", "REPLACE", "NEW", "RENAME", "NEW"]
+    valid_operations = ["ADD", "DELETE", "REPLACE", "NEW", "RENAME"]
 
     for change in changes_json["changes"]:
         if "operation" not in change:
@@ -449,7 +449,7 @@ def apply_file_changes(changes_json):
         # Process change operations
         new_lines = []
         try:
-            new_lines = process_operation_changes(lines, changes, filename)
+            new_lines = process_operation_changes(lines, changes, filepath)
         except KeyError as e:
             logger.info(f"Key error: {e}")
             return {"success": False}
