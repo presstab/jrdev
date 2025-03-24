@@ -446,35 +446,32 @@ def apply_file_changes(changes_json):
             terminal_print(f"Error reading {filepath}: {str(e)}", PrintType.ERROR)
             continue
 
-        # Process classic operation-based changes (start_line based)
-        operation_changes = [c for c in changes if "operation" in c and "start_line" in c]
-        insert_after_changes = [c for c in changes if "insert_location" in c]
-        replace_changes = [
-            c for c in changes if "operation" in c and c["operation"] == "REPLACE"]
-
-        # Process operation-based changes first
-        if operation_changes:
-            lines = process_operation_changes(lines, operation_changes, filename)
-
-        # Process insert_after_line based changes
-        lines = process_insert_after_changes(lines, insert_after_changes, filepath)
-
-        # Process replace changes
-        for change in replace_changes:
-            lines = process_replace_operation(lines, change, filepath)
+        # Process change operations
+        new_lines = []
+        try:
+            new_lines = process_operation_changes(lines, changes, filename)
+        except KeyError as e:
+            logger.info(f"Key error: {e}")
+            return {"success": False}
+        except ValueError as e:
+            logger.info(f"Type error {e}")
+            return {"success": False}
+        except Exception as e:
+            logger.info(f"failed to process_operation_changes {e}")
+            return {"success": False}
 
         # Write the updated lines to a temp file, show diff, and ask for confirmation
-        result, user_message = write_with_confirmation(filepath, lines)
+        result, user_message = write_with_confirmation(filepath, new_lines)
         if result:
             files_changed.append(filepath)
             message = f"Updated {filepath}"
             logger.info(message)
         else:
             if user_message:
-                message = f"Update to {filepath} was not applied. User requested changes: {user_message}"
+                logger.info(f"Update to {filepath} was not applied. User requested changes: {user_message}")
                 return {"success": False, "change_requested": user_message}
             else:
-                message = f"Update to {filepath} was cancelled by user"
+                logger.info(f"Update to {filepath} was cancelled by user")
                 return {"success": False}
 
     # Process new file creations
@@ -504,46 +501,50 @@ def apply_file_changes(changes_json):
             logger.info(message)
         else:
             if user_message:
-                message = f"Creation of {filepath} was not applied. User requested changes: {user_message}"
+                logger.info(f"Creation of {filepath} was not applied. User requested changes: {user_message}")
                 return {"success": False, "change_requested": user_message}
             else:
-                message = f"Creation of {filepath} was cancelled by user"
-            logger.info(message)
+                logger.info(f"Creation of {filepath} was cancelled by user")
 
     return {"success": True, "files_changed": files_changed}
 
 
-def process_operation_changes(lines, operation_changes, filename):
+def process_operation_changes(lines, operation_changes, filepath):
     """
     Process changes based on operation (ADD/DELETE) and start_line.
 
     Args:
         lines: List of file lines
         operation_changes: List of changes with operation and start_line
-        filename: Name of the file being modified
+        filepath: Name of the file being modified
 
     Returns:
         Updated list of lines
     """
+
     # Sort changes in descending order of start_line
-    operation_changes.sort(key=lambda c: c["start_line"], reverse=True)
+    logger.info(f"process_operation_changes")
 
     for change in operation_changes:
-        operation = change["operation"]
+        operation = change.get("operation")
 
+        if operation is None:
+            logger.info(f"operation malformed: {change}")
+            raise KeyError("operation")
         if "filename" not in change:
-            raise Exception(f"filename not in change: {change}")
-
-        if operation == "DELETE" and "end_line" not in change:
-            raise Exception(f"end_line not in change: {change}")
-
-        if operation == "ADD" and "new_content" not in change:
-            raise Exception(f"new_content not in change: {change}")
+            logger.info(f"filename not in change: {change}")
+            raise KeyError("filename")
 
         # Process the operation based on its type
         if operation == "ADD":
-            lines = process_add_operation(lines, change, filename)
+            if "new_content" not in change:
+                logger.info(f"new_content not in change: {change}")
+                raise KeyError("new_content")
+
+            lines = process_add_operation(lines, change, filepath)
         elif operation == "DELETE":
             lines = process_delete_operation(lines, change)
+        elif operation == "REPLACE":
+            lines = process_replace_operation(lines, change, filepath)
 
     return lines

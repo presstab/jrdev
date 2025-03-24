@@ -4,13 +4,14 @@ import re
 from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.languages import get_language_for_file
 from jrdev.languages.utils import detect_language
+from jrdev.file_operations.find_function import find_function
 
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
 
 
-def process_insert_after_changes(lines, insert_after_changes, filepath):
+def process_insert_after_changes(lines, change, filepath):
     """
     Process changes based on insert_location object with various location options.
 
@@ -22,47 +23,34 @@ def process_insert_after_changes(lines, insert_after_changes, filepath):
     Returns:
         Updated list of lines
     """
-    for change in insert_after_changes:
-        if "filename" not in change:
-            raise Exception(f"filename not in change: {change}")
-        if "new_content" not in change:
-            raise Exception(f"new_content not in change: {change}")
+    logger.info(f"process_insert_after_changes")
 
-        # Process with insert_location object
-        if "insert_location" in change:
-            location = change["insert_location"]
+    if "new_content" not in change:
+        raise KeyError(f"new_content not in change: {change}")
 
-            # Handle all insert location types
-            if "after_function" in location:
-                # Copy the change and add insert_after_function for compatibility
-                function_change = change.copy()
-                function_change["insert_after_function"] = location["after_function"]
-                insert_after_function(function_change, lines, filepath)
-                continue
+    # Process with insert_location object
+    if change.get("insert_location") is None:
+        raise KeyError(f"Missing insert_location in change: {change}")
 
-            elif "within_function" in location:
-                insert_within_function(change, lines, filepath)
-                continue
+    location = change["insert_location"]
 
-            elif "after_marker" in location:
-                insert_after_marker(change, lines, filepath)
-                continue
+    # Handle all insert location types
+    if "after_function" in location:
+        insert_after_function(change, lines, filepath)
+    elif "within_function" in location:
+        insert_within_function(change, lines, filepath)
+    elif "after_marker" in location:
+        insert_after_marker(change, lines, filepath)
+    elif "global" in location:
+        insert_global(change, lines, filepath)
 
-            elif "global" in location:
-                insert_global(change, lines, filepath)
-                continue
-
-            # Handle the case for after_line (corrected to use after_marker instead)
-            elif "after_line" in location:
-                # Copy the change and create a new insert_location with after_marker
-                terminal_print(f"Warning: SKIPPED CHANGED: 'after_line' is deprecated, use 'after_marker' instead",
-                               PrintType.WARNING)
-                continue
-
-            else:
-                raise Exception(f"Invalid insert_location, missing a valid location type: {change}")
-        else:
-            raise Exception(f"Missing insert_location in change: {change}")
+    # Handle the case for after_line (corrected to use after_marker instead)
+    elif "after_line" in location:
+        # Copy the change and create a new insert_location with after_marker
+        terminal_print(f"Warning: SKIPPED CHANGED: 'after_line' is deprecated, use 'after_marker' instead",
+                       PrintType.WARNING)
+    else:
+        raise Exception(f"Invalid insert_location, missing a valid location type: {change}")
 
     return lines
 
@@ -82,56 +70,13 @@ def insert_after_function(change, lines, filepath):
     Raises:
         Exception: If the language is not supported or function can't be found
     """
-    function_name = change["insert_after_function"]
+    function_name = change["insert_location"]["after_function"]
     logger.info(f"insert_after_function {function_name}")
 
-    # Get language handler for this file
-    from jrdev.languages import get_language_for_file
-
-    lang_handler = get_language_for_file(filepath)
-    if not lang_handler:
-        language = detect_language(filepath)
-        raise Exception(f"Could not find language handler for file {filepath} (detected: {language})")
-
-    # Get the language name for special handling
-    language = lang_handler.language_name
-
-    # Parse the function signature and file
-    requested_class, requested_function = lang_handler.parse_signature(function_name)
-    if requested_function is None:
-        raise Exception(f"Could not parse requested {language} class: {function_name}\n")
-    logger.info(f"requested class: {requested_class}")
-
-    file_functions = lang_handler.parse_functions(filepath)
-
     # Find matching function
-    matched_function = None
-    potential_match = None
-    for func in file_functions:
-        if func["name"] == requested_function:
-            # Check class match
-            if requested_class is None:
-                if func["class"] is None:
-                    matched_function = func
-                    break
-                # mark as potential match, assign as match if nothing else found
-                potential_match = func
-                continue
-            elif func["class"] is None:
-                # No match, req has a class, this doesn't
-                continue
-            elif func["class"] == requested_class:
-                matched_function = func
-                break
-
-    if matched_function is None and potential_match is not None:
-        matched_function = potential_match
-
+    matched_function = find_function(function_name, filepath)
     if matched_function is None:
-        message = f"Warning: Could not find function: '{requested_function}' class: {requested_class} in {filepath}\n  Available Functions: {file_functions}"
-        terminal_print(message, PrintType.WARNING)
-        logger.warning(message)
-        raise Exception(message)
+        raise LookupError(f"{function_name}")
 
     # Get the end line index of the function (convert from 1-indexed to 0-indexed)
     func_end_idx = matched_function["end_line"] - 1
@@ -158,6 +103,7 @@ def insert_after_function(change, lines, filepath):
         lines_to_add = newline_count
 
         # For languages where indentation matters, handle it properly
+        language = detect_language(filepath)
         if language in ['typescript', 'go']:  # typescript includes JavaScript
             # Get the indentation level of the line after the function
             indentation = ""
@@ -298,43 +244,10 @@ def insert_within_function(change, lines, filepath):
 
     logger.info(f"insert_within_function '{function_name}' at position '{position_marker}'")
 
-    lang_handler = get_language_for_file(filepath)
-    if not lang_handler:
-        language = detect_language(filepath)
-        raise Exception(f"Could not find language handler for file {filepath} (detected: {language})")
-
-    # Parse the function signature and file
-    requested_class, requested_function = lang_handler.parse_signature(function_name)
-    file_functions = lang_handler.parse_functions(filepath)
-
     # Find matching function
-    matched_function = None
-    potential_match = None
-    for func in file_functions:
-        if func["name"] == requested_function:
-            # Check class match
-            if requested_class is None:
-                if func["class"] is None:
-                    matched_function = func
-                    break
-                # mark as potential match, assign as match if nothing else found
-                potential_match = func
-                continue
-            elif func["class"] is None:
-                # No match, req has a class, this doesn't
-                continue
-            elif func["class"] == requested_class:
-                matched_function = func
-                break
-
-    if matched_function is None and potential_match is not None:
-        matched_function = potential_match
-
+    matched_function = find_function(function_name, filepath)
     if matched_function is None:
-        message = f"Warning: Could not find function: '{requested_function}' class: {requested_class} in {filepath}\n  Available Functions: {file_functions}"
-        terminal_print(message, PrintType.WARNING)
-        logger.warning(message)
-        return
+        raise LookupError(f"{function_name}")
 
     # Get the start and end line indexes (convert from 1-indexed to 0-indexed)
     func_start_idx = matched_function["start_line"] - 1
@@ -396,7 +309,7 @@ def insert_within_function(change, lines, filepath):
                 break
         if insert_idx is None:
             # location combination does not make sense, raise here
-            raise Exception(f"insert_location: before_return within_function {requested_function} is not found")
+            raise Exception(f"insert_location: before_return within_function {matched_function} is not found")
     else:
         # Default to right after function declaration
         # todo, this should be first line after function scope

@@ -5,6 +5,7 @@ from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.languages import get_language_for_file
 from jrdev.languages.utils import detect_language
 from jrdev.string_utils import find_code_snippet
+from jrdev.file_operations.find_function import find_function
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -22,29 +23,35 @@ def process_replace_operation(lines, change, filepath):
     Returns:
         Updated list of lines
     """
+    logger.info("process_replace_operation")
     # Extract replacement details
     target_type = change.get("target_type", "")
     target_ref = change.get("target_reference", {})
 
+
+    error_detail = ""
     # Check for code_snippet first, as it can be used with any target_type
     if "target_reference" in change and "code_snippet" in change["target_reference"]:
         # Handle code_snippet replacement regardless of target_type
         return replace_code_snippet(lines, change, filepath)
-
-    # Process based on target type if no code_snippet
     elif target_type == "SIGNATURE" and "function_name" in target_ref:
         return replace_function_signature(lines, change, filepath)
-
     elif target_type == "FUNCTION" and "function_name" in target_ref:
         return replace_function_implementation(lines, change, filepath)
+    elif target_type == "BLOCK":
+        logger.info("type BLOCK")
+        if "function_name" not in target_ref:
+            error_detail = "function_name not in target_type"
+        elif "start_marker" not in target_ref:
+            error_detail = "start_marker not in target_type"
+        elif "end_marker" not in target_ref:
+            error_detail = "end_marker not in target_type"
+        else:
+            return replace_code_block(lines, change, filepath)
 
-    elif target_type == "BLOCK" and all(k in target_ref for k in ["function_name", "start_marker", "end_marker"]):
-        return replace_code_block(lines, change, filepath)
-
-    else:
-        message = f"Warning: Unsupported REPLACE operation: {change}"
-        terminal_print(message, PrintType.WARNING)
-        logger.warning(message)
+    message = f"Warning: REPLACE operation error: {error_detail}\n {change}"
+    terminal_print(message, PrintType.WARNING)
+    logger.warning(message)
 
     return lines
 
@@ -189,28 +196,10 @@ def replace_function_implementation(lines, change, filepath):
     function_name = change["target_reference"]["function_name"]
     new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
 
-    # Get language handler for this file
-    lang_handler = get_language_for_file(filepath)
-    if not lang_handler:
-        language = detect_language(filepath)
-        raise Exception(f"Could not find language handler for file {filepath} (detected: {language})")
-
-    # Parse the function signature and file
-    requested_class, requested_function = lang_handler.parse_signature(function_name)
-    file_functions = lang_handler.parse_functions(filepath)
-
     # Find matching function
-    matched_function = None
-    for func in file_functions:
-        if func["name"] == requested_function and func.get("class") == requested_class:
-            matched_function = func
-            break
-
+    matched_function = find_function(function_name, filepath)
     if matched_function is None:
-        message = f"Warning: Could not find function '{function_name}' in {filepath}"
-        terminal_print(message, PrintType.WARNING)
-        logger.warning(message)
-        return lines
+        raise LookupError(f"{function_name}")
 
     # Get the start and end line indexes (convert from 1-indexed to 0-indexed)
     start_idx = matched_function["start_line"] - 1
@@ -264,31 +253,13 @@ def replace_code_block(lines, change, filepath):
     end_marker = target_ref.get("end_marker")
     new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
 
-    if not function_name or not start_marker or not end_marker:
+    if function_name is None or start_marker is None or end_marker is None:
         raise Exception(f"Missing required target_reference fields for BLOCK replacement: {change}")
 
-    # Get language handler for this file
-    lang_handler = get_language_for_file(filepath)
-    if not lang_handler:
-        language = detect_language(filepath)
-        raise Exception(f"Could not find language handler for file {filepath} (detected: {language})")
-
-    # Parse the function signature and file
-    requested_class, requested_function = lang_handler.parse_signature(function_name)
-    file_functions = lang_handler.parse_functions(filepath)
-
     # Find matching function
-    matched_function = None
-    for func in file_functions:
-        if func["name"] == requested_function and func.get("class") == requested_class:
-            matched_function = func
-            break
-
+    matched_function = find_function(function_name, filepath)
     if matched_function is None:
-        message = f"Warning: Could not find function '{function_name}' in {filepath}"
-        terminal_print(message, PrintType.WARNING)
-        logger.warning(message)
-        return lines
+        raise LookupError(f"{function_name}")
 
     # Get the function bounds
     func_start = matched_function["start_line"] - 1

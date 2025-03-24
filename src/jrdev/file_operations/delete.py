@@ -1,6 +1,7 @@
 import logging
 
 from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.file_operations.find_function import find_function
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -16,6 +17,27 @@ def process_delete_operation(lines, change):
     Returns:
         Updated list of lines
     """
+    logger.info("processing delete operation")
+
+    target = change.get("target")
+    if target is None or not isinstance(target, dict):
+        raise KeyError("target")
+
+    filepath = change.get("filename")
+    if filepath is None:
+        raise KeyError("filename")
+
+    target_function = target.get("function")
+    if target_function is not None:
+        # function deletion requested
+        matched_function = find_function(target_function, filepath)
+        if matched_function is None:
+            raise ValueError("function")
+        new_lines = lines[:matched_function["start_line"]-1] + lines[matched_function["end_line"]:]
+        logger.info(f"Removed function: {matched_function}\n New Lines:\n{new_lines} ")
+        return new_lines
+
+
     # Convert 1-indexed line numbers to 0-indexed indices
     start_idx = change["start_line"] - 1
     end_idx = change["end_line"]
