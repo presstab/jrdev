@@ -34,13 +34,14 @@ from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
                             handle_tasks, handle_viewcontext)
 from jrdev.models import AVAILABLE_MODELS, is_think_model
 from jrdev.llm_requests import stream_request
+from jrdev.file_utils import JRDEV_DIR
 from jrdev.ui.ui import terminal_print, PrintType
 
 
 class JrDevTerminal:
     def __init__(self):
         # Set up logging
-        self.logger = setup_logger()
+        self.logger = setup_logger(JRDEV_DIR)
         self.logger.info("Initializing JrDevTerminal")
         
         # Load environment variables from .env file
@@ -83,10 +84,9 @@ class JrDevTerminal:
         
         # Project files dict to track various files used by the application
         self.project_files = {
-            "filetree": "jrdev_filetree.txt",
-            "filecontext": "jrdev_filecontext.md",
-            "overview": "jrdev_overview.md",
-            "code_change_example": "code_change_example.json"
+            "filetree": f"{JRDEV_DIR}jrdev_filetree.txt",
+            "filecontext": f"{JRDEV_DIR}jrdev_filecontext.md",
+            "overview": f"{JRDEV_DIR}jrdev_overview.md",
         }
         
         # Context list to store additional context files for the LLM

@@ -7,6 +7,8 @@ import logging
 from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.languages.utils import detect_language, is_headers_language
 
+JRDEV_DIR = "jrdev/"
+
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")

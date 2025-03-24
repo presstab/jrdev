@@ -10,7 +10,7 @@ import re
 from jrdev.treechart import generate_tree, generate_compact_tree
 from jrdev.llm_requests import stream_request
 from jrdev.ui.ui import terminal_print, PrintType
-from jrdev.file_utils import requested_files
+from jrdev.file_utils import requested_files, JRDEV_DIR
 
 # Create an asyncio lock for safe file access
 context_file_lock = asyncio.Lock()
@@ -98,7 +98,7 @@ async def handle_init(terminal, args):
         args: Command arguments
     """
     try:
-        output_file = "jrdev_filetree.txt"
+        output_file = f"{JRDEV_DIR}jrdev_filetree.txt"
         if len(args) > 1:
             output_file = args[1]
 
@@ -157,7 +157,7 @@ async def handle_init(terminal, args):
                 terminal_print(f"\nSwitching model to: {terminal.model} for file analysis", PrintType.INFO)
 
                 # Initialize the context file
-                context_file_path = "jrdev_filecontext.md"
+                context_file_path = f"{JRDEV_DIR}jrdev_filecontext.md"
                 with open(context_file_path, "w") as context_file:
                     context_file.write(f"# Project Context Analysis\n\n")
                     context_file.write(
@@ -216,7 +216,7 @@ async def handle_init(terminal, args):
                     full_overview = await stream_request(terminal, terminal.model, overview_messages)
 
                     # Save to markdown file
-                    overview_file_path = "jrdev_overview.md"
+                    overview_file_path = f"{JRDEV_DIR}jrdev_overview.md"
                     with open(overview_file_path, "w") as f:
                         f.write(full_overview)
 
