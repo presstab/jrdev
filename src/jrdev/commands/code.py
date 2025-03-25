@@ -374,18 +374,24 @@ operation_promts = {
            - "filename": the file to modify.
            - "insert_location": an object that indicates where to insert the new code. Options include:
                - "after_function": the name of a function after which to insert.
-               - "within_function": the name of a function, along with a "position_marker" to pinpoint the insertion spot (e.g., "at_start", "before_return").
-                    - "position_marker": use this as a json object within the same object as within_function. The value 
-                    of position marker can be at_start (insert to beginning of function scope), before_return (insert right before function return) or a position_marker = {after_line: <function_line_number>}. 
-                    after_line uses the line numbers with the function name being line 0, etc. 
-                    
+               - "within_function": the name of a function, along with a "position_marker" to pinpoint the insertion spot.
+                   - "position_marker": a JSON object that specifies where within the function to insert code. Options include:
+                       - {"at_start": true} - insert at the beginning of function scope
+                       - {"before_return": true} - insert right before function return statement
+                       - {"after_line": number} - insert after the specified line number (function declaration is line 0)
+                       - {"argument_pos": pos} - insert within the function's argument list (first arg is pos 0, 2nd arg is pos 1, etc)
                - "after_marker": a custom code marker or comment present in the file.
-               - "global": to insert code at the global scope.
+               - "global": to insert code at the global scope, with optional position value.
            - "new_content": the code to insert.
-           - "indentation_hint": give an indentation hint. The options are relative to the previous line of code's indentation level. Options: maintain_indent, increase_indent, decrease_indent, no_hint
+           - "indentation_hint": indicates how to indent relative to the previous line. Options:
+               - "maintain_indent" - use same indentation as previous line
+               - "increase_indent" - indent one level deeper than previous line
+               - "decrease_indent" - indent one level less than previous line
+               - "no_hint" - no 
            - "sub_type": the type of code being added. Options include:
                - "FUNCTION": a complete new function implementation.
                - "BLOCK": lines of code added within an existing function or structure.
+               - "SNIPPET": a snippet of code
                - "COMMENT": inline documentation or comment updates.
         """
     ),
