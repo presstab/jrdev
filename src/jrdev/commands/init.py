@@ -155,31 +155,21 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
         # Get file recommendation prompt
         file_recommendation_prompt = PromptManager.load("file_recommendation")
 
-        # Create a description of the compact format if using compact tree
-        format_explanation = (
-            "The project structure below is in a compact format for efficiency:\n"
-            "- ROOT=directory_name: The root directory name\n"
-            "- path/to/dir:[file1,file2,...]: Files in a directory\n"
-            "Each line represents either the root directory or a directory with "
-            "its files.\n\n"
-        )
+        # Get the format explanation from the prompt file
+        format_explanation = PromptManager.load("init/filetree_format")
 
         # Combine prompt with format explanation and tree output
         recommendation_prompt = (
-            f"{file_recommendation_prompt}\n\n{format_explanation}{tree_output}"
+            f"{file_recommendation_prompt}\n\n{format_explanation}\n\n{tree_output}"
         )
 
-        # System prompt to enforce response format
-        dev_prompt = (
-            "Respond only with a list of files in the format get_files "
-            "['path/to/file.cpp', 'path/to/file2.json', ...] etc. "
-            "Do not include any other text or communication.\n\n"
-        )
+        # Get the system prompt to enforce response format
+        dev_prompt = PromptManager.load("files/get_files_format")
 
         # Create a temporary message list to avoid polluting the conversation
         temp_messages = [
-            {"role": "user", "content": recommendation_prompt},
-            {"role": "system", "content": dev_prompt}
+            {"role": "system", "content": dev_prompt},
+            {"role": "user", "content": recommendation_prompt}
         ]
 
         # Send the request to the LLM
