@@ -134,7 +134,8 @@ def generate_compact_tree(
         exclude_dirs = ['.git', '__pycache__', '.venv', 'venv', 'node_modules', '.idea', '.vscode']
 
     if exclude_files is None:
-        exclude_files = ['*.pyc', '*.pyo', '*~', '.DS_Store', 'Thumbs.db', '.env', '*.env']
+        exclude_files = ['*.pyc', '*.pyo', '*~', '.DS_Store', 'Thumbs.db', '.env', '*.env', '*filetree.txt',
+                         '*filecontext.md', '*.log', '*overview.md']
 
     if '.env' not in exclude_files:
         exclude_files.append('.env')
@@ -291,7 +292,8 @@ def generate_tree(
         exclude_dirs = ['.git', '__pycache__', '.venv', 'venv', 'node_modules', '.idea', '.vscode']
 
     if exclude_files is None:
-        exclude_files = ['*.pyc', '*.pyo', '*~', '.DS_Store', 'Thumbs.db', '.env', '*.env']
+        exclude_files = ['*.pyc', '*.pyo', '*~', '.DS_Store', 'Thumbs.db', '.env', '*.env', '*filetree.txt',
+                         '*filecontext.md', '*.log', '*overview.md']
 
     if '.env' not in exclude_files:
         exclude_files.append('.env')
