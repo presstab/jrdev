@@ -31,7 +31,8 @@ from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
                          handle_clearcontext, handle_clearmessages, handle_code,
                          handle_cost, handle_exit, handle_help, handle_init,
                          handle_model, handle_models, handle_process,
-                         handle_stateinfo, handle_tasks, handle_viewcontext)
+                         handle_projectcontext, handle_stateinfo, handle_tasks, 
+                         handle_viewcontext)
 
 # Cross-platform readline support
 try:
@@ -102,6 +103,9 @@ class JrDevTerminal:
         
         # Context list to store additional context files for the LLM
         self.context = []
+
+        # Use project overview, filetree, filecontext files in each request
+        self.use_project_context = True
         
         # Controls whether to process file requests and code changes
         self.process_follow_up = False
@@ -130,6 +134,7 @@ class JrDevTerminal:
             "/tasks": handle_tasks,
             "/cancel": handle_cancel,
             "/code": handle_code,
+            "/projectcontext": handle_projectcontext,
         }
 
         # Debug commands
@@ -314,8 +319,12 @@ class JrDevTerminal:
         file_content = ""
 
         # Append project context (will delete previous instances of it)
-        self.add_project_message()
-        project_message = self.get_project_message()
+        project_message = None
+        if self.use_project_context:
+            self.add_project_message()
+            project_message = self.get_project_message()
+        else:
+            self.remove_project_message()
 
         # Add any additional context files stored in self.context
         if self.context:
@@ -326,35 +335,40 @@ class JrDevTerminal:
 
         # Make a temp messages list for initial request to llm to analyze what this request needs
         messages = []
-        messages.append({"role": "user", "content": f"Supporting Context: {file_content}"})
+        if file_content != "":
+            messages.append({"role": "user", "content": f"Supporting Context: {file_content}"})
         if project_message is not None:
             messages.append(project_message)
         messages.append({"role": "user", "content": user_message})
 
         # Add first step to quickly identify if certain files should be included with this
-        dev_msg = (
-            """
-            Identify if the current supplied files are sufficient for an assistant to answer the users request. Try to match 
-             key words from the user's request to a specific related file. Questions about messaged history do not need a file attached. 
-             If you can not place a likely match, then reply only with "sufficient". Your job 
-            is solely to reply with "sufficient" or "insufficient" with a get files request in this format: 'get_files [\"path/to/file1.txt\", \"path/to/file2.cpp\", ...]'
-            """
-        )
-        messages.insert(0, {"role": "system", "content": dev_msg})
-        terminal_print(f"\nmistral-31-24b is interpreting request...", PrintType.PROCESSING)
-        needed_files_response = await stream_request(self, "mistral-31-24b", messages, print_stream=False)
+        files_to_send = None
+        if self.use_project_context:
+            dev_msg = (
+                """
+                Identify if the current supplied files are sufficient for an assistant to answer the users request. Try to match
+                 key words from the user's request to a specific related file. Questions about messaged history do not need a file attached.
+                 If you can not place a likely match, then reply only with "sufficient". Your job
+                is solely to reply with "sufficient" or "insufficient" with a get files request in this format: 'get_files [\"path/to/file1.txt\", \"path/to/file2.cpp\", ...]'
+                """
+            )
+            messages.insert(0, {"role": "system", "content": dev_msg})
+            terminal_print(f"\nmistral-31-24b is interpreting request...", PrintType.PROCESSING)
+            needed_files_response = await stream_request(self, "mistral-31-24b", messages, print_stream=False)
 
-        files_to_send = requested_files(needed_files_response)
+            files_to_send = requested_files(needed_files_response)
+
         if files_to_send:
             terminal_print(f"Adding files: {files_to_send}")
-        if len(files_to_send) > 0:
-            new_content = get_file_contents(files_to_send)
-            if len(new_content) > 0:
-                file_content = f"{file_content}\n{new_content}"
-                self.logger.info(f"Added content: {file_content}")
+            if len(files_to_send) > 0:
+                new_content = get_file_contents(files_to_send)
+                if len(new_content) > 0:
+                    file_content = f"{file_content}\n{new_content}"
+                    self.logger.info(f"Added content: {file_content}")
 
         # use model's message thread
-        self.add_message_history(f"Supporting Context: {file_content}")
+        if file_content != "":
+            self.add_message_history(f"Supporting Context: {file_content}")
         self.add_message_history(user_message)
 
         model_name = self.model

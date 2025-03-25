@@ -125,6 +125,12 @@ async def handle_help(terminal, args):
     )
     terminal_print(f" - View the LLM context window content")
     terminal_print(
+        f"  {format_command_with_args('/projectcontext', '<on/off>')}",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Toggle using project context in requests")
+    terminal_print(
         f"  /clearcontext",
         print_type=PrintType.COMMAND,
         end=""
