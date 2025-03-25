@@ -28,6 +28,7 @@ from jrdev.logger import setup_logger
 from jrdev.model_list import ModelList
 from jrdev.model_utils import load_hardcoded_models
 from jrdev.models import fetch_venice_models
+from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.ui.ui import terminal_print, PrintType
 
 # Cross-platform readline support
@@ -340,14 +341,8 @@ class JrDevTerminal:
         # Add first step to quickly identify if certain files should be included with this
         files_to_send = None
         if self.use_project_context:
-            dev_msg = (
-                """
-                Identify if the current supplied files are sufficient for an assistant to answer the users request. Try to match
-                 key words from the user's request to a specific related file. Questions about messaged history do not need a file attached.
-                 If you can not place a likely match, then reply only with "sufficient". Your job
-                is solely to reply with "sufficient" or "insufficient" with a get files request in this format: 'get_files [\"path/to/file1.txt\", \"path/to/file2.cpp\", ...]'
-                """
-            )
+            # Load the prompt using PromptManager
+            dev_msg = PromptManager.load("get_files_check")
             messages.insert(0, {"role": "system", "content": dev_msg})
             terminal_print(f"\nmistral-31-24b is interpreting request...", PrintType.PROCESSING)
             needed_files_response = await stream_request(self, "mistral-31-24b", messages, print_stream=False)

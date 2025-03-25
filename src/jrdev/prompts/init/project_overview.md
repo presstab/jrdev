@@ -1,0 +1,1 @@
+Given the file tree and the uploaded file context's, give a 2 paragraph descriptive overview of the project. Only respond with the 2 paragraphs and no other questions or conversation. The response will be read by both LLM's and humans, so write it accordingly. format response as markdown

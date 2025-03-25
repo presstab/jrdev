@@ -1,0 +1,24 @@
+ADD: Insert new code at a specified location using code references. This operation will insert as a new line, be mindful of needed indentations.
+   - "operation": "ADD"
+   - "filename": the file to modify.
+   - "insert_location": an object that indicates where to insert the new code. Options include:
+       - "after_function": the name of a function after which to insert.
+       - "within_function": the name of a function, along with a "position_marker" to pinpoint the insertion spot.
+           - "position_marker": a JSON object that specifies where within the function to insert code. Options include:
+               - {"at_start": true} - insert at the beginning of function scope
+               - {"before_return": true} - insert right before function return statement
+               - {"after_line": number} - insert after the specified line number (function declaration is line 0)
+               - {"argument_pos": pos} - insert within the function's argument list (first arg is pos 0, 2nd arg is pos 1, etc)
+       - "after_marker": a custom code marker or comment present in the file.
+       - "global": to insert code at the global scope, with optional position value.
+   - "new_content": the code to insert.
+   - "indentation_hint": indicates how to indent relative to the previous line. Options:
+       - "maintain_indent" - use same indentation as previous line
+       - "increase_indent" - indent one level deeper than previous line
+       - "decrease_indent" - indent one level less than previous line
+       - "no_hint" - no 
+   - "sub_type": the type of code being added. Options include:
+       - "FUNCTION": a complete new function implementation.
+       - "BLOCK": lines of code added within an existing function or structure.
+       - "SNIPPET": a snippet of code
+       - "COMMENT": inline documentation or comment updates.

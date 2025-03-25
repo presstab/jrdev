@@ -130,7 +130,7 @@ def get_file_contents(file_list):
                     with open(similar_file, "r") as f:
                         file_contents[file_path] = f.read()
                 else:
-                    terminal_print(f"Error reading file {file_path}: {str(e)}", PrintType.ERROR)
+                    terminal_print(f"Error reading file {file_path}: File not found", PrintType.ERROR)
         except Exception as e:
             terminal_print(f"Error reading file {file_path}: {str(e)}", PrintType.ERROR)
 

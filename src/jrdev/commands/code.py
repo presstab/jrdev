@@ -11,6 +11,7 @@ from typing import Any, List
 from jrdev.file_operations.process_ops import apply_file_changes
 from jrdev.file_utils import requested_files, get_file_contents, cutoff_string, manual_json_parse
 from jrdev.llm_requests import stream_request
+from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.ui.ui import terminal_print, PrintType
 
 
@@ -76,14 +77,8 @@ async def send_code_request(terminal: Any, user_task: str):
             terminal.logger.warning(warning_msg)
             terminal_print(f"Warning: {warning_msg}", PrintType.WARNING)
 
-    # Build the complete message
-    dev_prompt_modifier = (
-        "You are an expert software architect and engineer reviewing an attached project. An engineer from the project is asking for guidance on how to complete a specific task. Begin by providing a high-level analysis of the task, outlining the necessary steps and strategy without including any code changes. "
-        "**CRITICAL:** Do not propose any code modifications until you have received and reviewed the full content of the relevant file(s). If the file content is not yet in your context, request it using the exact format: "
-        "'get_files [\"path/to/file1.txt\", \"path/to/file2.cpp\", ...]'. This is your one chance to request files, so be sure to get all files that will be "
-        "needed to successfully complete the task. If this appears to be a language that has headers and source files (C++, etc), request both header and source."
-        "Only after the complete file content is available should you suggest code changes."
-    )
+    # Load prompt using PromptManager
+    dev_prompt_modifier = PromptManager.load("analyze_task_return_getfiles")
 
     user_additional_modifier = " Here is the task to complete:"
     user_message = f"{user_additional_modifier} {user_task}"
@@ -146,14 +141,8 @@ async def double_check_changed_files(terminal, filelist):
     # Get the content of all changed files
     files_content = get_file_contents(filelist)
 
-    validation_prompt = (
-        "You are a code validator. Review the following file(s) that were just modified "
-        "and check if they are properly formatted and not malformed. "
-        "ONLY respond with 'VALID' if all files look correct, or 'INVALID: [filename][reason], [file2name][reason2]' if any file appears malformed. "
-        "Be strict about syntax errors, indentation problems, unclosed brackets/parentheses, "
-        "and other issues that would cause runtime errors. "
-        "Keep your response to a single line."
-    )
+    # Load validation prompt
+    validation_prompt = PromptManager.load("validator")
 
     # Create a temporary messages array for this request only
     validation_messages = [
@@ -353,96 +342,18 @@ async def parse_steps(steps_text, filelist):
     return steps_json
 
 
-operation_promts = {
-    "DELETE": (
-        """
-        DELETE: Remove existing code using code references rather than line numbers.
-           - "operation": "DELETE"
-           - "filename": the file to modify.
-           - "target": an object specifying what to delete. It may include:
-               - "function": the name of a function to delete.
-               - "block": a block within a function, identified by the function name and a "position_marker" (e.g., "before_return", "after_variable_declaration").
-        """
-    ),
-    "ADD": (
-        """
-        ADD: Insert new code at a specified location using code references. This operation will insert as a new line, be mindful of needed indentations.
-           - "operation": "ADD"
-           - "filename": the file to modify.
-           - "insert_location": an object that indicates where to insert the new code. Options include:
-               - "after_function": the name of a function after which to insert.
-               - "within_function": the name of a function, along with a "position_marker" to pinpoint the insertion spot.
-                   - "position_marker": a JSON object that specifies where within the function to insert code. Options include:
-                       - {"at_start": true} - insert at the beginning of function scope
-                       - {"before_return": true} - insert right before function return statement
-                       - {"after_line": number} - insert after the specified line number (function declaration is line 0)
-                       - {"argument_pos": pos} - insert within the function's argument list (first arg is pos 0, 2nd arg is pos 1, etc)
-               - "after_marker": a custom code marker or comment present in the file.
-               - "global": to insert code at the global scope, with optional position value.
-           - "new_content": the code to insert.
-           - "indentation_hint": indicates how to indent relative to the previous line. Options:
-               - "maintain_indent" - use same indentation as previous line
-               - "increase_indent" - indent one level deeper than previous line
-               - "decrease_indent" - indent one level less than previous line
-               - "no_hint" - no 
-           - "sub_type": the type of code being added. Options include:
-               - "FUNCTION": a complete new function implementation.
-               - "BLOCK": lines of code added within an existing function or structure.
-               - "SNIPPET": a snippet of code
-               - "COMMENT": inline documentation or comment updates.
-        """
-    ),
-    "REPLACE": (
-        """
-        REPLACE: Replace an existing code block with new content.
-           - "operation": "REPLACE"
-           - "filename": the file to modify.
-           - "target_type": the type of code to be replaced. Options include:
-               - "FUNCTION": the entire function implementation.
-               - "BLOCK": a specific block of code within a function.
-               - "SIGNATURE": the function's declaration (parameters, return type, etc.).
-               - "COMMENT": inline documentation or comment section.
-           - "target_reference": an object that specifies the location of the code to be replaced.
-                - function_name - name of the function
-                - code_snippet (optional) - exact string match that should be removed.
-           - "new_content": the replacement code.
-        """
-    ),
-    "RENAME": (
-        """
-        RENAME: Change the name of an identifier and update its references.
-           - "filename": the file to modify.
-           - "operation": "RENAME"
-           - "target_type": the type of identifier (e.g., "FUNCTION", "CLASS", "VARIABLE").
-           - "old_name": the current name.
-           - "new_name": the new name.
-           - "update_references": (optional) a boolean indicating whether to update all occurrences of the identifier.
-        """
-    ),
-    "NEW": (
-        """
-        NEW: Create a new file.
-           - "operation": "NEW"
-           - "filename": the path of the new file to create.
-           - "new_content": the entire content of the new file.
-        """
-    )
-}
+def get_operation_prompt(op_type):
+    """Load operation prompt from markdown file"""
+    return PromptManager.load(f"operations/{op_type.lower()}")
 
 
 async def request_code(terminal, change_instruction, file, additional_prompt=None):
     op_type = change_instruction["operation_type"]
-    operation_prompt = operation_promts[op_type]
-    dev_msg = (
-        f"""
-        You are an expert software engineer and code reviewer and have been tasked with a simple one step operation. 
-        Format your response as a JSON object with a "changes" key that contains an array of modifications. You may only 
-        use the following operation to complete the task: {operation_prompt}
-        
-        Wrap your response in ```json and ``` markers. Use \\n for line breaks in new_content. 
-        Do not include any additional commentary or explanation outside the JSON.
-        """
-    )
+    operation_prompt = get_operation_prompt(op_type)
+    
+    # Load implement_step prompt template and replace {operation_prompt} placeholder
+    dev_msg_template = PromptManager.load("implement_step")
+    dev_msg = dev_msg_template.replace("{operation_prompt}", operation_prompt)
 
     prompt = (
         f"""
@@ -476,27 +387,8 @@ async def send_file_request(terminal, files_to_send, user_task, assistant_plan =
 
     files_content = get_file_contents(files_to_send)
 
-    dev_msg = (
-        """
-        Instructions:
-        You are a professor of computer science, currently teaching a basic CS1000 course to some new students with 
-        little experience programming. The requested task is one that will be given to the students.
-        CRITICAL: Do not provide any code for the students, only textual aide. 
-        
-        Generate a plan of discrete steps. The plan must be formatted as a numbered list where each step corresponds to a single operation (ADD, DELETE, REPLACE, 
-        RENAME, or NEW). Each step should be self-contained and include:
-
-        - The operation type.
-        - Filename
-        - The target location or reference (such as a function name, marker, or global scope).
-        - A brief description of the intended change.
-    
-        Ensure that a student can follow each step independently. Provide only the plan in your response, with no 
-        additional commentary or extraneous information. Some tasks for the students may be doable in a single step.
-        
-        The response should be in json format example: {"steps": [{"operation_type": "ADD", "filename": "src/test_file.py", "target_location": "after function X scope end", "description": "Adjust the code so that it prints hello world"}]}
-        """
-    )
+    # Load create_steps prompt
+    dev_msg = PromptManager.load("create_steps")
 
     #construct and send message to LLM
     messages = []
