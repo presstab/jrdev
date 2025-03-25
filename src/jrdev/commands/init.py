@@ -8,8 +8,9 @@ import os
 from typing import List, Optional, Any, Dict
 
 
-from jrdev.file_utils import requested_files, JRDEV_DIR
+from jrdev.file_utils import find_similar_file, pair_header_source_files, requested_files, JRDEV_DIR
 from jrdev.llm_requests import stream_request
+from jrdev.languages.utils import detect_language, is_headers_language
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.treechart import generate_compact_tree
 from jrdev.ui.ui import terminal_print, PrintType
@@ -21,7 +22,7 @@ context_file_lock = asyncio.Lock()
 
 async def get_file_summary(
     terminal: Any,
-    file_path: str,
+    file_path: Any,
     context_file_path: str,
     additional_context: Optional[List[str]] = None
 ) -> Optional[str]:
@@ -30,7 +31,7 @@ async def get_file_summary(
 
     Args:
         terminal: The JrDevTerminal instance
-        file_path: Path to the file to analyze
+        file_path: Path to the file to analyze. This may also be a list of file paths
         context_file_path: Path to the context file to append analysis
         additional_context: Optional additional context for the LLM
 
@@ -40,35 +41,46 @@ async def get_file_summary(
     if additional_context is None:
         additional_context = []
     current_dir = os.getcwd()
-    full_path = os.path.join(current_dir, file_path)
-    if not os.path.exists(full_path):
-        terminal_print(f"\nFile not found: {file_path}", PrintType.ERROR)
-        # Update the context file safely with a lock
-        async with context_file_lock:
-            with open(context_file_path, "a") as context_file:
-                context_file.write(f"\n## {file_path}\n\n")
-                context_file.write("Error: File not found\n\n")
-        return None
+
+    files = file_path
+    if not isinstance(file_path, list):
+        files = [file_path]
 
     # Read the file content
     try:
-        with open(full_path, "r") as f:
-            file_content = f.read()
 
-        # Limit file size
-        if len(file_content) > 1000*1024:
-            terminal_print(
-                f"File {full_path} is too large to send",
-                PrintType.WARNING
-            )
-            return None
+        full_content = ""
+        for file in files:
+            # check existence
+            full_path = os.path.join(current_dir, file)
+            if not os.path.exists(full_path):
+                terminal_print(f"\nFile not found: {file}", PrintType.ERROR)
+                # Update the context file safely with a lock
+                async with context_file_lock:
+                    with open(context_file_path, "a") as context_file:
+                        context_file.write(f"\n## {file}\n\n")
+                        context_file.write("Error: File not found\n\n")
+                return None
+
+            with open(full_path, "r") as f:
+                file_content = f.read()
+
+            # Limit file size
+            if len(file_content) > 1000*1024:
+                terminal_print(
+                    f"File {full_path} is too large to send",
+                    PrintType.WARNING
+                )
+                return None
+
+            full_content += f"{file_content}"
 
         # Get prompt from the prompt manager
         text_prompt = PromptManager.load("file_analysis")
 
         # Create a new chat thread for each file
         temp_messages: List[Dict[str, str]] = [
-            {"role": "user", "content": file_content},
+            {"role": "user", "content": full_content},
             {"role": "system", "content": text_prompt}
         ]
         if len(additional_context) > 0:
@@ -80,8 +92,6 @@ async def get_file_summary(
             f"Waiting for LLM analysis of {file_path}...",
             PrintType.PROCESSING
         )
-
-        # No need to print the file content when doing concurrent analysis
 
         # Send the request to the LLM
         file_analysis = await stream_request(
@@ -178,13 +188,38 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                 terminal, terminal.model, temp_messages
             )
 
-            # Print the LLM's response
-            terminal_print("\nLLM File Recommendations:", PrintType.HEADER)
-            terminal_print(recommendation_response, PrintType.INFO)
-
             # Parse the file list from the response
             try:
                 recommended_files = requested_files(recommendation_response)
+
+                # Check that each file exists
+                cleaned_file_list = []
+                uses_headers = False
+                for file_path in recommended_files:
+                    lang = detect_language(file_path)
+                    if is_headers_language(lang):
+                        uses_headers = True
+
+                    if os.path.exists(file_path) and os.path.isfile(file_path):
+                        cleaned_file_list.append(file_path)
+                    else:
+                        similar_file = find_similar_file(file_path)
+                        if similar_file:
+                            cleaned_file_list.append(similar_file)
+                        else:
+                            terminal_print(f"Failed to find file {file_path}", PrintType.ERROR)
+
+                if not cleaned_file_list:
+                    raise FileNotFoundError("No get_files in init request")
+
+                # pair headers and source files if applicable
+                if uses_headers:
+                    cleaned_file_list = pair_header_source_files(cleaned_file_list)
+
+                # Print the LLM's response
+                terminal_print("\nLLM File Recommendations:", PrintType.HEADER)
+                terminal_print(cleaned_file_list, PrintType.INFO)
+
                 terminal_print(
                     f"requesting {len(recommended_files)} files",
                     PrintType.PROCESSING
@@ -202,20 +237,24 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                 with open(context_file_path, "w") as context_file:
                     context_file.write("# Project Context Analysis\n\n")
                     context_file.write(
-                        f"Files analyzed: {len(recommended_files)}\n\n"
+                        f"Files analyzed: {len(cleaned_file_list)}\n\n"
                     )
 
                 # Process all recommended files concurrently
                 terminal_print(
-                    f"\nAnalyzing {len(recommended_files)} files concurrently...",
+                    f"\nAnalyzing {len(cleaned_file_list)} files concurrently...",
                     PrintType.PROCESSING
                 )
 
                 async def analyze_file(index: int, file_path: str) -> Optional[str]:
                     """Helper function to analyze a single file."""
+                    # prevent rate limits
+                    if index > 0 and index % 5 == 0:
+                        await asyncio.sleep(2)  # Sleep for 1.5 second
+
                     terminal_print(
                         f"Starting analysis for file {index + 1}/"
-                        f"{len(recommended_files)}: {file_path}",
+                        f"{len(cleaned_file_list)}: {file_path}",
                         PrintType.PROCESSING
                     )
                     result = await get_file_summary(
@@ -223,7 +262,7 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                     )
                     terminal_print(
                         f"Completed analysis for file {index + 1}/"
-                        f"{len(recommended_files)}: {file_path}",
+                        f"{len(cleaned_file_list)}: {file_path}",
                         PrintType.SUCCESS
                     )
                     return result
@@ -231,7 +270,7 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                 # Create tasks for all files
                 tasks = [
                     analyze_file(i, file_path)
-                    for i, file_path in enumerate(recommended_files)
+                    for i, file_path in enumerate(cleaned_file_list)
                 ]
 
                 # Wait for all tasks to complete

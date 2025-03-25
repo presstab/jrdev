@@ -113,6 +113,31 @@ def find_similar_file(file_path):
     return None
 
 
+def pair_header_source_files(file_list):
+    # Create a dictionary to store bases and their corresponding files
+    base_to_files = {}
+
+    # Process each file in the list
+    for file in file_list:
+        # Extract just the filename without path
+        file_name = file.split('/')[-1].split('\\')[-1]
+
+        # Get the base name (without extension)
+        base = file_name.rsplit('.', 1)[0]
+
+        # Add to the dictionary
+        if base not in base_to_files:
+            base_to_files[base] = []
+        base_to_files[base].append(file)
+
+    # Create the paired list
+    paired_list = []
+    for base, files in base_to_files.items():
+        paired_list.append(files)
+
+    return paired_list
+
+
 def get_file_contents(file_list):
     """
     Reads the contents of a list of files. If a file doesn't exist, it attempts to find a similar file.
