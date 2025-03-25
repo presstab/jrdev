@@ -17,9 +17,6 @@ from jrdev.tts import generate_audio, play_audio, play_narration
 # Create an asyncio lock for safe file access
 context_file_lock = asyncio.Lock()
 
-# Create an asyncio lock for audio generation
-audio_lock = asyncio.Lock()
-
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
 

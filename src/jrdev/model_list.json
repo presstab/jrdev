@@ -112,5 +112,13 @@
             "output_cost": 0,
             "context_tokens": 131072
         }
+    ],
+    "tts_voices": [
+        {
+            "model": "tts-kokoro",
+            "voice": "af_aoede",
+            "speed": 1.1,
+            "description": "Female voice with neutral tone"
+        }
     ]
 }
