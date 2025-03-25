@@ -29,7 +29,8 @@ async def handle_cost(terminal: Any, cmd_parts: List[str]) -> None:
     costs_by_model: Dict[str, Dict[str, Any]] = {}
     
     for model, tokens in usage_data.items():
-        model_cost = cast(Dict[str, float], get_model_cost(model))
+        available_models = terminal.model_list.get_model_list()
+        model_cost = cast(Dict[str, float], get_model_cost(model, available_models))
         if not model_cost:
             terminal_print(f"Warning: No cost data available for model {model}", PrintType.WARNING)
             continue
