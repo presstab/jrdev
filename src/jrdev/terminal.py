@@ -141,6 +141,16 @@ class JrDevTerminal:
 
         # Set up readline for command history
         self.history_file = os.path.expanduser("~/.jrdev_history")
+        
+        # Ensure the history file exists
+        if not os.path.exists(self.history_file):
+            try:
+                with open(self.history_file, 'w') as f:
+                    pass  # Create empty file
+                self.logger.info(f"Created history file: {self.history_file}")
+            except Exception as e:
+                self.logger.error(f"Failed to create history file: {e}")
+        
         self.setup_readline()
 
         # setup initial models
@@ -450,7 +460,7 @@ class JrDevTerminal:
                     # If there are multiple matches and this is the first time showing them (state == 0)
                     if len(matches) > 1 and state == 0:
                         # Print a newline to start the completions on a fresh line
-                        print("\n")
+                        print("\033[2K\n")
 
                         # Print all matches in columns
                         terminal_width = os.get_terminal_size().columns
@@ -521,7 +531,7 @@ class JrDevTerminal:
                             # If there are multiple matches and this is the first time showing them (state == 0)
                             if len(matches) > 1 and state == 0:
                                 # Print a newline to start the completions on a fresh line
-                                print("\n")
+                                print("\033[2K\n")
 
                                 # Print all matches in columns (we could get fancy with column formatting, but keeping it simple)
                                 terminal_width = os.get_terminal_size().columns
@@ -560,7 +570,7 @@ class JrDevTerminal:
                 # If there are multiple matches and this is the first time showing them (state == 0)
                 if len(matches) > 1 and state == 0:
                     # Print a newline to start the completions on a fresh line
-                    print("\n")
+                    print("\033[2K\n")
 
                     # Print all matches in columns
                     terminal_width = os.get_terminal_size().columns
@@ -620,9 +630,10 @@ class JrDevTerminal:
             # Initial history load
             if os.path.exists(self.history_file):
                 readline.read_history_file(self.history_file)
-
-            # Disable any pre-input hooks to avoid interference
-            readline.set_pre_input_hook(None)
+            
+            # Refresh display if needed
+            if hasattr(readline, 'redisplay'):
+                readline.redisplay()
 
             if hasattr(readline, 'set_screen_size'):
                 try:
@@ -640,9 +651,8 @@ class JrDevTerminal:
             return
 
         try:
-            # Simply add to history and write to file
-            # We're managing duplicates with our custom input approach
-            readline.add_history(input_text)
+            # Just write to history file
+            # Don't add to in-memory history as input() already does this
             readline.write_history_file(self.history_file)
         except Exception as e:
             self.logger.error(f"Error saving history: {str(e)}")
@@ -651,23 +661,17 @@ class JrDevTerminal:
     async def get_user_input(self):
         """Get user input with proper line wrapping using asyncio to prevent blocking the event loop."""
         # We'll use a standard prompt and rely on Python's built-in input handling
-        prompt = f"\n{Colors.BOLD}{Colors.GREEN}> {Colors.RESET}"
+        prompt = f"\n\001{Colors.BOLD}{Colors.GREEN}\002> \001{Colors.RESET}\002"
 
         # Use a clean approach to avoid history issues
         def read_input():
             if not READLINE_AVAILABLE:
                 return input(prompt)
 
-            # First clear any pending history operations
-            readline.clear_history()
-
-            # Re-read the history file to restore genuine history
-            if os.path.exists(self.history_file):
-                try:
-                    readline.read_history_file(self.history_file)
-                except Exception as e:
-                    self.logger.debug(f"Non-critical history file read error: {str(e)}")
-
+            # Refresh display to ensure proper cursor state
+            if hasattr(readline, 'redisplay'):
+                readline.redisplay()
+                
             # Use the standard input with proper prompt
             try:
                 # Use the standard prompt-with-input approach
@@ -677,6 +681,7 @@ class JrDevTerminal:
                 print("\n")
                 return ""
             except EOFError:
+                readline.clear_history()  # Add history cleanup on EOF
                 print("\n")
                 return ""
 
@@ -691,13 +696,20 @@ class JrDevTerminal:
             # Readline will use this width for wrapping
             if READLINE_AVAILABLE and hasattr(readline, 'set_screen_size'):
                 readline.set_screen_size(100, available_width)
+                
+            # Set up completion display hooks if available
+            if READLINE_AVAILABLE and hasattr(readline, 'set_completion_display_matches_hook'):
+                def hook(substitution, matches, longest_match_length):
+                    print("\033[2K", end="")  # Clear line before showing matches
+                readline.set_completion_display_matches_hook(hook)
 
         except Exception as e:
             self.logger.error(f"Error setting up input dimensions: {str(e)}")
 
-        # Use asyncio.to_thread to run our input function in a separate thread
-        # This prevents blocking the event loop, allowing background tasks to run
-        return await asyncio.to_thread(read_input)
+        # Use a less intrusive approach with asyncio to get input
+        # This should help preserve readline's state better
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, read_input)
 
     async def task_monitor_callback(self):
         """Periodic callback to check on background tasks and handle any completed ones."""
@@ -758,7 +770,8 @@ class JrDevTerminal:
                 # Brief yield to the event loop to allow background tasks to progress
                 await asyncio.sleep(0.01)
 
-                # Save to history only if it's not empty
+                # We no longer need to explicitly add to history since input() handles it
+                # Just save to history file if it's not empty
                 if user_input.strip():
                     self.save_history(user_input)
 
