@@ -1,7 +1,7 @@
 import logging
 
-from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.file_operations.find_function import find_function
+from jrdev.ui.ui import terminal_print, PrintType
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")

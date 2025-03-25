@@ -1,10 +1,8 @@
 import logging
-import re
 
-from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.languages import get_language_for_file
 from jrdev.languages.utils import detect_language
-
+from jrdev.ui.ui import terminal_print, PrintType
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")

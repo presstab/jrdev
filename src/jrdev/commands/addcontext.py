@@ -3,8 +3,8 @@
 """
 AddContext command implementation for the JrDev terminal.
 """
-import os
 import glob
+import os
 
 from jrdev.ui.ui import terminal_print, PrintType
 
@@ -24,10 +24,10 @@ async def handle_addcontext(terminal, args):
 
     file_pattern = args[1]
     current_dir = os.getcwd()
-    
+
     # Use glob to find matching files
     matching_files = glob.glob(os.path.join(current_dir, file_pattern), recursive=True)
-    
+
     # Also try a direct path match if glob didn't find anything (for files without wildcards)
     if not matching_files and not any(c in file_pattern for c in ['*', '?', '[']):
         full_path = os.path.join(current_dir, file_pattern)
@@ -41,7 +41,7 @@ async def handle_addcontext(terminal, args):
 
     # Filter to regular files only (not directories)
     matching_files = [f for f in matching_files if os.path.isfile(f)]
-    
+
     if not matching_files:
         terminal_print(f"Error: No files (non-directories) found matching pattern: {file_pattern}", PrintType.ERROR)
         return
@@ -49,12 +49,12 @@ async def handle_addcontext(terminal, args):
     # Process each matching file
     files_added = 0
     files_skipped = 0
-    
+
     for full_path in matching_files:
         try:
             # Get the relative path for display
             rel_path = os.path.relpath(full_path, current_dir)
-            
+
             # Read the file content
             with open(full_path, "r") as f:
                 file_content = f.read()
@@ -70,14 +70,14 @@ async def handle_addcontext(terminal, args):
                 "name": rel_path,
                 "content": file_content
             })
-            
+
             terminal_print(f"Added: {rel_path}", PrintType.SUCCESS)
             files_added += 1
-            
+
         except Exception as e:
             terminal_print(f"Error adding file {full_path}: {str(e)}", PrintType.ERROR)
             files_skipped += 1
-    
+
     if files_added > 0:
         terminal_print(f"Added {files_added} file(s) to context", PrintType.SUCCESS)
         if files_skipped > 0:

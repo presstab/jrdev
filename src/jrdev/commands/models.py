@@ -3,8 +3,7 @@
 """
 Models command implementation for the JrDev terminal.
 """
-import os
-from typing_extensions import Any, List, TypedDict, cast, Optional
+from typing_extensions import Any, List, TypedDict
 
 # Import curses with Windows compatibility
 try:
@@ -14,7 +13,6 @@ except ImportError:
     curses = None
     CURSES_AVAILABLE = False
 
-from jrdev.model_utils import VCU_Value
 from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.ui.model_selector import interactive_model_selector, text_based_model_selector
 from pydantic import parse_obj_as
@@ -41,14 +39,14 @@ async def handle_models(terminal: Any, args: List[str]) -> None:
 
     # Get all models
     models_list = terminal.get_models()
-    
+
     # Sort models first by provider, then by name alphabetically
     models = parse_obj_as(List[ModelInfo], models_list)
     sorted_models = sorted(
         models,
         key=lambda model: (model["provider"], model["name"])
     )
-    
+
     # Use curses-based interactive selector if available, otherwise use text-based selector
     if CURSES_AVAILABLE and not (len(args) > 1 and args[1] == "--no-curses"):
         try:
@@ -57,7 +55,7 @@ async def handle_models(terminal: Any, args: List[str]) -> None:
                 terminal,
                 sorted_models
             )
-            
+
             if selected_model:
                 # User selected a model
                 terminal.model = selected_model

@@ -3,6 +3,7 @@ Command implementations for the JrDev terminal.
 """
 
 import os
+
 from jrdev.commands.addcontext import handle_addcontext
 from jrdev.commands.asyncsend import handle_asyncsend
 from jrdev.commands.cancel import handle_cancel

@@ -5,9 +5,8 @@ Tasks command implementation for the JrDev terminal.
 Lists all active asynchronous tasks.
 """
 
-from typing import Any, List
 import asyncio
-import time
+from typing import Any, List
 
 from jrdev.ui.ui import terminal_print, PrintType
 
@@ -23,18 +22,18 @@ async def handle_tasks(terminal: Any, args: List[str]) -> None:
     if not terminal.active_tasks:
         terminal_print("No active background tasks.", print_type=PrintType.INFO)
         return
-    
+
     terminal_print("\nActive Background Tasks:", print_type=PrintType.HEADER)
-    
+
     current_time = asyncio.get_event_loop().time()
     for task_id, task_info in terminal.active_tasks.items():
         # Calculate how long the task has been running
         elapsed = current_time - task_info["timestamp"]
         elapsed_str = format_time(elapsed)
-        
+
         # Display task information
         terminal_print(f"  Task #{task_id} ({elapsed_str})", print_type=PrintType.INFO)
-        
+
         if task_info["type"] == "file_response":
             terminal_print(f"    Type: Response → File", print_type=PrintType.INFO)
             terminal_print(f"    Path: {task_info['path']}", print_type=PrintType.INFO)

@@ -4,9 +4,9 @@
 UI utilities for JrDev terminal interface.
 """
 
-import threading
 import logging
 import platform
+import threading
 from enum import Enum, auto
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -101,7 +101,7 @@ def terminal_print(
     if threading.current_thread() is not threading.main_thread():
         # Not in main thread, log the message instead
         logger = logging.getLogger("jrdev")
-        
+
         # Determine log level based on print_type
         if print_type == PrintType.ERROR:
             logger.error(message)
@@ -123,14 +123,14 @@ def terminal_print(
 def display_diff(diff_lines: List[str]) -> None:
     """
     Display a unified diff to the terminal with color-coded additions and deletions.
-    
+
     Args:
         diff_lines: List of lines from a unified diff
     """
     if not diff_lines:
         terminal_print("No changes detected in file content.", PrintType.WARNING)
         return
-    
+
     terminal_print("File changes diff:", PrintType.HEADER)
     for line in diff_lines:
         if line.startswith('+'):
@@ -145,10 +145,10 @@ def prompt_for_confirmation(prompt_text: str = "Apply these changes?") -> Tuple[
     """
     Prompt the user for confirmation with options to apply, reject, request changes,
     or edit the changes in a text editor.
-    
+
     Args:
         prompt_text: The text to display when prompting the user
-        
+
     Returns:
         Tuple of (response, message):
             - response: 'yes', 'no', 'request_change', or 'edit'

@@ -1,8 +1,8 @@
 import re
 import time
-from jrdev.colors import Colors
-from jrdev.ui.ui import terminal_print, PrintType
+
 from jrdev.model_utils import is_think_model
+from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.usage import get_instance
 
 
@@ -25,18 +25,18 @@ def is_inside_think_tag(text):
 async def stream_request(terminal, model, messages, print_stream=True):
     # Start timing the response
     start_time = time.time()
-    
+
     # Determine which client to use based on the model provider
     client = None
     model_provider = None
-    
+
     # Find the model in AVAILABLE_MODELS
     available_models = terminal.get_models()
     for entry in available_models:
         if entry["name"] == model:
             model_provider = entry["provider"]
             break
-    
+
     # Select the appropriate client based on provider
     if model_provider == "venice":
         client = terminal.venice_client
@@ -46,7 +46,7 @@ async def stream_request(terminal, model, messages, print_stream=True):
             raise ValueError(f"OpenAI API key not configured but model {model} requires it")
     else:
         raise ValueError(f"Unknown provider for model {model}")
-    
+
     # Create a streaming completion
     if model_provider == "openai":
         if model == "o3-mini":
@@ -116,15 +116,15 @@ async def stream_request(terminal, model, messages, print_stream=True):
             # print(chunk.usage.completion_tokens)
             input_tokens = chunk.usage.prompt_tokens
             output_tokens = chunk.usage.completion_tokens
-            
+
             # Calculate elapsed time
             end_time = time.time()
             elapsed_time = end_time - start_time
             elapsed_seconds = round(elapsed_time, 2)
-            
+
             if print_stream:
                 terminal_print(f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens} | Response Time: {elapsed_seconds}s", PrintType.WARNING)
-            
+
             # Track token usage
             usage_tracker = get_instance()
             await usage_tracker.add_use(model, input_tokens, output_tokens)
