@@ -112,6 +112,7 @@ The application demonstrates a solid architectural foundation but...
 #### Context Control
 - `/addcontext <file_path or pattern>` - Add file(s) to the LLM context window
 - `/viewcontext [number]` - View the LLM context window content
+- `/projectcontext <on/off>` - Toggle using project context in requests
 - `/clearcontext` - Clear context and conversation history
 - `/clearmessages` - Clear message history for all models
 - `/stateinfo` - Display terminal state information
