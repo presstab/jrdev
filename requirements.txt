@@ -3,3 +3,4 @@ python-dotenv
 pyreadline3; platform_system=='Windows'
 windows-curses; platform_system=='Windows'
 colorama; platform_system=='Windows'
+playsound==1.2.2

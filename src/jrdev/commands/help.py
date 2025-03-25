@@ -65,11 +65,11 @@ async def handle_help(terminal, args):
     )
     terminal_print(f" - List all available models")
     terminal_print(
-        f"  /init",
+        f"  {format_command_with_args('/init', '[--narrate|-n]')}",
         print_type=PrintType.COMMAND,
         end=""
     )
-    terminal_print(f" - Index important project files and familiarize LLM with project")
+    terminal_print(f" - Index important project files and familiarize LLM with project (--narrate for audio feedback)")
 
     # Add experimental tag to code command with green color
     exp_tag = f"{COLORS['RESET']}{COLORS['BRIGHT_GREEN']}(WIP){FORMAT_MAP[PrintType.COMMAND]}"
