@@ -1,7 +1,6 @@
 import os
-import signal
 import platform
-import sys
+import signal
 from typing import List
 
 # Import curses with Windows compatibility
@@ -28,7 +27,7 @@ def disable_flow_control():
 def curses_editor(content: List[str]) -> List[str]:
     """
     A simple curses-based text editor for editing content in the terminal.
-    
+
     Features:
     - Shows the full file content with diff markers, not just a diff snippet
     - Lines are displayed with markers to indicate changes:
@@ -50,9 +49,9 @@ def curses_editor(content: List[str]) -> List[str]:
       - W/S keys move selected lines up/down
       - A/D keys decrease/increase indentation
       - Cancel selection with Esc
-    
+
     Args:
-        content: List of strings representing each line of content to edit, 
+        content: List of strings representing each line of content to edit,
                 with diff markers (' ', '+', '-') at the beginning of each line
 
     Returns:
@@ -63,7 +62,7 @@ def curses_editor(content: List[str]) -> List[str]:
         print("Error: The curses library is not available.")
         print("On Windows, install the windows-curses package: pip install windows-curses")
         return content
-        
+
     result = content.copy()  # Initialize with original content so we return this if no edits made
 
     def signal_handler(sig, frame):
@@ -159,11 +158,11 @@ def curses_editor(content: List[str]) -> List[str]:
                     current_status = "MOVE MODE | ↑↓: Move Lines | ←→: Adjust Indentation | Ctrl+A: Select Lines | Ctrl+O: Exit Move Mode"
                 else:
                     current_status = status_message
-                
+
                 # Add file position indicator
                 position_info = f" | Line {current_line+1}/{len(lines)} | "
                 current_status += position_info
-                
+
                 if curses.has_colors():
                     stdscr.addstr(height-1, 0, current_status.ljust(width)[:width-1],
                                  curses.color_pair(3))
@@ -198,7 +197,7 @@ def curses_editor(content: List[str]) -> List[str]:
                         selected_lines.clear()
                         selection_start = None
                     continue
-                
+
                 # Universal control keys (work in both modes)
                 if key == ord('s') - 96 or key == ord('S') - 64:  # Ctrl+S to save
                     result = lines
@@ -217,14 +216,14 @@ def curses_editor(content: List[str]) -> List[str]:
                     stdscr.nodelay(False)
                     if n == -1:  # No other key, just ESC
                         return
-                
+
                 # Handle mode-specific keys
                 elif move_mode:
                     # Only affect lines that start with '+'
                     is_added_line = False
                     if 0 <= current_line < len(lines) and lines[current_line].startswith('+'):
                         is_added_line = True
-                    
+
                     # Enter selection mode with Ctrl+A
                     if key == ord('a') - 96 or key == ord('A') - 64:  # Ctrl+A to start selection
                         # Only allow selection mode if we're on an added line
@@ -232,14 +231,14 @@ def curses_editor(content: List[str]) -> List[str]:
                             selection_mode = True
                             selection_start = current_line
                             selected_lines = {current_line}
-                    
+
                     # Selection mode handling
                     elif selection_mode:
                         if key == 27:  # ESC - cancel selection
                             selection_mode = False
                             selected_lines.clear()
                             selection_start = None
-                        
+
                         elif (key == curses.KEY_UP) and current_line > 0:
                             # Move selection cursor up and update selection range
                             current_line -= 1
@@ -250,9 +249,9 @@ def curses_editor(content: List[str]) -> List[str]:
                                     start = min(selection_start, current_line)
                                     end = max(selection_start, current_line)
                                     # Update selected lines
-                                    selected_lines = {i for i in range(start, end + 1) 
+                                    selected_lines = {i for i in range(start, end + 1)
                                                     if 0 <= i < len(lines) and lines[i].startswith('+')}
-                        
+
                         elif (key == curses.KEY_DOWN) and current_line < len(lines) - 1:
                             # Move selection cursor down and update selection range
                             current_line += 1
@@ -263,38 +262,38 @@ def curses_editor(content: List[str]) -> List[str]:
                                     start = min(selection_start, current_line)
                                     end = max(selection_start, current_line)
                                     # Update selected lines
-                                    selected_lines = {i for i in range(start, end + 1) 
+                                    selected_lines = {i for i in range(start, end + 1)
                                                     if 0 <= i < len(lines) and lines[i].startswith('+')}
-                            
+
                         elif key == ord('a') or key == ord('A'):  # 'a' key - Decrease indent (outdent)
                             if selected_lines:
                                 for idx in selected_lines:
                                     if lines[idx].startswith('+') and lines[idx][1:].startswith(' '):
                                         lines[idx] = lines[idx][0] + lines[idx][2:]
-                        
+
                         elif key == ord('d') or key == ord('D'):  # 'd' key - Increase indent
                             if selected_lines:
                                 for idx in selected_lines:
                                     if lines[idx].startswith('+'):
                                         lines[idx] = lines[idx][0] + ' ' + lines[idx][1:]
-                        
+
                         elif key == ord('w') or key == ord('W'):  # 'w' key - Move selection up
                             if selected_lines:
                                 # Sort selected lines
                                 selected_indices = sorted(selected_lines)
-                                
+
                                 # Move lines as a block up
                                 if min(selected_indices) > 1:
                                     # Move entire block up
                                     target_index = min(selected_indices) - 1
                                     # Check if target is a '+' line or not
                                     if not lines[target_index].startswith('+'):
-                                        # Find the next '+' line above 
+                                        # Find the next '+' line above
                                         for i in range(target_index, -1, -1):
                                             if lines[i].startswith('+'):
                                                 target_index = i
                                                 break
-                                        
+
                                     # Swap the line above with the first selected line
                                     temp_line = lines[target_index]
                                     # Shift all selected lines up by one
@@ -304,18 +303,18 @@ def curses_editor(content: List[str]) -> List[str]:
                                         else:
                                             lines[selected_indices[i-1]] = lines[selected_indices[i]]
                                     lines[selected_indices[-1]] = temp_line
-                                    
+
                                     # Update selection indices
                                     new_selected = {idx - 1 for idx in selected_indices if idx - 1 >= 0}
                                     selected_lines = new_selected
                                     selection_start = min(new_selected) if new_selected else None
                                     current_line = min(new_selected) if new_selected else current_line - 1
-                        
+
                         elif key == ord('s') or key == ord('S'):  # 's' key - Move selection down
                             if selected_lines:
                                 # Sort selected lines in reverse for moving down
                                 selected_indices = sorted(selected_lines, reverse=True)
-                                
+
                                 # Move lines as a block down
                                 if max(selected_indices) < len(lines) - 1:
                                     # Move entire block down
@@ -327,7 +326,7 @@ def curses_editor(content: List[str]) -> List[str]:
                                             if lines[i].startswith('+'):
                                                 target_index = i
                                                 break
-                                        
+
                                     # Swap the line below with the last selected line
                                     temp_line = lines[target_index]
                                     # Shift all selected lines down by one
@@ -337,13 +336,13 @@ def curses_editor(content: List[str]) -> List[str]:
                                         else:
                                             lines[selected_indices[i-1]] = lines[selected_indices[i]]
                                     lines[selected_indices[-1]] = temp_line
-                                    
+
                                     # Update selection indices
                                     new_selected = {idx + 1 for idx in selected_indices if idx + 1 < len(lines)}
                                     selected_lines = new_selected
                                     selection_start = max(new_selected) if new_selected else None
                                     current_line = max(new_selected) if new_selected else current_line + 1
-                    
+
                     # Regular move mode operations (when not in selection mode)
                     elif key == curses.KEY_UP and current_line > 0 and is_added_line:
                         # Move the current line up by swapping with the line above

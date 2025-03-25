@@ -1,11 +1,9 @@
 import logging
 import re
 
-from jrdev.ui.ui import terminal_print, PrintType
-from jrdev.languages import get_language_for_file
-from jrdev.languages.utils import detect_language
 from jrdev.file_operations.find_function import find_function
-
+from jrdev.languages.utils import detect_language
+from jrdev.ui.ui import terminal_print, PrintType
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -235,7 +233,7 @@ def insert_argument(change, lines, function_name, func_start_idx, func_end_idx, 
             # todo, don't add comma if it is last argument
             # If content already has comma or it's the last argument, no comma needed
             needs_comma = not has_comma
-            
+
             if closing_idx == -1:
                 # Handle multi-line args in a simplified way
                 for j in range(i + 1, func_end_idx + 1):
@@ -256,14 +254,14 @@ def insert_argument(change, lines, function_name, func_start_idx, func_end_idx, 
             else:
                 # Single line args - simple insertion
                 args = lines[i][opening_idx + 1:closing_idx].split(",")
-                
+
                 # Remove any trailing commas in the content if it has them
                 content_to_insert = new_content
                 if has_comma:
                     content_to_insert = content_to_insert.rstrip(",").rstrip()
-                    
+
                 args.insert(argument_pos, content_to_insert)
-                
+
                 # Join with proper commas (no need to add them in the content)
                 lines[i] = (lines[i][:opening_idx + 1] +
                             ",".join(args) + lines[i][closing_idx:])

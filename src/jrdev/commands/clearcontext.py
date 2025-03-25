@@ -4,8 +4,6 @@
 ClearContext command implementation for the JrDev terminal.
 """
 
-import os
-
 from jrdev.ui.ui import terminal_print, PrintType
 
 
@@ -21,6 +19,6 @@ async def handle_clearcontext(terminal, args):
     num_files = len(terminal.context)
     terminal.context = []
     terminal_print(f"Cleared {num_files} file(s) from context.", print_type=PrintType.SUCCESS)
-    
+
     # Clear conversation history
     terminal.clear_messages()

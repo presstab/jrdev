@@ -5,12 +5,11 @@ Init command implementation for the JrDev terminal.
 """
 import asyncio
 import os
-import re
 
-from jrdev.treechart import generate_tree, generate_compact_tree
-from jrdev.llm_requests import stream_request
-from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.file_utils import requested_files, JRDEV_DIR
+from jrdev.llm_requests import stream_request
+from jrdev.treechart import generate_compact_tree
+from jrdev.ui.ui import terminal_print, PrintType
 
 # Create an asyncio lock for safe file access
 context_file_lock = asyncio.Lock()
@@ -61,9 +60,9 @@ async def get_file_summary(terminal, file_path, context_file_path, additional_co
             temp_messages.append({"role": "assistant", "content": str(additional_context)})
 
         terminal_print(f"Waiting for LLM analysis of {file_path}...", PrintType.PROCESSING)
-        
+
         # No need to print the file content when doing concurrent analysis
-        
+
         # Send the request to the LLM
         file_analysis = await stream_request(terminal, terminal.model, temp_messages, print_stream=False)
 
@@ -121,7 +120,7 @@ async def handle_init(terminal, args):
             f"Respond only with a list of files in the format get_files ['path/to/file.cpp', 'path/to/file2.json', ...] etc. "
             f"Do not include any other text or communication.\n\n"
         )
-        
+
         # Create a description of the compact format if using compact tree
         format_explanation = (
             f"The project structure below is in a compact format for efficiency:\n"
@@ -129,7 +128,7 @@ async def handle_init(terminal, args):
             f"- path/to/dir:[file1,file2,...]: Files in a directory\n"
             f"Each line represents either the root directory or a directory with its files.\n\n"
         )
-        
+
         recommendation_prompt = (
             f"Given this project structure, what files would you select to find out the "
             f"most important context about the project, choose up to 20 files?\n\n"
@@ -172,16 +171,16 @@ async def handle_init(terminal, args):
                     result = await get_file_summary(terminal, file_path, context_file_path)
                     terminal_print(f"Completed analysis for file {index + 1}/{len(recommended_files)}: {file_path}", PrintType.SUCCESS)
                     return result
-                
+
                 # Create tasks for all files
                 tasks = [analyze_file(i, file_path) for i, file_path in enumerate(recommended_files)]
-                
+
                 # Wait for all tasks to complete
                 results = await asyncio.gather(*tasks)
-                
+
                 # Filter out None results
                 returned_analysis = [result for result in results if result]
-                
+
                 terminal_print(f"\nCompleted analysis of all {len(returned_analysis)} files", PrintType.SUCCESS)
 
                 # Now create a project overview with deepseek-r1-671b

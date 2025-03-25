@@ -1,12 +1,7 @@
-import re
-import os
-import glob
-from difflib import SequenceMatcher
 import logging
 
-from jrdev.ui.ui import terminal_print, PrintType
-from jrdev.languages import get_language_for_file
 from jrdev.file_operations.insert import process_insert_after_changes
+from jrdev.ui.ui import terminal_print, PrintType
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")

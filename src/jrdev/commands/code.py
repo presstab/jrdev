@@ -5,16 +5,13 @@ Code command implementation for the JrDev terminal.
 Sends message with code processing enabled.
 """
 
-import asyncio
 import os
-import logging
-from typing import Any, Dict, List
+from typing import Any, List
 
-from jrdev.ui.ui import terminal_print, PrintType
-from jrdev.llm_requests import stream_request
-from jrdev.file_utils import requested_files, get_file_contents, cutoff_string, manual_json_parse
 from jrdev.file_operations.process_ops import apply_file_changes
-from jrdev.languages.utils import is_headers_language, detect_language
+from jrdev.file_utils import requested_files, get_file_contents, cutoff_string, manual_json_parse
+from jrdev.llm_requests import stream_request
+from jrdev.ui.ui import terminal_print, PrintType
 
 
 async def handle_code(terminal: Any, args: List[str]) -> None:
@@ -55,18 +52,18 @@ async def send_code_request(terminal: Any, user_task: str):
         terminal: The JrDevTerminal instance
         user_task: The message content to send
         process_follow_up: Whether to process follow-up tasks like file requests and code changes
-    
+
     Returns:
         str: The response text from the model
     """
     terminal.logger.info(f"Sending message to model {terminal.model}")
-    
+
     if not isinstance(user_task, str):
         error_msg = f"Expected string but got {type(user_task)}"
         terminal.logger.error(error_msg)
         terminal_print(f"Error: {error_msg}", PrintType.ERROR)
         return
-        
+
     # Read project context files if they exist
     project_context = {}
     for key, filename in terminal.project_files.items():
@@ -100,7 +97,7 @@ async def send_code_request(terminal: Any, user_task: str):
     messages = []
     if dev_prompt_modifier is not None:
         messages.append({"role": "system", "content": dev_prompt_modifier})
-    
+
     # Add any additional context files stored in terminal.context
     if terminal.context:
         context_section = "\n\nUSER CONTEXT:\n"
@@ -117,7 +114,7 @@ async def send_code_request(terminal: Any, user_task: str):
         response_text = await stream_request(terminal, terminal.model, messages)
         # Add a new line after streaming completes
         terminal_print("", PrintType.INFO)
-        
+
         # Always add response to messages
         messages.append({"role": "assistant", "content": response_text})
 
@@ -131,24 +128,24 @@ async def send_code_request(terminal: Any, user_task: str):
 async def double_check_changed_files(terminal, filelist):
     """
     Sends the changed files to the LLM for validation to check if they are malformed.
-    
+
     Args:
         terminal: The JrDevTerminal instance
         filelist: List of files that were changed
-        
+
     Returns:
         bool: True if files are valid, False if malformed
     """
     if not filelist:
         terminal.logger.info("No files were changed, skipping validation")
         return True
-    
+
     terminal.logger.info(f"Validating {len(filelist)} changed files: {filelist}")
     terminal_print(f"\nValidating changed files...", PrintType.PROCESSING)
-    
+
     # Get the content of all changed files
     files_content = get_file_contents(filelist)
-    
+
     validation_prompt = (
         "You are a code validator. Review the following file(s) that were just modified "
         "and check if they are properly formatted and not malformed. "
@@ -157,24 +154,24 @@ async def double_check_changed_files(terminal, filelist):
         "and other issues that would cause runtime errors. "
         "Keep your response to a single line."
     )
-    
+
     # Create a temporary messages array for this request only
     validation_messages = [
         {"role": "system", "content": validation_prompt},
         {"role": "user", "content": f"Please validate these files:{files_content}"}
     ]
-    
+
     try:
         # Don't print the stream for this validation check (print_stream=False)
         validation_response = await stream_request(
-            terminal, 
-            terminal.model, 
+            terminal,
+            terminal.model,
             validation_messages,
             print_stream=False
         )
-        
+
         terminal.logger.info(f"Validation response: {validation_response}")
-        
+
         # Check if the validation response indicates the files are valid
         if validation_response.strip().startswith("VALID"):
             terminal_print("✓ Files validated successfully", PrintType.SUCCESS)
@@ -307,30 +304,30 @@ async def parse_steps(steps_text, filelist):
     """
     Parse steps from a text file that contains instructions for code changes,
     and verify that all referenced files exist in the provided filelist.
-    
+
     Args:
         steps_text (str): The content of the steps text file.
         filelist (list): List of files that are available.
-        
+
     Returns:
         dict: A dictionary containing the parsed steps.
     """
     from jrdev.file_utils import cutoff_string, manual_json_parse
     import logging
     import os
-    
+
     logger = logging.getLogger("jrdev")
-    
+
     # Extract the JSON content using cutoff_string
     json_content = cutoff_string(steps_text, "```json", "```")
-    
+
     # Parse the JSON content
     steps_json = manual_json_parse(json_content)
-    
+
     if "steps" not in steps_json:
         logger.warning("No steps found in the steps file")
         return {"steps": []}
-    
+
     # Check if each filename referenced in steps exists in filelist
     missing_files = []
     for step in steps_json["steps"]:
@@ -339,20 +336,20 @@ async def parse_steps(steps_text, filelist):
             # Convert filelist paths to basenames for comparison
             basename = os.path.basename(filename)
             found = False
-            
+
             for file_path in filelist:
                 if os.path.basename(file_path) == basename or file_path == filename:
                     found = True
                     break
-            
+
             if not found:
                 missing_files.append(filename)
-    
+
     if missing_files:
         logger.warning(f"Files not found in filelist: {missing_files}")
         # Add a warning to the steps_json
         steps_json["missing_files"] = missing_files
-    
+
     return steps_json
 
 
