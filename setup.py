@@ -15,6 +15,9 @@ setup(
         "python-dotenv",
         "pyreadline3; platform_system=='Windows'",
         "pydantic>=2.0.0"
+        "windows-curses; platform_system=='Windows'",
+        "colorama; platform_system=='Windows'",
+        "playsound==1.2.2",  # Last stable version without PyObjC dependency, so says claude...
     ],
     entry_points={
         "console_scripts": [

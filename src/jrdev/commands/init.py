@@ -5,17 +5,25 @@ Init command implementation for the JrDev terminal.
 """
 import asyncio
 import os
+import re
+import logging
 
 from jrdev.file_utils import requested_files, JRDEV_DIR
 from jrdev.llm_requests import stream_request
 from jrdev.treechart import generate_compact_tree
 from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.tts import generate_audio, play_audio, play_narration
 
 # Create an asyncio lock for safe file access
 context_file_lock = asyncio.Lock()
 
+# Create an asyncio lock for audio generation
+audio_lock = asyncio.Lock()
 
-async def get_file_summary(terminal, file_path, context_file_path, additional_context=None):
+# Get the global logger instance
+logger = logging.getLogger("jrdev")
+
+async def get_file_summary(terminal, file_path, context_file_path, additional_context=None, narrate=False):
     if additional_context is None:
         additional_context = []
     current_dir = os.getcwd()
@@ -76,7 +84,14 @@ async def get_file_summary(terminal, file_path, context_file_path, additional_co
                 context_file.write(f"\n## {file_path}\n\n")
                 context_file.write(f"{file_analysis}\n\n")
 
-        terminal_print(f"\nFile analysis complete. Results saved to {context_file_path}", PrintType.SUCCESS)
+        # Generate audio narration if requested (non-blocking)
+        if narrate and terminal.venice_client:
+            asyncio.create_task(play_narration(terminal.venice_client, 
+                f"File analysis for {os.path.basename(file_path)}: {file_analysis}", 
+                topic=f"init_file_analysis_{os.path.basename(file_path)}"
+            ))
+
+        terminal_print(f"File analysis complete. Results saved to {context_file_path}", PrintType.SUCCESS)
         return f"Analysis for: {file_path} : {file_analysis}"
 
     except Exception as e:
@@ -98,6 +113,28 @@ async def handle_init(terminal, args):
     """
     try:
         output_file = f"{JRDEV_DIR}jrdev_filetree.txt"
+        # Check for '--narrate' option in args
+        narrate = "--narrate" in args or "-n" in args
+        # Remove narrate option from args before processing other options
+        args = [arg for arg in args if arg != "--narrate" and arg != "-n"]
+        
+        if narrate:
+            logger.info("Narration option enabled for init command")
+            terminal_print("Audio narration enabled", PrintType.INFO)
+            
+            # Play welcome message if venice client is available
+            if terminal.venice_client:
+                try:
+                    welcome_message = "Welcome to Junior devv... ; Project initialization has begun. This process will enable the AI coding assistant to get acquainted with your current codebase. Once the key files have been identified, the assistant will summarize their contents to create a token-efficient short map of your project. Please stand-by, as this process may take some time."
+                    logger.info("Generating welcome audio")
+                    asyncio.create_task(play_narration(terminal.venice_client, welcome_message, topic="init_introduction"))
+                except Exception as e:
+                    logger.error(f"Error with welcome message audio: {str(e)}")
+            else:
+                logger.warning("Venice client is not available for audio generation")
+                terminal_print("Venice client not available for audio narration", PrintType.WARNING)
+                narrate = False  # Disable narration
+        
         if len(args) > 1:
             output_file = args[1]
 
@@ -168,7 +205,7 @@ async def handle_init(terminal, args):
 
                 async def analyze_file(index, file_path):
                     terminal_print(f"Starting analysis for file {index + 1}/{len(recommended_files)}: {file_path}", PrintType.PROCESSING)
-                    result = await get_file_summary(terminal, file_path, context_file_path)
+                    result = await get_file_summary(terminal, file_path, context_file_path, narrate=narrate)
                     terminal_print(f"Completed analysis for file {index + 1}/{len(recommended_files)}: {file_path}", PrintType.SUCCESS)
                     return result
 
@@ -220,6 +257,14 @@ async def handle_init(terminal, args):
                         f.write(full_overview)
 
                     terminal_print(f"\nProject overview generated and saved to {overview_file_path}", PrintType.SUCCESS)
+                    
+                    # Generate audio for project overview (non-blocking)
+                    if narrate and terminal.venice_client:
+                        asyncio.create_task(play_narration(terminal.venice_client, 
+                            f"Project overview summary: {full_overview}", 
+                            topic="project_overview"
+                        ))
+                
                 except Exception as e:
                     terminal_print(f"Error generating project overview: {str(e)}", PrintType.ERROR)
 
@@ -230,3 +275,4 @@ async def handle_init(terminal, args):
             terminal_print(f"Error getting LLM recommendations: {str(e)}", PrintType.ERROR)
     except Exception as e:
         terminal_print(f"Error generating file tree: {str(e)}", PrintType.ERROR)
+
