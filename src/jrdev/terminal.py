@@ -141,6 +141,16 @@ class JrDevTerminal:
 
         # Set up readline for command history
         self.history_file = os.path.expanduser("~/.jrdev_history")
+        
+        # Ensure the history file exists
+        if not os.path.exists(self.history_file):
+            try:
+                with open(self.history_file, 'w') as f:
+                    pass  # Create empty file
+                self.logger.info(f"Created history file: {self.history_file}")
+            except Exception as e:
+                self.logger.error(f"Failed to create history file: {e}")
+        
         self.setup_readline()
 
         # setup initial models
@@ -620,9 +630,6 @@ class JrDevTerminal:
             # Initial history load
             if os.path.exists(self.history_file):
                 readline.read_history_file(self.history_file)
-
-            # Disable any pre-input hooks to avoid interference
-            readline.set_pre_input_hook(None)
             
             # Refresh display if needed
             if hasattr(readline, 'redisplay'):
@@ -644,9 +651,8 @@ class JrDevTerminal:
             return
 
         try:
-            # Simply add to history and write to file
-            # We're managing duplicates with our custom input approach
-            readline.add_history(input_text)
+            # Just write to history file
+            # Don't add to in-memory history as input() already does this
             readline.write_history_file(self.history_file)
         except Exception as e:
             self.logger.error(f"Error saving history: {str(e)}")
@@ -662,16 +668,10 @@ class JrDevTerminal:
             if not READLINE_AVAILABLE:
                 return input(prompt)
 
-            # First clear any pending history operations
-            readline.clear_history()
-
-            # Re-read the history file to restore genuine history
-            if os.path.exists(self.history_file):
-                try:
-                    readline.read_history_file(self.history_file)
-                except Exception as e:
-                    self.logger.debug(f"Non-critical history file read error: {str(e)}")
-
+            # Refresh display to ensure proper cursor state
+            if hasattr(readline, 'redisplay'):
+                readline.redisplay()
+                
             # Use the standard input with proper prompt
             try:
                 # Use the standard prompt-with-input approach
@@ -706,9 +706,10 @@ class JrDevTerminal:
         except Exception as e:
             self.logger.error(f"Error setting up input dimensions: {str(e)}")
 
-        # Use asyncio.to_thread to run our input function in a separate thread
-        # This prevents blocking the event loop, allowing background tasks to run
-        return await asyncio.to_thread(read_input)
+        # Use a less intrusive approach with asyncio to get input
+        # This should help preserve readline's state better
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, read_input)
 
     async def task_monitor_callback(self):
         """Periodic callback to check on background tasks and handle any completed ones."""
@@ -769,7 +770,8 @@ class JrDevTerminal:
                 # Brief yield to the event loop to allow background tasks to progress
                 await asyncio.sleep(0.01)
 
-                # Save to history only if it's not empty
+                # We no longer need to explicitly add to history since input() handles it
+                # Just save to history file if it's not empty
                 if user_input.strip():
                     self.save_history(user_input)
 
