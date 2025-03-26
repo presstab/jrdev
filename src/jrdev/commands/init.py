@@ -5,6 +5,7 @@ Init command implementation for the JrDev terminal.
 """
 import asyncio
 import os
+import time
 from typing import List, Optional, Any, Dict
 
 
@@ -126,6 +127,9 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
         terminal: The JrDevTerminal instance
         args: Command arguments
     """
+    # Record start time
+    start_time = time.time()
+    
     try:
         output_file = f"{JRDEV_DIR}jrdev_filetree.txt"
         if len(args) > 1:
@@ -228,14 +232,79 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                     )
                     return result
 
-                # Create tasks for all files
-                tasks = [
+                # Start file analysis tasks
+                file_analysis_tasks = [
                     analyze_file(i, file_path)
                     for i, file_path in enumerate(recommended_files)
                 ]
 
-                # Wait for all tasks to complete
-                results = await asyncio.gather(*tasks)
+                # Parallel task to generate conventions using the same files
+                async def generate_conventions() -> None:
+                    """Generate project conventions in parallel with file analysis."""
+                    # First wait a short time to let some file analysis start
+                    await asyncio.sleep(0.5)
+                    
+                    terminal_print(
+                        f"\Analyzing project conventions...",
+                        PrintType.PROCESSING
+                    )
+                    
+                    # Save current model to restore it later
+                    current_model = terminal.model
+                    
+                    # Get project conventions prompt
+                    conventions_prompt = PromptManager.load("project_conventions")
+                    
+                    # We'll wait for the context file to have some content before proceeding
+                    while True:
+                        if os.path.exists(context_file_path):
+                            file_size = os.path.getsize(context_file_path)
+                            if file_size > 100:  # Ensure we have some meaningful content
+                                break
+                        await asyncio.sleep(0.5)  # Check every half second
+                    
+                    # Read the file tree and initial context file
+                    with open(output_file, "r") as f:
+                        file_tree_content = f.read()
+                    
+                    with open(context_file_path, "r") as f:
+                        file_context_content = f.read()
+                    
+                    # Create conventions messages with all the files being analyzed
+                    conventions_messages = [
+                        {"role": "system", "content": conventions_prompt},
+                        {"role": "user", "content": f"FILE TREE:\n{file_tree_content}\n\nFILE CONTEXT:\n{file_context_content}"}
+                    ]
+                    
+                    try:
+                        # Temporarily switch to Qwen model for conventions analysis
+                        terminal.model = "mistral-31-24b"
+                        
+                        # Send request to generate conventions but don't stream
+                        conventions_result = await stream_request(
+                            terminal, terminal.model, conventions_messages, print_stream=False
+                        )
+                        
+                        # Save to markdown file
+                        conventions_file_path = f"{JRDEV_DIR}jrdev_conventions.md"
+                        with open(conventions_file_path, "w") as f:
+                            f.write(conventions_result)
+                        
+                        # Don't print results here - we'll print them after all file analyses are complete
+                    except Exception as e:
+                        terminal_print(
+                            f"Error generating project conventions: {str(e)}",
+                            PrintType.ERROR
+                        )
+                    finally:
+                        # Restore the original model
+                        terminal.model = current_model
+
+                # Create a task for generating conventions in parallel
+                conventions_task = asyncio.create_task(generate_conventions())
+                
+                # Wait for all file analysis tasks to complete
+                results = await asyncio.gather(*file_analysis_tasks)
 
                 # Filter out None results
                 returned_analysis = [result for result in results if result]
@@ -245,7 +314,31 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                     PrintType.SUCCESS
                 )
 
-                # Now create a project overview with deepseek-r1-671b
+                # Check if conventions are done, but don't wait
+                conventions_ready = conventions_task.done()
+                conventions_file_path = f"{JRDEV_DIR}jrdev_conventions.md"
+                
+                # If conventions are ready, print them before overview
+                if conventions_ready and os.path.exists(conventions_file_path):
+                    try:
+                        with open(conventions_file_path, "r") as f:
+                            conventions_result = f.read()
+                            
+                        terminal_print("\nProject Conventions Analysis:", PrintType.HEADER)
+                        terminal_print(conventions_result, PrintType.INFO)
+                        
+                        terminal_print(
+                            f"\nProject conventions generated and saved to "
+                            f"{conventions_file_path}",
+                            PrintType.SUCCESS
+                        )
+                    except Exception as e:
+                        terminal_print(
+                            f"Error reading conventions file: {str(e)}",
+                            PrintType.ERROR
+                        )
+
+                # Start project overview immediately regardless of conventions status
                 terminal_print("\nGenerating project overview...",
                                PrintType.PROCESSING)
                 terminal.model = "deepseek-r1-671b"
@@ -266,7 +359,7 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                     f"FILE CONTEXT:\n{file_context_content}"
                 )
 
-                # Send request to the model
+                # Send request to the model for project overview
                 try:
                     overview_messages = [
                         {"role": "system", "content": system_prompt},
@@ -291,9 +384,45 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                         f"Error generating project overview: {str(e)}",
                         PrintType.ERROR
                     )
-
-                terminal_print("\nProject initialization finished",
-                               PrintType.SUCCESS)
+                
+                # Now check if conventions need to be printed after overview
+                if not conventions_ready:
+                    try:
+                        # Wait for conventions to complete if not done yet
+                        if not conventions_task.done():
+                            terminal_print(
+                                "\nWaiting for project conventions analysis to complete...",
+                                PrintType.PROCESSING
+                            )
+                            await conventions_task
+                        
+                        # Print conventions if the file exists
+                        if os.path.exists(conventions_file_path):
+                            with open(conventions_file_path, "r") as f:
+                                conventions_result = f.read()
+                                
+                            terminal_print("\nProject Conventions Analysis:", PrintType.HEADER)
+                            terminal_print(conventions_result, PrintType.INFO)
+                            
+                            terminal_print(
+                                f"\nProject conventions generated and saved to "
+                                f"{conventions_file_path}",
+                                PrintType.SUCCESS
+                            )
+                    except Exception as e:
+                        terminal_print(
+                            f"Error handling conventions after overview: {str(e)}",
+                            PrintType.ERROR
+                        )
+                
+                # Calculate elapsed time
+                elapsed_time = time.time() - start_time
+                minutes, seconds = divmod(elapsed_time, 60)
+                
+                terminal_print(
+                    f"\nProject initialization finished (took {int(minutes)}m {int(seconds)}s)",
+                    PrintType.SUCCESS
+                )
             except Exception as e:
                 terminal_print(
                     f"Error processing file recommendations: {str(e)}",
