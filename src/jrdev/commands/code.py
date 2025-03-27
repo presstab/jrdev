@@ -386,11 +386,26 @@ async def request_code(terminal, change_instruction, file, additional_prompt=Non
     dev_msg_template = PromptManager.load("implement_step")
     dev_msg = dev_msg_template.replace("{operation_prompt}", operation_prompt)
 
+    description = change_instruction.get("description")
+    if description is None:
+        terminal.logger.warning(f"request_code FAIL: No description in change_instruction {change_instruction}")
+        raise KeyError("description")
+
+    filename = change_instruction.get("filename")
+    if filename is None:
+        terminal.logger.warning(f"request_code FAIL: No filename in change_instruction {change_instruction}")
+        raise KeyError("filename")
+
+    location = change_instruction.get("target_location")
+    if location is None:
+        terminal.logger.warning(f"request_code FAIL: No location in change_instruction {change_instruction}")
+        raise KeyError("location")
+
     prompt = (
         f"""
-        You have been tasked with using the {op_type} operation to {change_instruction["description"]}. This should be 
-        applied to the supplied file {change_instruction["filename"]} and you will need to locate the proper location in 
-        the code to apply this change. The target location is {change_instruction["target_location"]}. Operations should 
+        You have been tasked with using the {op_type} operation to {description}. This should be 
+        applied to the supplied file {filename} and you will need to locate the proper location in 
+        the code to apply this change. The target location is {location}. Operations should 
         only be applied to this location, or else the task will fail.
         """
     )
