@@ -141,6 +141,91 @@ def display_diff(diff_lines: List[str]) -> None:
             terminal_print(line.rstrip())
 
 
+def print_steps(terminal: Any, steps: Dict[str, Any], completed_steps: Optional[List[int]] = None, current_step: Optional[int] = None) -> None:
+    """
+    Print steps in the form of a colorful todo list with check marks for completed steps
+    and highlighting for the current step being worked on.
+
+    Args:
+        terminal: The JrDevTerminal instance
+        steps: Dictionary containing the steps to print
+        completed_steps: Optional list of step indices (0-based) that have been completed
+        current_step: Optional index (0-based) of the current step being worked on
+    """
+    # Define operation type colors
+    operation_colors = {
+        "ADD": COLORS["BRIGHT_GREEN"],
+        "NEW": COLORS["BRIGHT_CYAN"],
+        "DELETE": COLORS["BRIGHT_RED"],
+        "REPLACE": COLORS["BRIGHT_YELLOW"],
+        # Default color for unknown operations
+        "DEFAULT": COLORS["BRIGHT_MAGENTA"]
+    }
+    
+    if "steps" not in steps or not steps["steps"]:
+        terminal_print("No steps to display", PrintType.WARNING)
+        return
+    
+    if completed_steps is None:
+        completed_steps = []
+    
+    terminal_print("\n📋 TODO List:", PrintType.HEADER)
+    
+    for i, step in enumerate(steps["steps"], 1):
+        # Get step details with fallbacks
+        operation = step.get("operation_type", "UNKNOWN")
+        filename = step.get("filename", "UNKNOWN")
+        description = step.get("description", "No description provided")
+        target = step.get("target_location", "UNKNOWN")
+        
+        # Get color for operation type (with fallback to DEFAULT)
+        op_color = operation_colors.get(operation, operation_colors["DEFAULT"])
+        
+        # Determine step status and formatting
+        step_idx = i - 1  # Convert to 0-based index
+        
+        if step_idx in completed_steps:
+            # Completed step
+            checkbox = f"{COLORS['BRIGHT_GREEN']}✓{COLORS['RESET']}"
+            status_color = COLORS["BRIGHT_GREEN"]
+            status_prefix = ""
+            status_suffix = ""
+        elif step_idx == current_step:
+            # Current step being worked on
+            checkbox = "▶"
+            status_color = COLORS["BRIGHT_YELLOW"]
+            status_prefix = f"{COLORS['BRIGHT_YELLOW']}⟩ "
+            status_suffix = f" ⟨{COLORS['RESET']}"
+        else:
+            # Pending step
+            checkbox = "□"
+            status_color = COLORS["RESET"]
+            status_prefix = ""
+            status_suffix = ""
+        
+        # Print step with colored operation type and appropriate checkbox
+        step_prefix = f"{status_prefix}{checkbox} {i}. "
+        operation_formatted = f"{op_color}{operation}{COLORS['RESET']}"
+        
+        terminal_print(
+            f"{status_color}{step_prefix}{COLORS['RESET']}{operation_formatted}: "
+            f"{COLORS['BOLD']}{filename}{COLORS['RESET']} - {description}{status_suffix}",
+            PrintType.INFO
+        )
+        
+        # Print target location with indentation
+        location_indent = "   "
+        if step_idx == current_step:
+            location_indent = "   ┃ "
+            
+        terminal_print(
+            f"{location_indent}{COLORS['DIM']}Location: {target}{COLORS['RESET']}",
+            PrintType.INFO
+        )
+    
+    terminal_print("", PrintType.INFO)  # Add an empty line after the list
+
+
 def prompt_for_confirmation(prompt_text: str = "Apply these changes?") -> Tuple[str, Optional[str]]:
     """
     Prompt the user for confirmation with options to apply, reject, request changes,

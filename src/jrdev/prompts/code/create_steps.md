@@ -15,3 +15,24 @@ Ensure that a student can follow each step independently. Provide only the plan 
 additional commentary or extraneous information. Some tasks for the students may be doable in a single step.
 
 The response should be in json format example: {"steps": [{"operation_type": "ADD", "filename": "src/test_file.py", "target_location": "after function X scope end", "description": "Adjust the code so that it prints hello world"}]}
+
+Operation Type User Guide:
+### NEW
+- **Use only when**: Creating a completely new file
+- **Do not use for**: Adding new functions or code to existing files
+
+### ADD
+- **Use when**: Inserting code into an existing file
+- **Examples**: Adding functions, code blocks, imports
+
+### REPLACE
+- **Use when**: Substituting existing code with new code
+- **Examples**: Changing function implementations, updating blocks of code
+
+### DELETE
+- **Use when**: Removing code elements completely
+- **Examples**: Deleting functions or specific blocks
+
+### RENAME
+- **Use when**: Changing names while preserving functionality
+- **Examples**: Renaming functions, classes, or variables
