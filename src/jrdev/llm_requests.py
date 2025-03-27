@@ -26,6 +26,27 @@ async def stream_request(terminal, model, messages, print_stream=True):
     # Start timing the response
     start_time = time.time()
 
+    # Log the request with context file names
+    context_files = []
+    for message in messages:
+        if "Supporting Context" in message.get("content", ""):
+            # Extract file names from context message
+            content = message["content"]
+            if "Context File" in content:
+                # Extract file names from the context sections
+                for line in content.split("\n"):
+                    if "Context File" in line and ":" in line:
+                        try:
+                            file_name = line.split(":", 1)[1].strip()
+                            context_files.append(file_name)
+                        except IndexError:
+                            pass
+
+    log_msg = f"Sending request to {model} with {len(messages)} messages"
+    if context_files:
+        log_msg += f", context files: {', '.join(context_files)}"
+    terminal.logger.info(log_msg)
+
     # Determine which client to use based on the model provider
     client = None
     model_provider = None
@@ -49,7 +70,7 @@ async def stream_request(terminal, model, messages, print_stream=True):
 
     # Create a streaming completion
     if model_provider == "openai":
-        if model == "o3-mini":
+        if "o3-mini" in model:
             stream = await client.chat.completions.create(model=model, messages=messages, stream=True, reasoning_effort="high")
         else:
             stream = await client.chat.completions.create(model=model, messages=messages, stream=True, temperature=0.0)
@@ -72,13 +93,30 @@ async def stream_request(terminal, model, messages, print_stream=True):
     uses_think = is_think_model(model, terminal.get_models())
     response_text = ""
     first_chunk = True
+    chunk_count = 0
+    log_interval = 100  # Log every 100 chunks
+    stream_start_time = None  # Track when we start receiving chunks
 
     async for chunk in stream:
         if first_chunk:
             # Update status message when first chunk arrives
+            stream_start_time = time.time()  # Start timing from first chunk
             if print_stream:
                 terminal_print(f"Receiving response from {model}...", PrintType.PROCESSING)
+            terminal.logger.info(f"Started receiving response from {model}")
             first_chunk = False
+        
+        chunk_count += 1
+        if chunk_count % log_interval == 0:
+            # Calculate chunks per second
+            current_time = time.time()
+            elapsed_time = current_time - stream_start_time
+            chunks_per_second = round(chunk_count / elapsed_time, 2) if elapsed_time > 0 else 0
+            
+            # if print_stream:
+            #     terminal_print(f"Received {chunk_count} chunks ({chunks_per_second} chunks/sec)", PrintType.PROCESSING)
+            
+            terminal.logger.info(f"Received {chunk_count} chunks from {model} ({chunks_per_second} chunks/sec)")
 
         if chunk.choices and chunk.choices[0].delta.content:
             chunk_text = chunk.choices[0].delta.content
@@ -121,10 +159,24 @@ async def stream_request(terminal, model, messages, print_stream=True):
             end_time = time.time()
             elapsed_time = end_time - start_time
             elapsed_seconds = round(elapsed_time, 2)
+            
+            # Calculate chunks per second over the entire response
+            stream_elapsed = end_time - (stream_start_time or start_time)
+            chunks_per_second = round(chunk_count / stream_elapsed, 2) if stream_elapsed > 0 else 0
 
             if print_stream:
-                terminal_print(f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens} | Response Time: {elapsed_seconds}s", PrintType.WARNING)
+                terminal_print(
+                    f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens} | "
+                    f"Response Time: {elapsed_seconds}s | Avg: {chunks_per_second} chunks/sec",
+                    PrintType.WARNING
+                )
 
+            # Log completion stats
+            terminal.logger.info(
+                f"Response completed: {model}, {input_tokens} input tokens, {output_tokens} output tokens, "
+                f"{elapsed_seconds}s, {chunk_count} chunks, {chunks_per_second} chunks/sec"
+            )
+            
             # Track token usage
             usage_tracker = get_instance()
             await usage_tracker.add_use(model, input_tokens, output_tokens)
