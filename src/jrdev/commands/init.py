@@ -5,6 +5,7 @@ Init command implementation for the JrDev terminal.
 """
 import asyncio
 import os
+import time
 from typing import List, Optional, Any, Dict
 
 
@@ -136,6 +137,9 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
         terminal: The JrDevTerminal instance
         args: Command arguments
     """
+    # Record start time
+    start_time = time.time()
+    
     try:
         output_file = f"{JRDEV_DIR}jrdev_filetree.txt"
         if len(args) > 1:
@@ -152,8 +156,15 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
             PrintType.SUCCESS
         )
 
+        # Extract file paths from tree_output
+        tree_files = [
+            line.strip()
+            for line in tree_output.splitlines()
+            if line.strip() and not line.endswith('/')  # Skip directories
+        ]
+
         # Switch the model to deepseek-r1-671b
-        terminal.model = "deepseek-r1-671b"
+        terminal.model = "mistral-31-24b"
         terminal_print(f"Model changed to: {terminal.model}", PrintType.INFO)
 
         # Send the file tree to the LLM with a request for file recommendations
@@ -267,24 +278,102 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                     )
                     return result
 
-                # Create tasks for all files
-                tasks = [
+                # Parallel task to generate conventions using the same files
+                async def generate_conventions() -> Optional[str]:
+                    """Generate project conventions in parallel with file analysis."""
+                    terminal_print(
+                        f"\nAnalyzing project conventions...",
+                        PrintType.PROCESSING
+                    )
+                    
+                    # Use a local model variable instead of changing terminal.model
+                    conventions_model = "mistral-31-24b"
+                    
+                    # Get project conventions prompt
+                    conventions_prompt = PromptManager.load("project_conventions")
+                    
+                    # Read the actual content of all files from the tree
+                    files_content = []
+                    for file_path in tree_files:
+                        try:
+                            full_path = os.path.join(current_dir, file_path)
+                            if os.path.exists(full_path):
+                                with open(full_path, "r") as f:
+                                    content = f.read()
+                                    # Limit file size like in get_file_summary
+                                    if len(content) <= 1000*1024:
+                                        files_content.append(f"## {file_path}\n\n{content}\n")
+                        except Exception as e:
+                            terminal_print(
+                                f"Error reading file {file_path}: {str(e)}",
+                                PrintType.ERROR
+                            )
+                    
+                    # Create conventions messages with file tree and actual file contents
+                    conventions_messages = [
+                        {"role": "system", "content": conventions_prompt},
+                        {"role": "user", "content": (
+                            f"FILE TREE:\n{tree_output}\n\n"
+                            f"FILE CONTENTS:\n{''.join(files_content)}"
+                        )}
+                    ]
+                    
+                    try:
+                        # Use conventions_model directly instead of changing terminal.model
+                        conventions_result = await stream_request(
+                            terminal, conventions_model, conventions_messages, print_stream=False
+                        )
+                        
+                        # Save to markdown file
+                        conventions_file_path = f"{JRDEV_DIR}jrdev_conventions.md"
+                        with open(conventions_file_path, "w") as f:
+                            f.write(conventions_result)
+                        
+                        return conventions_result
+                    except Exception as e:
+                        terminal_print(
+                            f"Error generating project conventions: {str(e)}",
+                            PrintType.ERROR
+                        )
+                        return None
+
+                # Create a task for generating conventions in parallel
+                conventions_task = asyncio.create_task(generate_conventions())
+
+                # Start file analysis tasks
+                file_analysis_tasks = [
                     analyze_file(i, file_path)
                     for i, file_path in enumerate(cleaned_file_list)
                 ]
-
+                
                 # Wait for all tasks to complete
-                results = await asyncio.gather(*tasks)
+                results = await asyncio.gather(conventions_task, *file_analysis_tasks)
 
-                # Filter out None results
-                returned_analysis = [result for result in results if result]
+                # First result is from conventions_task, rest are from file analysis
+                conventions_result = results[0]
+                file_analysis_results = results[1:]
+
+                # Filter out None results from file analysis
+                returned_analysis = [result for result in file_analysis_results if result]
 
                 terminal_print(
                     f"\nCompleted analysis of all {len(returned_analysis)} files",
                     PrintType.SUCCESS
                 )
 
-                # Now create a project overview with deepseek-r1-671b
+                # Print conventions if they were generated successfully
+                conventions_file_path = f"{JRDEV_DIR}jrdev_conventions.md"
+                if conventions_result and os.path.exists(conventions_file_path):
+                    terminal_print("\nProject Conventions Analysis:", PrintType.HEADER)
+                    terminal_print(conventions_result, PrintType.INFO)
+                    
+                    terminal_print(
+                        f"\nProject conventions generated and saved to "
+                        f"{conventions_file_path}",
+                        PrintType.SUCCESS
+                    )
+
+                # Start project overview immediately
                 terminal_print("\nGenerating project overview...",
                                PrintType.PROCESSING)
                 terminal.model = "deepseek-r1-671b"
@@ -302,10 +391,11 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                 # Create the overview prompt
                 overview_prompt = (
                     f"FILE TREE:\n{file_tree_content}\n\n"
-                    f"FILE CONTEXT:\n{file_context_content}"
+                    f"FILE CONTEXT:\n{file_context_content}\n\n"
+                    f"PROJECT CONVENTIONS:\n{conventions_result}"
                 )
 
-                # Send request to the model
+                # Send request to the model for project overview
                 try:
                     overview_messages = [
                         {"role": "system", "content": system_prompt},
@@ -330,9 +420,15 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                         f"Error generating project overview: {str(e)}",
                         PrintType.ERROR
                     )
-
-                terminal_print("\nProject initialization finished",
-                               PrintType.SUCCESS)
+                
+                # Calculate elapsed time
+                elapsed_time = time.time() - start_time
+                minutes, seconds = divmod(elapsed_time, 60)
+                
+                terminal_print(
+                    f"\nProject initialization finished (took {int(minutes)}m {int(seconds)}s)",
+                    PrintType.SUCCESS
+                )
             except Exception as e:
                 terminal_print(
                     f"Error processing file recommendations: {str(e)}",

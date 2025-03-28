@@ -96,6 +96,7 @@ class JrDevTerminal:
             "filetree": f"{JRDEV_DIR}jrdev_filetree.txt",
             "filecontext": f"{JRDEV_DIR}jrdev_filecontext.md",
             "overview": f"{JRDEV_DIR}jrdev_overview.md",
+            "conventions": f"{JRDEV_DIR}jrdev_conventions.md"
         }
 
         # Context list to store additional context files for the LLM
