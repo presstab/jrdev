@@ -15,6 +15,7 @@ async def handle_projectcontext(terminal: Any, args: List[str]) -> None:
     Handle the /projectcontext command for managing project context.
 
     Commands:
+        /projectcontext about - Display information about project context
         /projectcontext on|off - Toggle using project context in requests
         /projectcontext status - Show current status of project context
         /projectcontext list - List all tracked files in context
@@ -22,6 +23,7 @@ async def handle_projectcontext(terminal: Any, args: List[str]) -> None:
         /projectcontext refresh <filepath> - Refresh context for a specific file
         /projectcontext add <filepath> - Add and index a file to the context
         /projectcontext remove <filepath> - Remove a file from the context
+        /projectcontext help - Show usage information
 
     Args:
         terminal: The JrDevTerminal instance
@@ -33,7 +35,13 @@ async def handle_projectcontext(terminal: Any, args: List[str]) -> None:
 
     command = args[1].lower()
 
-    if command == "on":
+    if command == "about":
+        _show_about_info()
+
+    elif command == "help":
+        _show_usage()
+
+    elif command == "on":
         terminal.use_project_context = True
         terminal_print("Project context is now ON", PrintType.SUCCESS)
 
@@ -63,11 +71,66 @@ async def handle_projectcontext(terminal: Any, args: List[str]) -> None:
         _show_usage()
 
 
+def _show_about_info() -> None:
+    """
+    Display information about what project context is and how to use it.
+    """
+    terminal_print("About Project Context", PrintType.HEADER)
+    terminal_print(
+        "Project contexts are token-efficient compacted summaries of key files in your project.",
+        PrintType.INFO,
+    )
+    terminal_print(
+        "These summaries are included in most communications with AI models and allow the AI",
+        PrintType.INFO,
+    )
+    terminal_print(
+        "to quickly and cost-efficiently become familiar with your project structure and conventions.",
+        PrintType.INFO,
+    )
+    terminal_print("", PrintType.INFO)
+    terminal_print("Best Practices:", PrintType.HEADER)
+    terminal_print(
+        "- Include the most important/central files in your project",
+        PrintType.INFO,
+    )
+    terminal_print(
+        "- Add files that define core abstractions, APIs, or project conventions",
+        PrintType.INFO,
+    )
+    terminal_print(
+        "- Some AI communications include all project context files, so the list should be efficient",
+        PrintType.INFO,
+    )
+    terminal_print(
+        "- Use '/projectcontext add <filepath>' to add files you feel are missing",
+        PrintType.INFO,
+    )
+    terminal_print(
+        "- Use '/projectcontext remove <filepath>' to remove files that aren't mission-critical",
+        PrintType.INFO,
+    )
+    terminal_print("", PrintType.INFO)
+    terminal_print("Management:", PrintType.HEADER)
+    terminal_print(
+        "- Toggle project context on/off with '/projectcontext on' or '/projectcontext off'",
+        PrintType.INFO,
+    )
+    terminal_print(
+        "- Check status with '/projectcontext status' or list files with '/projectcontext list'",
+        PrintType.INFO,
+    )
+
+
 def _show_usage() -> None:
     """
     Show usage information for the projectcontext command.
     """
     terminal_print("Project Context Command Usage:", PrintType.HEADER)
+    terminal_print(
+        "/projectcontext about - Display information about project context",
+        PrintType.INFO,
+    )
     terminal_print(
         "/projectcontext on|off - Toggle using project context in requests",
         PrintType.INFO,
@@ -93,6 +156,10 @@ def _show_usage() -> None:
     )
     terminal_print(
         "/projectcontext remove <filepath> - Remove a file from the project context",
+        PrintType.INFO,
+    )
+    terminal_print(
+        "/projectcontext help - Show this usage information",
         PrintType.INFO,
     )
 
