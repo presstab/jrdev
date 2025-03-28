@@ -19,9 +19,6 @@ Please structure your response following this Markdown outline.
 
 This document outlines the established conventions and patterns observed in the codebase. Adhering to these guidelines helps maintain consistency, readability, and maintainability.
 
-__Analysis based on:__
-    file_list=[path/to/file:file1,...]
-
 ## 1. Language & Environment
 
 -   __Primary Language(s):__ [Identify the main programming language(s) used]
