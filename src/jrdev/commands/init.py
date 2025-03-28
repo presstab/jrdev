@@ -234,11 +234,16 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                             if os.path.exists(full_path):
                                 with open(full_path, "r") as f:
                                     content = f.read()
-                                    # Limit file size like in get_file_summary
-                                    if len(content) <= 1000 * 1024:
+                                    # Limit file size for analysis
+                                    if len(content) <= 2000 * 1024:
                                         files_content.append(
                                             f"## {file_path}\n\n{content}\n"
                                         )
+                                    else:
+                                        size_mb = len(content) / (1024 * 1024)
+                                        error_msg = f"File {file_path} is too large ({size_mb:.2f} MB) for analysis (max: 2MB)"
+                                        terminal.logger.error(error_msg)
+                                        terminal_print(error_msg, PrintType.ERROR)
                         except Exception as e:
                             terminal_print(
                                 f"Error reading file {file_path}: {str(e)}",

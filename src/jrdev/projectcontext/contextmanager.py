@@ -264,10 +264,11 @@ class ContextManager:
                     file_content = f.read()
 
                 # Limit file size
-                if len(file_content) > 1000 * 1024:
-                    terminal_print(
-                        f"File {file} is too large to send", PrintType.WARNING
-                    )
+                if len(file_content) > 2000 * 1024:
+                    size_mb = len(file_content) / (1024 * 1024)
+                    error_msg = f"File {file} is too large ({size_mb:.2f} MB) for context generation (max: 2MB)"
+                    logger.error(error_msg)
+                    terminal_print(error_msg, PrintType.ERROR)
                     return None
 
                 full_content += f"{file_content}"
@@ -407,7 +408,7 @@ class ContextManager:
         for file_path in self.index.get("files", {}):
             context = self._read_context_file(file_path)
             if context:  # Only include if there's actual content
-                contexts.append(f"## {file_path}\n{context}")
+                contexts.append(f"## {file_path} BEGIN ##\n{context}\n ## {file_path} END ##\n")
 
         if not contexts:
             return ""
