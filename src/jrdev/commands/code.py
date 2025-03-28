@@ -268,8 +268,6 @@ async def process_code_request_response(terminal, response_prev, user_task):
         if len(new_file_changes) > 0:
             # Mark step as completed
             completed_steps.append(i)
-            # Update the TODO list to show progress
-            print_steps(terminal, steps, completed_steps)
             
             # Track changed files
             for f in new_file_changes:
@@ -289,13 +287,14 @@ async def process_code_request_response(terminal, response_prev, user_task):
         if len(new_file_changes) > 0:
             # Mark step as completed
             completed_steps.append(step_idx)
-            # Update the TODO list to show progress
-            print_steps(terminal, steps, completed_steps)
             
             # Track changed files
             for f in new_file_changes:
                 files_changed_set.add(f)
 
+    # Print final todo list showing all completed steps
+    print_steps(terminal, steps, completed_steps)
+    
     if len(files_changed_set):
         terminal.logger.info("send files for sanity check")
         # Validate the changed files to ensure they're not malformed
