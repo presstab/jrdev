@@ -1,6 +1,22 @@
 {
     "models": [
         {
+            "name": "claude-3-7-sonnet-20250219",
+            "provider": "anthropic",
+            "is_think": false,
+            "input_cost": 30,
+            "output_cost": 150,
+            "context_tokens": 200000
+        },
+        {
+            "name": "deepseek-reasoner",
+            "provider": "deepseek",
+            "is_think": true,
+            "input_cost": 6,
+            "output_cost": 22,
+            "context_tokens": 64000
+        },
+        {
             "name": "deepseek-r1-671b",
             "provider": "venice",
             "is_think": true,

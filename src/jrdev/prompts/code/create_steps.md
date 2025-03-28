@@ -15,3 +15,10 @@ Ensure that a student can follow each step independently. Provide only the plan 
 additional commentary or extraneous information. Some tasks for the students may be doable in a single step.
 
 The response should be in json format example: {"steps": [{"operation_type": "ADD", "filename": "src/test_file.py", "target_location": "after function X scope end", "description": "Adjust the code so that it prints hello world"}]}
+
+Operation Type User Guide:
+NEW: Use when creating a completely new file
+ADD: Use when inserting code into an existing file (adding functions, code blocks, imports, etc)
+REPLACE: Use when substituting existing code with new code (changing function implementations, updating blocks of code)
+DELETE: Use when removing code elements completely
+RENAME: Use when changing names while preserving functionality (renaming functions, classes, or variables)

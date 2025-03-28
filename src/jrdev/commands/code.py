@@ -12,7 +12,7 @@ from jrdev.file_operations.process_ops import apply_file_changes
 from jrdev.file_utils import requested_files, get_file_contents, cutoff_string, manual_json_parse
 from jrdev.llm_requests import stream_request
 from jrdev.prompts.prompt_utils import PromptManager
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import terminal_print, PrintType, print_steps
 
 
 async def handle_code(terminal: Any, args: List[str]) -> None:
@@ -185,12 +185,12 @@ async def complete_step(terminal, step, files_to_send, retry_message=None):
     terminal.logger.info(f"step: {step}")
     filepath = step["filename"]
     terminal.logger.info("filecheck")
-    file_check = [f for f in files_to_send if f == filepath]
-    if file_check is None:
-        raise Exception(f"process_code_request unable to find file {filepath}")
+    # file_check = [f for f in files_to_send if f == filepath]
+    # if file_check is None:
+    #     raise Exception(f"process_code_request unable to find file {filepath}")
 
     terminal.logger.info("file_content")
-    file_content = get_file_contents([filepath])
+    file_content = f"{get_file_contents(files_to_send)}"
     # send request for LLM to complete changes in step
     code_change_response = await request_code(terminal, step, file_content, retry_message)
 
@@ -245,27 +245,56 @@ async def process_code_request_response(terminal, response_prev, user_task):
         raise Exception("failed to process steps")
 
     terminal.logger.info(f"parsed_steps successfully: steps:\n {steps}")
+    
+    # Print initial steps in to do list format
+    print_steps(terminal, steps)
 
+    # Track completed steps (0-based indices)
+    completed_steps = []
+    
     # turn each step into individual code changes
     files_changed_set = set()
     failed_steps = []
-    for step in steps["steps"]:
+    
+    # First pass through all steps
+    for i, step in enumerate(steps["steps"]):
+        # Show current step being worked on
+        print_steps(terminal, steps, completed_steps, current_step=i)
+        
+        # Execute the step
+        terminal_print(f"Working on step {i+1}: {step.get('operation_type')} for {step.get('filename')}", PrintType.PROCESSING)
         new_file_changes = await complete_step(terminal=terminal, step=step, files_to_send=files_to_send)
-        if len(new_file_changes) == 0:
-            failed_steps.append(step)
+        
+        if len(new_file_changes) > 0:
+            # Mark step as completed
+            completed_steps.append(i)
+            # Update the TODO list to show progress
+            print_steps(terminal, steps, completed_steps)
+            
+            # Track changed files
+            for f in new_file_changes:
+                files_changed_set.add(f)
+        else:
+            failed_steps.append((i, step))
 
-        # only track each file once
-        for f in new_file_changes:
-            files_changed_set.add(f)
-
-    # try any failed steps again
-    for step in failed_steps:
-        terminal_print(f"Retrying step {step}", PrintType.PROCESSING)
+    # Second pass for failed steps
+    for step_idx, step in failed_steps:
+        terminal_print(f"Retrying step {step_idx + 1}", PrintType.PROCESSING)
+        
+        # Show current step being retried
+        print_steps(terminal, steps, completed_steps, current_step=step_idx)
+        
         new_file_changes = await complete_step(terminal=terminal, step=step, files_to_send=files_to_send)
 
-        # only track each file once
-        for f in new_file_changes:
-            files_changed_set.add(f)
+        if len(new_file_changes) > 0:
+            # Mark step as completed
+            completed_steps.append(step_idx)
+            # Update the TODO list to show progress
+            print_steps(terminal, steps, completed_steps)
+            
+            # Track changed files
+            for f in new_file_changes:
+                files_changed_set.add(f)
 
     if len(files_changed_set):
         terminal.logger.info("send files for sanity check")
@@ -288,6 +317,8 @@ async def process_code_request_response(terminal, response_prev, user_task):
             # For now, we just warn the user but don't try to fix automatically
     else:
         terminal.logger.info("No files were changed during this request")
+
+
 
 async def parse_steps(steps_text, filelist):
     """
@@ -355,11 +386,26 @@ async def request_code(terminal, change_instruction, file, additional_prompt=Non
     dev_msg_template = PromptManager.load("implement_step")
     dev_msg = dev_msg_template.replace("{operation_prompt}", operation_prompt)
 
+    description = change_instruction.get("description")
+    if description is None:
+        terminal.logger.warning(f"request_code FAIL: No description in change_instruction {change_instruction}")
+        raise KeyError("description")
+
+    filename = change_instruction.get("filename")
+    if filename is None:
+        terminal.logger.warning(f"request_code FAIL: No filename in change_instruction {change_instruction}")
+        raise KeyError("filename")
+
+    location = change_instruction.get("target_location")
+    if location is None:
+        terminal.logger.warning(f"request_code FAIL: No location in change_instruction {change_instruction}")
+        raise KeyError("location")
+
     prompt = (
         f"""
-        You have been tasked with using the {op_type} operation to {change_instruction["description"]}. This should be 
-        applied to the supplied file {change_instruction["filename"]} and you will need to locate the proper location in 
-        the code to apply this change. The target location is {change_instruction["target_location"]}. Operations should 
+        You have been tasked with using the {op_type} operation to {description}. This should be 
+        applied to the supplied file {filename} and you will need to locate the proper location in 
+        the code to apply this change. The target location is {location}. Operations should 
         only be applied to this location, or else the task will fail.
         """
     )

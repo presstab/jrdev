@@ -13,6 +13,7 @@ import sys
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
+import anthropic  # Import Anthropic SDK
 
 from jrdev.colors import Colors
 from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
@@ -57,6 +58,8 @@ class JrDevTerminal:
         # Initialize API clients
         self.venice_client = None
         self.openai_client = None
+        self.anthropic_client = None
+        self.deepseek_client = None
 
         # Get Venice API key
         venice_api_key = os.getenv("VENICE_API_KEY")
@@ -84,6 +87,29 @@ class JrDevTerminal:
             )
         else:
             self.logger.info("No OpenAI API key found, OpenAI models will not be available")
+            
+        # Get Anthropic API key (optional)
+        anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+        if anthropic_api_key:
+            self.logger.info("Anthropic API key found, initializing Anthropic client")
+            # Initialize Anthropic client - using AsyncAnthropic for async compatibility
+            self.anthropic_client = anthropic.AsyncAnthropic(api_key=anthropic_api_key)
+        else:
+            self.logger.info("No Anthropic API key found, Anthropic models will not be available")
+
+        # Get DeepSeek API key (optional)
+        deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
+        if deepseek_api_key:
+            self.logger.info("DeepSeek API key found, initializing DeepSeek client")
+            # Initialize OpenAI client
+            self.deepseek_client = AsyncOpenAI(
+                api_key=deepseek_api_key,
+                organization=None,
+                project=None,
+                base_url="https://api.deepseek.com",
+            )
+
+
         self.model = "deepseek-r1-671b"
         self.running = True
         self.messages = []

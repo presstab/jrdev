@@ -22,11 +22,32 @@ def is_inside_think_tag(text):
     return think_open > think_close
 
 
-async def stream_request(terminal, model, messages, print_stream=True):
+async def stream_openai_format(terminal, model, messages, print_stream=True):
     # Start timing the response
     start_time = time.time()
+    
+    # Log the request with context file names
+    context_files = []
+    for message in messages:
+        if "Supporting Context" in message.get("content", ""):
+            # Extract file names from context message
+            content = message["content"]
+            if "Context File" in content:
+                # Extract file names from the context sections
+                for line in content.split("\n"):
+                    if "Context File" in line and ":" in line:
+                        try:
+                            file_name = line.split(":", 1)[1].strip()
+                            context_files.append(file_name)
+                        except IndexError:
+                            pass
 
-    # Determine which client to use based on the model provider
+    log_msg = f"Sending request to {model} with {len(messages)} messages"
+    if context_files:
+        log_msg += f", context files: {', '.join(context_files)}"
+    terminal.logger.info(log_msg)
+    
+    # Get the appropriate client
     client = None
     model_provider = None
 
@@ -44,12 +65,16 @@ async def stream_request(terminal, model, messages, print_stream=True):
         client = terminal.openai_client
         if not client:
             raise ValueError(f"OpenAI API key not configured but model {model} requires it")
+    elif model_provider == "deepseek":
+        client = terminal.deepseek_client
+        if not client:
+            raise ValueError(f"DeepSeek API key not configured but model {model} requires it")
     else:
         raise ValueError(f"Unknown provider for model {model}")
 
     # Create a streaming completion
     if model_provider == "openai":
-        if model == "o3-mini":
+        if "o3-mini" in model:
             stream = await client.chat.completions.create(model=model, messages=messages, stream=True, reasoning_effort="high")
         else:
             stream = await client.chat.completions.create(model=model, messages=messages, stream=True, temperature=0.0)
@@ -60,9 +85,47 @@ async def stream_request(terminal, model, messages, print_stream=True):
         )
     elif model == "deepseek-r1-671b":
         stream = await client.chat.completions.create(
-            model=model, messages=messages, stream=True, temperature=0.0,
-            extra_body={"venice_parameters":{"include_venice_system_prompt":False}, "frequency_penalty": 0.3}
+            model=model, messages=messages, stream=True, extra_body={"venice_parameters": {"include_venice_system_prompt": False}}
         )
+    elif model == "deepseek-reasoner":
+        structured_messages = []
+        sys_msg = None
+        previous_role = None
+
+        # deepseek requires strict ordering of messages
+        for i, message in enumerate(messages):
+            # system role has to only be first
+            if message["role"] == "system":
+                if i != 0:
+                    if sys_msg is None:
+                        sys_msg = message["content"]
+                    else:
+                        sys_msg = f"{sys_msg} | {message['content']}"
+                continue
+
+            elif message["role"] == "user":
+                if previous_role is None or previous_role == "assistant":
+                    structured_messages.append(message)
+                elif previous_role == "user":
+                    # out of order user messages, combine them
+                    structured_messages[-1]["content"] += f" {message['content']}"
+                previous_role = "user"
+
+            elif message["role"] == "assistant":
+                if previous_role is None:
+                    # out of order assistant should not come first
+                    raise Exception("assistant message comes first")
+                elif previous_role == "assistant":
+                    # two assistant messages in a row, combine them
+                    structured_messages[-1]["content"] += f" {message['content']}"
+                elif previous_role == "user":
+                    structured_messages.append(message)
+                previous_role = "assistant"
+
+        if sys_msg:
+            structured_messages.insert(0, {"role": "system", "content": sys_msg})
+
+        stream = await client.chat.completions.create(model="deepseek-reasoner", messages=structured_messages, stream=True, max_tokens=8000)
     else:
         stream = await client.chat.completions.create(
             model=model, messages=messages, stream=True, temperature=0.0,
@@ -72,14 +135,29 @@ async def stream_request(terminal, model, messages, print_stream=True):
     uses_think = is_think_model(model, terminal.get_models())
     response_text = ""
     first_chunk = True
+    chunk_count = 0
+    log_interval = 100  # Log every 100 chunks
+    stream_start_time = None  # Track when we start receiving chunks
 
     async for chunk in stream:
         if first_chunk:
             # Update status message when first chunk arrives
+            stream_start_time = time.time()  # Start timing from first chunk
             if print_stream:
                 terminal_print(f"Receiving response from {model}...", PrintType.PROCESSING)
+            terminal.logger.info(f"Started receiving response from {model}")
             first_chunk = False
+        
+        chunk_count += 1
+        if chunk_count % log_interval == 0:
+            # Calculate chunks per second
+            current_time = time.time()
+            elapsed_time = current_time - stream_start_time
+            chunks_per_second = round(chunk_count / elapsed_time, 2) if elapsed_time > 0 else 0
+            
+            terminal.logger.info(f"Received {chunk_count} chunks from {model} ({chunks_per_second} chunks/sec)")
 
+        # Handle OpenAI-compatible chunks (Venice and OpenAI)
         if chunk.choices and chunk.choices[0].delta.content:
             chunk_text = chunk.choices[0].delta.content
             response_text += chunk_text
@@ -111,24 +189,182 @@ async def stream_request(terminal, model, messages, print_stream=True):
                 if print_stream:
                     terminal_print(chunk_text, PrintType.LLM, end="", flush=True)
 
-        if "completion_tokens" in str(chunk):
-            # print(chunk)
-            # print(chunk.usage.completion_tokens)
-            input_tokens = chunk.usage.prompt_tokens
-            output_tokens = chunk.usage.completion_tokens
+    # Handle token usage statistics for final chunk
+    if "completion_tokens" in str(chunk):
+        # Handle OpenAI-compatible usage stats (Venice and OpenAI)
+        input_tokens = chunk.usage.prompt_tokens
+        output_tokens = chunk.usage.completion_tokens
 
-            # Calculate elapsed time
-            end_time = time.time()
-            elapsed_time = end_time - start_time
-            elapsed_seconds = round(elapsed_time, 2)
+        # Calculate elapsed time
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        elapsed_seconds = round(elapsed_time, 2)
+        
+        # Calculate chunks per second over the entire response
+        stream_elapsed = end_time - (stream_start_time or start_time)
+        chunks_per_second = round(chunk_count / stream_elapsed, 2) if stream_elapsed > 0 else 0
 
-            if print_stream:
-                terminal_print(f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens} | Response Time: {elapsed_seconds}s", PrintType.WARNING)
+        if print_stream:
+            terminal_print(
+                f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens} | "
+                f"Response Time: {elapsed_seconds}s | Avg: {chunks_per_second} chunks/sec",
+                PrintType.WARNING
+            )
 
-            # Track token usage
-            usage_tracker = get_instance()
-            await usage_tracker.add_use(model, input_tokens, output_tokens)
+        # Log completion stats
+        terminal.logger.info(
+            f"Response completed: {model}, {input_tokens} input tokens, {output_tokens} output tokens, "
+            f"{elapsed_seconds}s, {chunk_count} chunks, {chunks_per_second} chunks/sec"
+        )
+        
+        # Track token usage
+        usage_tracker = get_instance()
+        await usage_tracker.add_use(model, input_tokens, output_tokens)
 
     if uses_think:
         return filter_think_tags(response_text)
-    return response_text
+    else:
+        return response_text
+
+async def stream_messages_format(terminal, model, messages, print_stream=True):
+    # Start timing the response
+    start_time = time.time()
+    
+    # Log the request with context file names
+    context_files = []
+    for message in messages:
+        if "Supporting Context" in message.get("content", ""):
+            # Extract file names from context message
+            content = message["content"]
+            if "Context File" in content:
+                # Extract file names from the context sections
+                for line in content.split("\n"):
+                    if "Context File" in line and ":" in line:
+                        try:
+                            file_name = line.split(":", 1)[1].strip()
+                            context_files.append(file_name)
+                        except IndexError:
+                            pass
+
+    log_msg = f"Sending request to {model} with {len(messages)} messages"
+    if context_files:
+        log_msg += f", context files: {', '.join(context_files)}"
+    terminal.logger.info(log_msg)
+    
+    # Get Anthropic client
+    client = terminal.anthropic_client
+    if not client:
+        raise ValueError(f"Anthropic API key not configured but model {model} requires it")
+    
+    # Convert OpenAI message format to Anthropic format
+    anthropic_messages = []
+    system_message = None
+    
+    # Extract system message if present
+    for msg in messages:
+        if msg["role"] == "system":
+            system_message = msg["content"]
+            break
+            
+    # Process other messages
+    for msg in messages:
+        role = msg["role"]
+        # Map OpenAI roles to Anthropic roles (skip system as it's handled separately)
+        if role == "user":
+            anthropic_messages.append({"role": "user", "content": msg["content"]})
+        elif role == "assistant":
+            anthropic_messages.append({"role": "assistant", "content": msg["content"]})
+    
+    response_text = ""
+    chunk_count = 0
+    log_interval = 100  # Log every 100 chunks
+    
+    try:
+        # Create Claude streaming completion
+        stream_manager = client.messages.stream(
+            model=model,
+            messages=anthropic_messages,
+            system=system_message,
+            max_tokens=4096,
+            temperature=0.0
+        )
+        
+        # Start the streaming session with the context manager
+        if print_stream:
+            terminal_print(f"Receiving response from {model}...", PrintType.PROCESSING)
+        terminal.logger.info(f"Started receiving response from {model}")
+        stream_start_time = time.time()
+        
+        async with stream_manager as stream:
+            # Process each event from the stream
+            async for chunk in stream:
+                if chunk.type == 'content_block_delta':
+                    if hasattr(chunk.delta, 'text'):
+                        chunk_text = chunk.delta.text
+                        response_text += chunk_text
+                        if print_stream:
+                            terminal_print(chunk_text, PrintType.LLM, end="", flush=True)
+                
+                # Count each chunk for logging
+                chunk_count += 1
+                if chunk_count % log_interval == 0:
+                    # Calculate chunks per second
+                    current_time = time.time()
+                    elapsed_time = current_time - stream_start_time
+                    chunks_per_second = round(chunk_count / elapsed_time, 2) if elapsed_time > 0 else 0
+                    terminal.logger.info(f"Received {chunk_count} chunks from {model} ({chunks_per_second} chunks/sec)")
+                
+            # Get usage information after stream is complete
+            if hasattr(stream, 'usage'):
+                input_tokens = getattr(stream.usage, 'input_tokens', 0)
+                output_tokens = getattr(stream.usage, 'output_tokens', 0)
+                
+                # Calculate elapsed time
+                end_time = time.time()
+                elapsed_time = end_time - start_time
+                elapsed_seconds = round(elapsed_time, 2)
+                
+                # Calculate chunks per second over the entire response
+                stream_elapsed = end_time - stream_start_time
+                chunks_per_second = round(chunk_count / stream_elapsed, 2) if stream_elapsed > 0 else 0
+                
+                if print_stream:
+                    terminal_print(
+                        f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens} | "
+                        f"Response Time: {elapsed_seconds}s | Avg: {chunks_per_second} chunks/sec",
+                        PrintType.WARNING
+                    )
+                
+                # Log completion stats
+                terminal.logger.info(
+                    f"Response completed: {model}, {input_tokens} input tokens, {output_tokens} output tokens, "
+                    f"{elapsed_seconds}s, {chunk_count} chunks, {chunks_per_second} chunks/sec"
+                )
+                
+                # Track token usage
+                usage_tracker = get_instance()
+                await usage_tracker.add_use(model, input_tokens, output_tokens)
+            
+            # Return the complete response text for Anthropic
+            return response_text
+                
+    except Exception as e:
+        terminal.logger.error(f"Error making Anthropic API request: {str(e)}")
+        raise ValueError(f"Error making Anthropic API request: {str(e)}")
+
+async def stream_request(terminal, model, messages, print_stream=True):
+    # Determine which client to use based on the model provider
+    model_provider = None
+
+    # Find the model in AVAILABLE_MODELS
+    available_models = terminal.get_models()
+    for entry in available_models:
+        if entry["name"] == model:
+            model_provider = entry["provider"]
+            break
+            
+    # Call the appropriate streaming function based on provider
+    if model_provider == "anthropic":
+        return await stream_messages_format(terminal, model, messages, print_stream)
+    else:
+        return await stream_openai_format(terminal, model, messages, print_stream)
