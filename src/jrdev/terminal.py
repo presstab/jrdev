@@ -31,6 +31,7 @@ from jrdev.model_utils import load_hardcoded_models
 from jrdev.models import fetch_venice_models
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.projectcontext.contextmanager import ContextManager
 
 # Cross-platform readline support
 try:
@@ -134,6 +135,9 @@ class JrDevTerminal:
         # Controls whether to process file requests and code changes
         self.process_follow_up = False
 
+        # Initialize the context manager
+        self.context_manager = ContextManager()
+        
         # Track active background tasks
         self.active_tasks = {}
 
@@ -323,6 +327,11 @@ class JrDevTerminal:
                         project_context[key] = f.read()
             except Exception as e:
                 terminal_print(f"Warning: Could not read {filename}: {str(e)}", PrintType.WARNING)
+        
+        # Add file contexts from the context manager
+        file_contexts = self.context_manager.get_all_context()
+        if file_contexts:
+            project_context["file_contexts"] = file_contexts
 
         self.messages.append({"role": "user", "content": f"Project Details: {project_context}"})
 

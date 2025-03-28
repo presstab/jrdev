@@ -60,8 +60,11 @@ async def handle_addcontext(terminal, args):
                 file_content = f.read()
 
             # Limit file size
-            if len(file_content) > 1000 * 1024:  # 1MB limit
-                terminal_print(f"Skipping {rel_path}: File too large to add to context", PrintType.WARNING)
+            if len(file_content) > 2000 * 1024:  # 2MB limit
+                size_mb = len(file_content) / (1024 * 1024)
+                error_msg = f"Skipping {rel_path}: File too large ({size_mb:.2f} MB) to add to context (max: 2MB)"
+                terminal.logger.error(error_msg)
+                terminal_print(error_msg, PrintType.ERROR)
                 files_skipped += 1
                 continue
 
