@@ -24,3 +24,5 @@ env/
 jrdev_filecontext.md
 jrdev_filetree.txt
 jrdev_overview.md
+
+jrdev/*

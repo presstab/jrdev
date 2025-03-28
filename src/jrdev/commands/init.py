@@ -109,8 +109,7 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
         ]
 
         # Switch the model to deepseek-r1-671b
-        #terminal.model = "deepseek-r1-671b"
-        terminal.model = "mistral-31-24b"
+        terminal.model = "deepseek-r1-671b"
         terminal_print(f"Model changed to: {terminal.model}", PrintType.INFO)
 
         # Send the file tree to the LLM with a request for file recommendations

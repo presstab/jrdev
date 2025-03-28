@@ -86,10 +86,8 @@ class ContextManager:
             logger.error(f"Error saving context index: {str(e)}")
             terminal_print(f"Error saving context index: {str(e)}", PrintType.ERROR)
 
-
     def _path_to_filename(self, file_path: str) -> str:
         return file_path.replace("/", "-@-")
-
 
     def _filename_to_path(self, filename: str) -> str:
         return filename.replace("-@-", "/")
@@ -108,9 +106,9 @@ class ContextManager:
         if file_path.startswith("./"):
             file_path = file_path[2:]
 
-        # Create a directory structure that matches the file path
-        name = self._path_to_filename(file_path)
-        context_file_path = os.path.join(self.contexts_dir, name + ".md")
+        # Convert file path to filename using the conversion method
+        filename = self._path_to_filename(file_path) + ".md"
+        context_file_path = os.path.join(self.contexts_dir, filename)
 
         # Create the directory if it doesn't exist
         parent_dir = os.path.dirname(context_file_path)
@@ -194,10 +192,10 @@ class ContextManager:
             logger.info(f"File changed, needs update: {file_path}")
             return True
 
-        # Check if context file exists
-        context_path = file_info.get("context_path")
-        if not context_path or not os.path.exists(
-            os.path.join(self.contexts_dir, context_path)
+        # Check if context file exists - using stored filename from index
+        context_filename = file_info.get("context_path")
+        if not context_filename or not os.path.exists(
+            os.path.join(self.contexts_dir, context_filename)
         ):
             logger.info(f"Context file missing, needs update: {file_path}")
             return True
@@ -362,11 +360,12 @@ class ContextManager:
         current_hash = self._get_file_hash(file_path)
         last_modified = os.path.getmtime(file_path)
 
-        # Relative path for context file (from context directory)
+        # Remove leading ./ if present
         if file_path.startswith("./"):
             file_path = file_path[2:]
 
-        rel_context_path = file_path + ".md"
+        # Create filename using the conversion method
+        filename = self._path_to_filename(file_path) + ".md"
 
         # Update the index
         if "files" not in self.index:
@@ -375,7 +374,7 @@ class ContextManager:
         self.index["files"][file_path] = {
             "hash": current_hash,
             "last_modified": last_modified,
-            "context_path": rel_context_path,
+            "context_path": filename,
         }
 
         # Save the updated index
