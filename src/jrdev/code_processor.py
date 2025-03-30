@@ -6,6 +6,7 @@ from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.file_utils import requested_files, get_file_contents, cutoff_string, manual_json_parse
 from jrdev.file_operations.process_ops import apply_file_changes
 from jrdev.ui.ui import terminal_print, PrintType, print_steps
+from jrdev.message_builder import MessageBuilder
 
 
 class CodeProcessor:
@@ -43,34 +44,14 @@ class CodeProcessor:
         Build the initial message using the user task and any project context,
         then send it to the LLM.
         """
-        # Start with a base user message.
-        user_message = "Here is the task to complete: " + user_task
-
-        # Append any project context available in terminal.project_files.
-        for key, filename in self.terminal.project_files.items():
-            if os.path.exists(filename):
-                try:
-                    with open(filename, "r") as f:
-                        content = f.read()
-                    user_message += f"\n\n{key.upper()}:\n{content}"
-                except Exception as e:
-                    warning_msg = f"Could not read {filename}: {str(e)}"
-                    self.terminal.logger.warning(warning_msg)
-                    terminal_print(f"Warning: {warning_msg}", PrintType.WARNING)
-
-        # Append additional context from terminal.context if available.
-        if self.terminal.context:
-            context_section = "\n\nUSER CONTEXT:\n"
-            for i, ctx in enumerate(self.terminal.context):
-                context_section += f"\n--- Context File {i + 1}: {ctx['name']} ---\n{ctx['content']}\n"
-            user_message += context_section
-
-        # Load a system prompt (e.g. "analyze_task_return_getfiles") to guide the LLM.
-        dev_prompt_modifier = PromptManager.load("analyze_task_return_getfiles")
-        messages = []
-        if dev_prompt_modifier:
-            messages.append({"role": "system", "content": dev_prompt_modifier})
-        messages.append({"role": "user", "content": user_message})
+        # Use MessageBuilder for consistent message construction
+        builder = MessageBuilder(self.terminal)
+        builder.load_system_prompt("analyze_task_return_getfiles")
+        builder.start_user_section(f"Here is the task to complete: {user_task}")
+        builder.add_project_files()
+        builder.add_context(self.terminal.context)
+        builder.finalize_user_section()
+        messages = builder.build()
 
         model_name = self.terminal.model
         terminal_print(f"\n{model_name} is processing the request...", PrintType.PROCESSING)
@@ -181,10 +162,12 @@ class CodeProcessor:
         if additional_prompt:
             prompt = f"{prompt} {additional_prompt}"
 
-        messages = []
-        messages.append({"role": "system", "content": dev_msg})
-        messages.append({"role": "user", "content": file_content})
-        messages.append({"role": "user", "content": prompt})
+        # Use MessageBuilder to construct messages
+        builder = MessageBuilder(self.terminal)
+        builder.add_system_message(dev_msg)
+        builder.add_user_message(file_content)
+        builder.add_user_message(prompt)
+        messages = builder.build()
         self.terminal.logger.info(f"Sending code request to {self.terminal.model}")
         terminal_print(f"\nSending code request to {self.terminal.model}...", PrintType.PROCESSING)
         response = await stream_request(self.terminal, self.terminal.model, messages)
@@ -211,13 +194,15 @@ class CodeProcessor:
         When the initial request detects file changes,
         send the content of those files along with the task details back to the LLM.
         """
+        builder = MessageBuilder(self.terminal)
+        builder.load_system_prompt("create_steps")
+        builder.add_user_message(f"Task To Accomplish: {user_task}")
+        builder.add_assistant_message(initial_response)
+        
+        # Add file contents as a user message
         files_content = get_file_contents(files_to_send)
-        dev_msg = PromptManager.load("create_steps")
-        messages = []
-        messages.append({"role": "system", "content": dev_msg})
-        messages.append({"role": "user", "content": f"Task To Accomplish: {user_task}"})
-        messages.append({"role": "assistant", "content": initial_response})
-        messages.append({"role": "user", "content": files_content})
+        builder.add_user_message(files_content)
+        messages = builder.build()
         self.terminal.logger.info(f"Sending file contents to {self.terminal.model}")
         terminal_print(f"\nSending requested files to {self.terminal.model}...", PrintType.PROCESSING)
         response = await stream_request(self.terminal, self.terminal.model, messages)
@@ -254,11 +239,10 @@ class CodeProcessor:
         self.terminal.logger.info("Validating changed files")
         terminal_print("\nValidating changed files...", PrintType.PROCESSING)
         files_content = get_file_contents(list(changed_files))
-        validation_prompt = PromptManager.load("validator")
-        messages = [
-            {"role": "system", "content": validation_prompt},
-            {"role": "user", "content": f"Please validate these files:\n{files_content}"}
-        ]
+        builder = MessageBuilder(self.terminal)
+        builder.load_system_prompt("validator")
+        builder.add_user_message(f"Please validate these files:\n{files_content}")
+        messages = builder.build()
         original_model = self.terminal.model
         # Temporarily switch to a model used for validation.
         self.terminal.model = "qwen-2.5-coder-32b"

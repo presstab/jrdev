@@ -121,7 +121,6 @@ class JrDevTerminal:
         # Project files dict to track various files used by the application
         self.project_files = {
             "filetree": f"{JRDEV_DIR}jrdev_filetree.txt",
-            "filecontext": f"{JRDEV_DIR}jrdev_filecontext.md",
             "overview": f"{JRDEV_DIR}jrdev_overview.md",
             "conventions": f"{JRDEV_DIR}jrdev_conventions.md"
         }
