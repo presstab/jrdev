@@ -20,6 +20,7 @@ from jrdev.languages.utils import detect_language, is_headers_language
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.treechart import generate_compact_tree
 from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.message_builder import MessageBuilder
 
 
 # Create an asyncio lock for safe file access
@@ -117,25 +118,19 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
             "Waiting for LLM analysis of project tree...", PrintType.PROCESSING
         )
 
-        # Get file recommendation prompt
-        file_recommendation_prompt = PromptManager.load("file_recommendation")
-
-        # Get the format explanation from the prompt file
-        format_explanation = PromptManager.load("init/filetree_format")
-
-        # Combine prompt with format explanation and tree output
-        recommendation_prompt = (
-            f"{file_recommendation_prompt}\n\n{format_explanation}\n\n{tree_output}"
-        )
-
-        # Get the system prompt to enforce response format
-        dev_prompt = PromptManager.load("files/get_files_format")
-
-        # Create a temporary message list to avoid polluting the conversation
-        temp_messages = [
-            {"role": "system", "content": dev_prompt},
-            {"role": "user", "content": recommendation_prompt},
-        ]
+        # Use MessageBuilder for file recommendations
+        builder = MessageBuilder(terminal)
+        builder.load_system_prompt("files/get_files_format")
+        
+        # Start user section with file recommendation prompt
+        builder.start_user_section()
+        builder.append_to_user_section(PromptManager.load("file_recommendation"))
+        builder.append_to_user_section(PromptManager.load("init/filetree_format"))
+        builder.append_to_user_section(tree_output)
+        builder.finalize_user_section()
+        
+        # Get the constructed message list
+        temp_messages = builder.build()
 
         # Send the request to the LLM
         try:
@@ -223,11 +218,16 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                     # Use a local model variable instead of changing terminal.model
                     conventions_model = "deepseek-r1-671b"
 
-                    # Get project conventions prompt
-                    conventions_prompt = PromptManager.load("project_conventions")
-
+                    # Use MessageBuilder for conventions
+                    conventions_builder = MessageBuilder(terminal)
+                    conventions_builder.load_system_prompt("project_conventions")
+                    
+                    # Start building user content
+                    conventions_builder.start_user_section("FILE TREE:\n")
+                    conventions_builder.append_to_user_section(tree_output)
+                    conventions_builder.append_to_user_section("\n\nFILE CONTENTS:\n")
+                    
                     # Read the actual content of all files from the tree
-                    files_content = []
                     for file_path in tree_files:
                         try:
                             full_path = os.path.join(current_dir, file_path)
@@ -236,9 +236,7 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                                     content = f.read()
                                     # Limit file size for analysis
                                     if len(content) <= 2000 * 1024:
-                                        files_content.append(
-                                            f"## {file_path}\n\n{content}\n"
-                                        )
+                                        conventions_builder.append_to_user_section(f"## {file_path}\n\n{content}\n")
                                     else:
                                         size_mb = len(content) / (1024 * 1024)
                                         error_msg = f"File {file_path} is too large ({size_mb:.2f} MB) for analysis (max: 2MB)"
@@ -249,18 +247,12 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                                 f"Error reading file {file_path}: {str(e)}",
                                 PrintType.ERROR,
                             )
-
-                    # Create conventions messages with file tree and actual file contents
-                    conventions_messages = [
-                        {"role": "system", "content": conventions_prompt},
-                        {
-                            "role": "user",
-                            "content": (
-                                f"FILE TREE:\n{tree_output}\n\n"
-                                f"FILE CONTENTS:\n{''.join(files_content)}"
-                            ),
-                        },
-                    ]
+                    
+                    # Finalize the user section
+                    conventions_builder.finalize_user_section()
+                    
+                    # Get the constructed message list
+                    conventions_messages = conventions_builder.build()
 
                     try:
                         # Use conventions_model directly instead of changing terminal.model
@@ -333,22 +325,24 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                 # Get all file contexts from the context manager
                 file_context_content = terminal.context_manager.get_all_context()
 
-                # Get project overview prompt
-                system_prompt = PromptManager.load("project_overview")
-
-                # Create the overview prompt
-                overview_prompt = (
-                    f"FILE TREE:\n{file_tree_content}\n\n"
-                    f"FILE CONTEXT:\n{file_context_content}\n\n"
-                    f"PROJECT CONVENTIONS:\n{conventions_result}"
-                )
-
+                # Use MessageBuilder for project overview
+                overview_builder = MessageBuilder(terminal)
+                overview_builder.load_system_prompt("project_overview")
+                
+                # Create the overview prompt with multiple sections
+                overview_builder.start_user_section("FILE TREE:\n")
+                overview_builder.append_to_user_section(file_tree_content)
+                overview_builder.append_to_user_section("\n\nFILE CONTEXT:\n")
+                overview_builder.append_to_user_section(file_context_content)
+                overview_builder.append_to_user_section("\n\nPROJECT CONVENTIONS:\n")
+                overview_builder.append_to_user_section(conventions_result)
+                overview_builder.finalize_user_section()
+                
+                # Get the constructed message list
+                overview_messages = overview_builder.build()
+                
                 # Send request to the model for project overview
                 try:
-                    overview_messages = [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": overview_prompt},
-                    ]
                     full_overview = await stream_request(
                         terminal, terminal.model, overview_messages
                     )

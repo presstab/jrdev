@@ -26,6 +26,7 @@ from jrdev.file_utils import requested_files, get_file_contents, add_to_gitignor
 from jrdev.llm_requests import stream_request
 # JrDev modules
 from jrdev.logger import setup_logger
+from jrdev.message_builder import MessageBuilder
 from jrdev.model_list import ModelList
 from jrdev.model_utils import load_hardcoded_models
 from jrdev.models import fetch_venice_models
@@ -317,6 +318,10 @@ class JrDevTerminal:
         # Remove project message if it already exists
         self.remove_project_message()
 
+        # Use MessageBuilder to build project context message
+        builder = MessageBuilder(self)
+        builder.start_user_section("Project Details: ")
+        
         # Read project context files if they exist
         project_context = {}
         for key, filename in self.project_files.items():
@@ -331,8 +336,14 @@ class JrDevTerminal:
         file_contexts = self.context_manager.get_all_context()
         if file_contexts:
             project_context["file_contexts"] = file_contexts
-
-        self.messages.append({"role": "user", "content": f"Project Details: {project_context}"})
+            
+        # Append the project context to the user section
+        builder.append_to_user_section(str(project_context))
+        builder.finalize_user_section()
+        
+        # Get the message and add it directly to the message history
+        project_message = builder.messages[0]  # There should be only one message
+        self.messages.append(project_message)
 
 
     async def send_message(self, content, writepath=None, print_stream=True):
@@ -358,42 +369,45 @@ class JrDevTerminal:
 
         user_additional_modifier = " Here is the user's question or instruction:"
         user_message = f"{user_additional_modifier} {content}"
-        file_content = ""
 
         # Append project context (will delete previous instances of it)
-        project_message = None
         if self.use_project_context:
             self.add_project_message()
             project_message = self.get_project_message()
         else:
             self.remove_project_message()
 
-        # Add any additional context files stored in self.context
+        # Use MessageBuilder for the initial file check
+        check_builder = MessageBuilder(self)
+        check_builder.load_system_prompt("get_files_check")
+        
+        # Add supporting context if available
         if self.context:
-            context_section = "\n\nUSER CONTEXT:\n"
+            context_content = "\n\nUSER CONTEXT:\n"
             for i, ctx in enumerate(self.context):
-                context_section += f"\n--- Context File {i + 1}: {ctx['name']} ---\n{ctx['content']}\n"
-            file_content += context_section
-
-        # Make a temp messages list for initial request to llm to analyze what this request needs
-        messages = []
-        if file_content != "":
-            messages.append({"role": "user", "content": f"Supporting Context: {file_content}"})
-        if project_message is not None:
-            messages.append(project_message)
-        messages.append({"role": "user", "content": user_message})
-
-        # Add first step to quickly identify if certain files should be included with this
+                context_content += f"\n--- Context File {i + 1}: {ctx['name']} ---\n{ctx['content']}\n"
+            check_builder.add_user_message(f"Supporting Context: {context_content}")
+        
+        # Add project message if available
+        if self.use_project_context and project_message is not None:
+            check_builder.messages.append(project_message)
+            
+        # Add user message
+        check_builder.add_user_message(user_message)
+        
+        # Get messages for file check
         files_to_send = None
         if self.use_project_context:
-            # Use an LLM to process native language and see if additional context files should be added
-            dev_msg = PromptManager.load("get_files_check")
-            messages.insert(0, {"role": "system", "content": dev_msg})
+            messages = check_builder.build()
             terminal_print(f"\nmistral-31-24b is interpreting request...", PrintType.PROCESSING)
             needed_files_response = await stream_request(self, "mistral-31-24b", messages, print_stream=False)
-
             files_to_send = requested_files(needed_files_response)
 
+        # Build actual request to send to LLM
+        builder = MessageBuilder(this)
+
+        # Ask user about adding suggested files
+        file_content = ""
         if files_to_send:
             terminal_print(f"Suggested files to add: {files_to_send}", PrintType.INFO)
             terminal_print("Do you want to add these files? (y/n):", PrintType.INFO)
@@ -402,13 +416,14 @@ class JrDevTerminal:
 
             if should_add and len(files_to_send) > 0:
                 terminal_print(f"Adding files: {files_to_send}")
+
                 new_content = get_file_contents(files_to_send)
                 if len(new_content) > 0:
                     file_content = f"{file_content}\n{new_content}"
                     self.logger.info(f"Added content: {file_content}")
 
-        # use model's message thread
-        if file_content != "":
+        # Update message history
+        if file_content:
             self.add_message_history(f"Supporting Context: {file_content}")
         self.add_message_history(user_message)
 
