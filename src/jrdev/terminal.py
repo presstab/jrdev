@@ -387,7 +387,7 @@ class JrDevTerminal:
         # Add first step to quickly identify if certain files should be included with this
         files_to_send = None
         if self.use_project_context:
-            # Load the prompt using PromptManager
+            # Use an LLM to process native language and see if additional context files should be added
             dev_msg = PromptManager.load("get_files_check")
             messages.insert(0, {"role": "system", "content": dev_msg})
             terminal_print(f"\nmistral-31-24b is interpreting request...", PrintType.PROCESSING)
@@ -396,8 +396,13 @@ class JrDevTerminal:
             files_to_send = requested_files(needed_files_response)
 
         if files_to_send:
-            terminal_print(f"Adding files: {files_to_send}")
-            if len(files_to_send) > 0:
+            terminal_print(f"Suggested files to add: {files_to_send}", PrintType.INFO)
+            terminal_print("Do you want to add these files? (y/n):", PrintType.INFO)
+            user_decision = await self.get_user_input()
+            should_add = user_decision.strip().lower() in ("y", "yes")
+
+            if should_add and len(files_to_send) > 0:
+                terminal_print(f"Adding files: {files_to_send}")
                 new_content = get_file_contents(files_to_send)
                 if len(new_content) > 0:
                     file_content = f"{file_content}\n{new_content}"
