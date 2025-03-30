@@ -424,8 +424,10 @@ def insert_after_marker(change, lines, filepath):
 
     # Find the line to insert after
     found = False
+    # Unescape quotes in the marker before comparing, similar to what we do for new_content
+    unescaped_marker = marker.replace('\"', '"')
     for i, line in enumerate(lines):
-        if marker.strip() in line.strip():
+        if unescaped_marker.strip() in line.strip() or marker.strip() in line.strip():
             # get suggested indent
             use_indentation = indent_from_hint(indentation_hint, line)
 

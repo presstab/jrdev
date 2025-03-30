@@ -426,7 +426,7 @@ async def request_code(terminal, change_instruction, file, additional_prompt=Non
     return follow_up_response
 
 
-async def send_file_request(terminal, files_to_send, user_task, assistant_plan = None):
+async def send_file_request(terminal, files_to_send, user_task, assistant_plan=None):
     terminal.logger.info(f"Detected file request: {files_to_send}")
     terminal_print(f"\nDetected file request: {files_to_send}", PrintType.INFO)
 
@@ -438,9 +438,9 @@ async def send_file_request(terminal, files_to_send, user_task, assistant_plan =
     #construct and send message to LLM
     messages = []
     messages.append({"role": "system", "content": dev_msg})
+    messages.append({"role": "user", "content": f"Task To Accomplish: {user_task}"})
     if assistant_plan is not None:
         messages.append({"role": "assistant", "content": assistant_plan})
-    messages.append({"role": "user", "content": f"Task To Accomplish: {user_task}"})
     messages.append({"role": "user", "content": files_content})
     terminal.logger.info(f"Sending requested files to {terminal.model}")
     terminal_print(f"\nSending requested files to {terminal.model}...", PrintType.PROCESSING)
