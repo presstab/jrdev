@@ -85,9 +85,9 @@ async def stream_openai_format(terminal, model, messages, print_stream=True):
         )
     elif model == "deepseek-r1-671b":
         stream = await client.chat.completions.create(
-            model=model, messages=messages, stream=True, extra_body={"venice_parameters": {"include_venice_system_prompt": False}}
+            model=model, messages=messages, stream=True, temperature=0.0, extra_body={"venice_parameters": {"include_venice_system_prompt": False}}
         )
-    elif model == "deepseek-reasoner":
+    elif model == "deepseek-reasoner" or model == "deepseek-chat":
         structured_messages = []
         sys_msg = None
         previous_role = None
@@ -125,7 +125,10 @@ async def stream_openai_format(terminal, model, messages, print_stream=True):
         if sys_msg:
             structured_messages.insert(0, {"role": "system", "content": sys_msg})
 
-        stream = await client.chat.completions.create(model="deepseek-reasoner", messages=structured_messages, stream=True, max_tokens=8000)
+        if model == "deepseek-reasoner":
+            stream = await client.chat.completions.create(model=model, messages=structured_messages, stream=True, max_tokens=8000)
+        else:
+            stream = await client.chat.completions.create(model=model, temperature=0.0, messages=structured_messages, stream=True, max_tokens=8000)
     else:
         stream = await client.chat.completions.create(
             model=model, messages=messages, stream=True, temperature=0.0,
