@@ -12,7 +12,7 @@ def find_code_snippet(lines, code_snippet):
         tuple: (start_idx, end_idx) of the snippet, or (-1, -1) if not found
     """
     # Normalize line endings in the snippet
-    normalized_snippet = code_snippet.replace('\r\n', '\n').rstrip('\n')
+    normalized_snippet = code_snippet.replace('\r\n', '\n').replace('\\n', '\n').replace('\\"', '"')
     snippet_lines = normalized_snippet.split('\n')
 
     # If the snippet is empty, return not found
@@ -32,7 +32,7 @@ def find_code_snippet(lines, code_snippet):
         for j, snippet_line in enumerate(snippet_lines):
             line = lines[i + j].rstrip('\n')  # Remove trailing newline for comparison
             # Strip whitespace for comparison to handle indentation differences
-            if snippet_line.strip() != line.strip() and snippet_line not in line:
+            if snippet_line.strip() != line.strip() and snippet_line.strip() not in line:
                 found = False
                 break
         if found:
