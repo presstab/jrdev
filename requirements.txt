@@ -1,5 +1,5 @@
 openai>=1.0.0
-anthropic>=0.19.0
+anthropic>=0.23.1
 python-dotenv
 pyreadline3; platform_system=='Windows'
 windows-curses; platform_system=='Windows'

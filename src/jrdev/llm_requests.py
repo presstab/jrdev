@@ -64,6 +64,8 @@ async def stream_openai_format(terminal, model, messages, print_stream=True, jso
     if model_provider == "openai":
         if "o3-mini" in model:
             kwargs["reasoning_effort"] = "high"
+            #o3-mini incompatible with temp
+            del kwargs["temperature"]
     elif model == "qwen-2.5-qwq-32b":
         kwargs["top_p"] = 0.95
         kwargs["extra_body"] = {"venice_parameters":{"include_venice_system_prompt": False}, "frequency_penalty": 0.3}
@@ -210,7 +212,6 @@ async def stream_messages_format(terminal, model, messages, print_stream=True):
     for msg in messages:
         if msg["role"] == "system":
             system_message = msg["content"]
-            break
             
     # Process other messages
     for msg in messages:
@@ -220,6 +221,7 @@ async def stream_messages_format(terminal, model, messages, print_stream=True):
             anthropic_messages.append({"role": "user", "content": msg["content"]})
         elif role == "assistant":
             anthropic_messages.append({"role": "assistant", "content": msg["content"]})
+        # Don't include system messages in the anthropic_messages list
     
     response_text = ""
     chunk_count = 0
@@ -227,13 +229,19 @@ async def stream_messages_format(terminal, model, messages, print_stream=True):
     
     try:
         # Create Claude streaming completion
-        stream_manager = client.messages.stream(
-            model=model,
-            messages=anthropic_messages,
-            system=system_message,
-            max_tokens=4096,
-            temperature=0.0
-        )
+        # Ensure system_message is passed correctly
+        kwargs = {
+            "model": model,
+            "messages": anthropic_messages,
+            "max_tokens": 4096,
+            "temperature": 0.0
+        }
+        
+        # Only add system if it's not None
+        if system_message is not None:
+            kwargs["system"] = system_message
+            
+        stream_manager = client.messages.stream(**kwargs)
         
         # Start the streaming session with the context manager
         if print_stream:

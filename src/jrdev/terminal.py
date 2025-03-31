@@ -19,8 +19,8 @@ import anthropic  # Import Anthropic SDK
 from jrdev.colors import Colors
 from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
                             handle_clearcontext, handle_clearmessages, handle_code,
-                            handle_cost, handle_exit, handle_help, handle_init,
-                            handle_model, handle_models, handle_process,
+                            handle_cost, handle_exit, handle_git, handle_git_pr_summary, handle_help, 
+                            handle_init, handle_model, handle_models, handle_process,
                             handle_projectcontext, handle_stateinfo, handle_tasks,
                             handle_viewcontext)
 from jrdev.file_utils import requested_files, get_file_contents, add_to_gitignore, JRDEV_DIR
@@ -165,6 +165,7 @@ class JrDevTerminal:
             "/cancel": handle_cancel,
             "/code": handle_code,
             "/projectcontext": handle_projectcontext,
+            "/git": handle_git
         }
 
         # Debug commands

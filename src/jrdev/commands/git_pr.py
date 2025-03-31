@@ -1,0 +1,269 @@
+#!/usr/bin/env python3
+
+"""
+Git PR commands for JrDev.
+Provides functionality to generate PR summaries and code reviews based on git diffs.
+"""
+
+import logging
+import subprocess
+import shlex
+from typing import Awaitable, Dict, List, Optional, Protocol
+
+from jrdev.commands.git_config import get_git_config, DEFAULT_GIT_CONFIG
+from jrdev.llm_requests import stream_request
+from jrdev.message_builder import MessageBuilder
+from jrdev.ui.ui import PrintType, terminal_print
+
+# Define a Protocol for JrDevTerminal to avoid circular imports
+class JrDevTerminal(Protocol):
+    model: str
+    logger: logging.Logger
+
+
+async def _handle_git_pr_common(
+    terminal: JrDevTerminal,
+    args: List[str],
+    prompt_path: str,
+    operation_type: str,
+    message_type: str,
+    error_message: str,
+    add_project_files: bool = False,
+) -> Optional[str]:
+    """
+    Common helper function for PR operations.
+    Args:
+        terminal: The JrDevTerminal instance
+        args: Command arguments
+        prompt_path: Path to the prompt file
+        operation_type: Type of operation being performed (for display)
+        message_type: Type of message being created (for display)
+        error_message: Error message prefix
+        add_project_files: Whether to add project files to the message
+
+    Returns:
+        The response from the LLM as a string or None if an error occurred
+    """
+    # Get configured base branch
+    config = get_git_config()
+    base_branch = config.get("base_branch", DEFAULT_GIT_CONFIG["base_branch"])
+
+    # Extract user prompt if provided
+    user_prompt = " ".join(args[1:]) if len(args) > 1 else ""
+
+    terminal_print(
+        f"Generating PR {operation_type} using diff with {base_branch}...",
+        PrintType.INFO,
+    )
+    terminal_print(
+        f"Warning: Unresolved merge conflicts may affect diff results and show items that are not part of the PR",
+        PrintType.WARNING
+    )
+    if user_prompt:
+        terminal_print(f"Using custom prompt: {user_prompt}", PrintType.INFO)
+    terminal_print(
+        f"This uses the configured base branch. To change it, run: "
+        f"/git config set base_branch <branch-name>",
+        PrintType.INFO,
+    )
+
+    # Sanitize the base_branch parameter to prevent command injection
+    # shlex.quote ensures the parameter is properly escaped for shell commands
+    safe_base_branch = shlex.quote(base_branch)
+    
+    # Verify the base branch exists before attempting diff
+    try:
+        # Use git rev-parse --verify to check if the branch exists
+        # Add a timeout to prevent hanging processes (5 seconds should be sufficient)
+        subprocess.check_output(
+            ["git", "rev-parse", "--verify", safe_base_branch],
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=5,  # 5 second timeout
+        )
+    except subprocess.TimeoutExpired as timeout_err:
+        # Log detailed error information for debugging
+        terminal.logger.warning(
+            f"Git branch verification timeout: branch='{base_branch}', safe_branch='{safe_base_branch}', "
+            f"timeout={timeout_err.timeout}s, command={' '.join(timeout_err.cmd)}"
+        )
+        
+        # Display user-friendly error messages in the terminal
+        terminal_print(
+            f"Error: Command timed out while verifying branch '{base_branch}'.",
+            PrintType.ERROR,
+        )
+        terminal_print(
+            "This could indicate a problem with the git repository or the branch name.",
+            PrintType.WARNING,
+        )
+        return None
+    except subprocess.CalledProcessError as cmd_err:
+        # Extract structured information for logging
+        error_output = cmd_err.output.strip() if cmd_err.output else "No error output"
+        return_code = cmd_err.returncode
+        command = ' '.join(cmd_err.cmd) if isinstance(cmd_err.cmd, list) else cmd_err.cmd
+        
+        # Log detailed error context
+        terminal.logger.warning(
+            f"Git branch verification failed: branch='{base_branch}', safe_branch='{safe_base_branch}', "
+            f"return_code={return_code}, command='{command}', error_output='{error_output}'"
+        )
+        
+        # Display user-friendly error messages in the terminal
+        terminal_print(
+            f"Error: Base branch '{base_branch}' does not exist or is not a valid reference.",
+            PrintType.ERROR,
+        )
+        terminal_print(
+            f"Please configure a valid branch with: /git config set base_branch <valid-branch>",
+            PrintType.INFO,
+        )
+        terminal_print(f"Original git error: {error_output}", PrintType.ERROR)
+        return None
+
+    # Get git diff using the sanitized base_branch
+    try:
+        # Add timeout to prevent hanging (30 seconds is reasonable for most diffs)
+        diff_output = subprocess.check_output(
+            ["git", "diff", safe_base_branch], 
+            stderr=subprocess.STDOUT, 
+            text=True,
+            timeout=30  # 30 second timeout for diff (might take longer for large diffs)
+        )
+    except subprocess.TimeoutExpired as timeout_err:
+        # Log detailed error information for debugging
+        terminal.logger.warning(
+            f"Git diff timeout: branch='{base_branch}', safe_branch='{safe_base_branch}', "
+            f"timeout={timeout_err.timeout}s, command={' '.join(timeout_err.cmd)}"
+        )
+        
+        # Display user-friendly error messages in the terminal
+        terminal_print(
+            f"Error: Command timed out while generating diff with '{base_branch}'.",
+            PrintType.ERROR,
+        )
+        terminal_print(
+            "This could indicate a very large diff or a problem with the git repository.",
+            PrintType.WARNING,
+        )
+        terminal_print(
+            "Try setting a more specific base branch with: /git config set base_branch <branch>",
+            PrintType.INFO,
+        )
+        return None
+    except subprocess.CalledProcessError as cmd_err:
+        # Extract structured information for logging
+        error_output = cmd_err.output.strip() if cmd_err.output else "No error output"
+        return_code = cmd_err.returncode
+        command = ' '.join(cmd_err.cmd) if isinstance(cmd_err.cmd, list) else cmd_err.cmd
+        
+        # Log detailed error context
+        terminal.logger.warning(
+            f"Git diff command failed: branch='{base_branch}', safe_branch='{safe_base_branch}', "
+            f"return_code={return_code}, command='{command}', error_output='{error_output}'"
+        )
+        
+        # Display user-friendly error messages in the terminal
+        terminal_print(
+            f"Error running git diff with branch '{base_branch}'", 
+            PrintType.ERROR
+        )
+        terminal_print(f"Git error: {error_output}", PrintType.ERROR)
+        terminal_print(
+            "Make sure you have permission to access this repository and branch.",
+            PrintType.INFO,
+        )
+        return None
+
+    if not diff_output:
+        terminal_print(f"No changes found in diff with {base_branch}", PrintType.INFO)
+        return None
+
+    # Use MessageBuilder to construct messages
+    builder = MessageBuilder(terminal)
+    builder.start_user_section()
+    if add_project_files:
+        builder.add_project_files()
+    builder.load_user_prompt(prompt_path)
+
+    # Add user prompt if provided
+    if user_prompt:
+        builder.append_to_user_section(f"Additional instructions: {user_prompt}\n\n")
+
+    builder.append_to_user_section(
+        f"---PULL REQUEST DIFF BEGIN---\n{diff_output}\n---PULL REQUEST DIFF END---"
+    )
+    messages = builder.build()
+
+    # Send request
+    try:
+        terminal_print(
+            f"\n{terminal.model} is creating {message_type}...\n",
+            PrintType.PROCESSING,
+        )
+        # mypy: ignore[no-untyped-call]
+        response = await stream_request(
+            terminal, terminal.model, messages, print_stream=True
+        )
+        return str(response) if response is not None else None
+    except Exception as e:
+        # Log detailed error context with traceback
+        import traceback
+        error_tb = traceback.format_exc()
+        
+        # Structured log with detailed context
+        terminal.logger.error(
+            f"{error_message}: type={type(e).__name__}, message={str(e)}, "
+            f"operation={operation_type}, prompt_path={prompt_path}"
+        )
+        
+        # Log the full traceback at debug level
+        terminal.logger.debug(f"Traceback for {error_message}:\n{error_tb}")
+        
+        # User-friendly error message
+        terminal_print(
+            f"An error occurred while creating the {message_type}.",
+            PrintType.ERROR,
+        )
+        terminal_print(
+            f"Error details: {str(e)}",
+            PrintType.ERROR,
+        )
+        return None
+
+
+async def handle_git_pr_summary(terminal: JrDevTerminal, args: List[str]) -> None:
+    """
+    Generate a PR summary based on git diff with configured base branch.
+    Args:
+        terminal: The JrDevTerminal instance
+        args: Command arguments
+    """
+    await _handle_git_pr_common(
+        terminal=terminal,
+        args=args,
+        prompt_path="git/pr_summary",
+        operation_type="summary",
+        message_type="pull request summary",
+        error_message="failed pull request summary",
+        add_project_files=False,
+    )
+
+
+async def handle_git_pr_review(terminal: JrDevTerminal, args: List[str]) -> None:
+    """
+    Generate a detailed PR code review based on git diff with configured base branch.
+    Args:
+        terminal: The JrDevTerminal instance
+        args: Command arguments
+    """
+    await _handle_git_pr_common(
+        terminal=terminal,
+        args=args,
+        prompt_path="git/pr_review",
+        operation_type="code review",
+        message_type="detailed code review",
+        error_message="failed pull request review",
+        add_project_files=True,
+    )
