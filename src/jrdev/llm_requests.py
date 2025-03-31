@@ -54,42 +54,29 @@ async def stream_openai_format(terminal, model, messages, print_stream=True, jso
         raise ValueError(f"Unknown provider for model {model}")
 
     # Create a streaming completion
+    kwargs = {
+        "model": model,
+        "messages": messages,
+        "stream": True,
+        "temperature": 0.0
+    }
+
     if model_provider == "openai":
         if "o3-mini" in model:
-            stream = await client.chat.completions.create(model=model, messages=messages, stream=True, reasoning_effort="high")
-        else:
-            stream = await client.chat.completions.create(model=model, messages=messages, stream=True, temperature=0.0)
+            kwargs["reasoning_effort"] = "high"
     elif model == "qwen-2.5-qwq-32b":
-        stream = await client.chat.completions.create(
-            model=model, messages=messages, stream=True, temperature=0.0, top_p=0.95,
-            extra_body={"venice_parameters":{"include_venice_system_prompt": False}, "frequency_penalty": 0.3}
-        )
+        kwargs["top_p"] = 0.95
+        kwargs["extra_body"] = {"venice_parameters":{"include_venice_system_prompt": False}, "frequency_penalty": 0.3}
     elif model == "deepseek-r1-671b":
-        stream = await client.chat.completions.create(
-            model=model, messages=messages, stream=True, temperature=0.0, extra_body={"venice_parameters": {"include_venice_system_prompt": False}}
-        )
+        kwargs["extra_body"] = {"venice_parameters": {"include_venice_system_prompt": False}}
     elif model == "deepseek-reasoner" or model == "deepseek-chat":
-
-        if model == "deepseek-reasoner":
-            stream = await client.chat.completions.create(model=model, messages=messages, stream=True, max_tokens=8000)
-        else:
-            kwargs = {
-                "model": model,
-                "temperature": 0.0,
-                "messages": messages,
-                "stream": True,
-                "max_tokens": 8000
-            }
-
-            if json_output:
-                kwargs["response_format"] = {"type": "json_object"}
-
-            stream = await client.chat.completions.create(**kwargs)
+        kwargs["max_tokens"] = 8000
+        if json_output:
+            kwargs["response_format"] = {"type": "json_object"}
     else:
-        stream = await client.chat.completions.create(
-            model=model, messages=messages, stream=True, temperature=0.0,
-            extra_body={"venice_parameters": {"include_venice_system_prompt": False}}
-        )
+        kwargs["extra_body"] = {"venice_parameters": {"include_venice_system_prompt": False}}
+
+    stream = await client.chat.completions.create(**kwargs)
 
     uses_think = is_think_model(model, terminal.get_models())
     response_text = ""
