@@ -210,7 +210,6 @@ async def stream_messages_format(terminal, model, messages, print_stream=True):
     for msg in messages:
         if msg["role"] == "system":
             system_message = msg["content"]
-            break
             
     # Process other messages
     for msg in messages:
@@ -220,6 +219,7 @@ async def stream_messages_format(terminal, model, messages, print_stream=True):
             anthropic_messages.append({"role": "user", "content": msg["content"]})
         elif role == "assistant":
             anthropic_messages.append({"role": "assistant", "content": msg["content"]})
+        # Don't include system messages in the anthropic_messages list
     
     response_text = ""
     chunk_count = 0
@@ -227,13 +227,19 @@ async def stream_messages_format(terminal, model, messages, print_stream=True):
     
     try:
         # Create Claude streaming completion
-        stream_manager = client.messages.stream(
-            model=model,
-            messages=anthropic_messages,
-            system=system_message,
-            max_tokens=4096,
-            temperature=0.0
-        )
+        # Ensure system_message is passed correctly
+        kwargs = {
+            "model": model,
+            "messages": anthropic_messages,
+            "max_tokens": 4096,
+            "temperature": 0.0
+        }
+        
+        # Only add system if it's not None
+        if system_message is not None:
+            kwargs["system"] = system_message
+            
+        stream_manager = client.messages.stream(**kwargs)
         
         # Start the streaming session with the context manager
         if print_stream:
