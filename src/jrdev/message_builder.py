@@ -60,13 +60,24 @@ class MessageBuilder:
     def add_project_files(self) -> None:
         """Add all files from the terminal's project_files"""
         if self.terminal and hasattr(self.terminal, "project_files"):
+            # Simple 10MB total size limit
+            total_size_limit = 10 * 1024 * 1024  # Default 10MB limit
+            current_size = 0
+            
+            # Add project files
             for file_path in self.terminal.project_files.values():
-                logger.info(f"add project file {file_path}")
+                # Skip files that would exceed the limit
+                if os.path.exists(file_path) and os.path.isfile(file_path):
+                    file_size = os.path.getsize(file_path)
+                    if current_size + file_size > total_size_limit:
+                        continue
+                    current_size += file_size
                 self.add_file(file_path)
-
-            for aliases in self.terminal.context_manager.get_index_paths():
-                self.add_index_file(aliases[0], aliases[1])
-                logger.info(f"add project index {aliases[0]}")
+                
+            # Add context files
+            if hasattr(self.terminal, "context_manager"):
+                for aliases in self.terminal.context_manager.get_index_paths():
+                    self.add_index_file(aliases[0], aliases[1])
 
 
     def add_context(self, context: List[str]) -> None:

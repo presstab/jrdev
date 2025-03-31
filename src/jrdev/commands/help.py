@@ -149,6 +149,21 @@ async def handle_help(terminal, args):
     )
     terminal_print(f" - Display terminal state information")
     
+    # Git Operations
+    terminal_print(f"{COLORS['BRIGHT_WHITE']}{COLORS['BOLD']}{COLORS['UNDERLINE']}Git Operations:{COLORS['RESET']}", print_type=None)
+    terminal_print(
+        f"  /git",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Git-related commands (use '/git' for details)")
+    terminal_print(
+        f"  {format_command_with_args('/git pr', '<command>')}",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - PR-related commands")
+    
     # Roadmap section
     terminal_print(f"{COLORS['BRIGHT_WHITE']}{COLORS['BOLD']}{COLORS['UNDERLINE']}Roadmap (Coming Soon):{COLORS['RESET']}", print_type=None)
     

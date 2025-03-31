@@ -14,8 +14,7 @@ setup(
         "openai>=1.0.0",
         "python-dotenv",
         "pyreadline3; platform_system=='Windows'",
-        "pydantic>=2.0.0",
-        "anthropic>=0.23.1"
+        "pydantic>=2.0.0"
     ],
     entry_points={
         "console_scripts": [

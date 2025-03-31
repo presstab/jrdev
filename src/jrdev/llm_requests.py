@@ -64,6 +64,8 @@ async def stream_openai_format(terminal, model, messages, print_stream=True, jso
     if model_provider == "openai":
         if "o3-mini" in model:
             kwargs["reasoning_effort"] = "high"
+            #o3-mini incompatible with temp
+            del kwargs["temperature"]
     elif model == "qwen-2.5-qwq-32b":
         kwargs["top_p"] = 0.95
         kwargs["extra_body"] = {"venice_parameters":{"include_venice_system_prompt": False}, "frequency_penalty": 0.3}

@@ -12,6 +12,8 @@ from jrdev.commands.clearmessages import handle_clearmessages
 from jrdev.commands.code import handle_code
 from jrdev.commands.cost import handle_cost
 from jrdev.commands.exit import handle_exit
+from jrdev.commands.git import handle_git
+from jrdev.commands.git_pr import handle_git_pr_summary, handle_git_pr_review
 from jrdev.commands.help import handle_help
 from jrdev.commands.init import handle_init
 from jrdev.commands.model import handle_model
@@ -28,6 +30,9 @@ __all__ = [
     "handle_cancel",
     "handle_code",
     "handle_exit",
+    "handle_git",
+    "handle_git_pr_summary",
+    "handle_git_pr_review",
     "handle_model",
     "handle_models",
     "handle_clearcontext",
@@ -44,5 +49,5 @@ __all__ = [
 
 # Debug commands
 if os.getenv("JRDEV_DEBUG"):  # Only include in debug mode
-    from jrdev.commands.debug import handle_modelswin
-    __all__ += ["handle_modelswin"]
+    from jrdev.commands.debug import handle_modelswin, handle_git_debug_config_dump
+    __all__ += ["handle_modelswin", "handle_git_debug_config_dump"]
