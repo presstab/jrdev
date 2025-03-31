@@ -17,6 +17,14 @@
             "context_tokens": 64000
         },
         {
+            "name": "deepseek-chat",
+            "provider": "deepseek",
+            "is_think": false,
+            "input_cost": 6,
+            "output_cost": 11,
+            "context_tokens": 64000
+        },
+        {
             "name": "deepseek-r1-671b",
             "provider": "venice",
             "is_think": true,

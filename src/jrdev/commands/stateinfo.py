@@ -5,11 +5,13 @@ Stateinfo command implementation for the JrDev terminal.
 Displays current terminal state information.
 """
 
+from typing import Any, List
+
 from jrdev.file_utils import JRDEV_DIR
 from jrdev.ui.ui import terminal_print, PrintType
 
 
-async def handle_stateinfo(terminal, args):
+async def handle_stateinfo(terminal: Any, args: List[str]) -> None:
     """
     Handle the /stateinfo command to display current terminal state.
 
@@ -21,17 +23,21 @@ async def handle_stateinfo(terminal, args):
     terminal_print(f"  Model: {terminal.model}", print_type=PrintType.INFO)
     
     # Display message history count
-    message_count = len(terminal.message_history)
+    messages = terminal.message_history() if callable(getattr(terminal, 'message_history', None)) else terminal.messages
+    message_count = len(messages)
     terminal_print(f"  Total messages: {message_count}", print_type=PrintType.INFO)
     
-    # Display file processing status
-    processing_status = "Enabled" if terminal.process_follow_up else "Disabled"
-    status_type = PrintType.SUCCESS if terminal.process_follow_up else PrintType.WARNING
-    terminal_print(f"  File processing: {processing_status}", print_type=status_type)
     
     # Display context file count
-    context_count = len(terminal.context)
-    terminal_print(f"  Context files: {context_count}", print_type=PrintType.INFO)
+    if isinstance(terminal.context, list):
+        context_count = len(terminal.context)
+        terminal_print(f"  Context files: {context_count}", print_type=PrintType.INFO)
+        # Show context files if any exist
+        if context_count > 0:
+            for ctx_file in terminal.context:
+                terminal_print(f"    - {ctx_file}", print_type=PrintType.INFO)
+    else:
+        terminal_print(f"  Context files: 0", print_type=PrintType.INFO)
     
     # Display API details
     if terminal.venice_client:
@@ -55,3 +61,9 @@ async def handle_stateinfo(terminal, args):
         terminal_print(f"  Project context: {', '.join(loaded_files)}", print_type=PrintType.INFO)
     else:
         terminal_print(f"  Project context: None", print_type=PrintType.INFO)
+    
+    # Show Context Manager information
+    if hasattr(terminal, 'context_manager') and terminal.context_manager:
+        # Get number of tracked files in the context manager
+        tracked_file_count = len(terminal.context_manager.index.get("files", {}))
+        terminal_print(f"  Context manager tracked files: {tracked_file_count}", print_type=PrintType.INFO)

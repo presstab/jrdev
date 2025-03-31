@@ -55,24 +55,20 @@ async def handle_addcontext(terminal, args):
             # Get the relative path for display
             rel_path = os.path.relpath(full_path, current_dir)
 
-            # Read the file content
-            with open(full_path, "r") as f:
-                file_content = f.read()
-
-            # Limit file size
-            if len(file_content) > 2000 * 1024:  # 2MB limit
-                size_mb = len(file_content) / (1024 * 1024)
-                error_msg = f"Skipping {rel_path}: File too large ({size_mb:.2f} MB) to add to context (max: 2MB)"
+            # Just check if file is readable
+            try:
+                with open(full_path, "r") as f:
+                    # Just read a small bit to check if file is readable
+                    f.read(1)
+            except Exception as e:
+                error_msg = f"Skipping {rel_path}: Cannot read file: {str(e)}"
                 terminal.logger.error(error_msg)
                 terminal_print(error_msg, PrintType.ERROR)
                 files_skipped += 1
                 continue
 
-            # Add the file content to the terminal's context array
-            terminal.context.append({
-                "name": rel_path,
-                "content": file_content
-            })
+            # Add the relative path to the terminal's context array
+            terminal.context.append(rel_path)
 
             terminal_print(f"Added: {rel_path}", PrintType.SUCCESS)
             files_added += 1

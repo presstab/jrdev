@@ -13,6 +13,7 @@ import sys
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
+from typing import Dict, List, Set
 import anthropic  # Import Anthropic SDK
 
 from jrdev.colors import Colors
@@ -26,6 +27,7 @@ from jrdev.file_utils import requested_files, get_file_contents, add_to_gitignor
 from jrdev.llm_requests import stream_request
 # JrDev modules
 from jrdev.logger import setup_logger
+from jrdev.message_builder import MessageBuilder
 from jrdev.model_list import ModelList
 from jrdev.model_utils import load_hardcoded_models
 from jrdev.models import fetch_venice_models
@@ -114,6 +116,7 @@ class JrDevTerminal:
         self.model = "deepseek-r1-671b"
         self.running = True
         self.messages = []
+        self.files_in_history: Set[str] = set()
 
         # Thread safe list of models
         self.model_list = ModelList()
@@ -121,7 +124,6 @@ class JrDevTerminal:
         # Project files dict to track various files used by the application
         self.project_files = {
             "filetree": f"{JRDEV_DIR}jrdev_filetree.txt",
-            "filecontext": f"{JRDEV_DIR}jrdev_filecontext.md",
             "overview": f"{JRDEV_DIR}jrdev_overview.md",
             "conventions": f"{JRDEV_DIR}jrdev_conventions.md"
         }
@@ -296,8 +298,9 @@ class JrDevTerminal:
             terminal_print(f"Unknown command: {cmd}", print_type=PrintType.ERROR)
             terminal_print("Type /help for available commands", print_type=PrintType.INFO)
 
-    def set_message_history(self, messages):
+    def set_message_history(self, messages, files):
         self.messages = messages
+        self.files_in_history = files
 
     def add_message_history(self, text, is_assistant=False):
         self.messages.append({"role": "assistant" if is_assistant else "user", "content": text})
@@ -307,34 +310,6 @@ class JrDevTerminal:
 
     def clear_messages(self):
         self.messages.clear()
-
-    def remove_project_message(self):
-        self.messages = [message for message in self.messages if "Project Details" not in message["content"]]
-
-    def get_project_message(self):
-        return next((message for message in self.messages if "Project Details" in message["content"]), None)
-
-    def add_project_message(self):
-        # Remove project message if it already exists
-        self.remove_project_message()
-
-        # Read project context files if they exist
-        project_context = {}
-        for key, filename in self.project_files.items():
-            try:
-                if os.path.exists(filename):
-                    with open(filename, "r") as f:
-                        project_context[key] = f.read()
-            except Exception as e:
-                terminal_print(f"Warning: Could not read {filename}: {str(e)}", PrintType.WARNING)
-        
-        # Add file contexts from the context manager
-        file_contexts = self.context_manager.get_all_context()
-        if file_contexts:
-            project_context["file_contexts"] = file_contexts
-
-        self.messages.append({"role": "user", "content": f"Project Details: {project_context}"})
-
 
     async def send_message(self, content, writepath=None, print_stream=True):
         """
@@ -359,61 +334,37 @@ class JrDevTerminal:
 
         user_additional_modifier = " Here is the user's question or instruction:"
         user_message = f"{user_additional_modifier} {content}"
-        file_content = ""
 
-        # Append project context (will delete previous instances of it)
-        project_message = None
-        if self.use_project_context:
-            self.add_project_message()
-            project_message = self.get_project_message()
-        else:
-            self.remove_project_message()
+        # Build actual request to send to LLM
+        builder = MessageBuilder(self)
+        builder.set_embedded_files(self.files_in_history)
+        builder.start_user_section()
 
-        # Add any additional context files stored in self.context
+        # Update message history in the builder
+        if self.message_history():
+            builder.add_historical_messages(self.message_history())
+        elif self.use_project_context:
+            # only add project files on the first message in the thread
+            builder.add_project_files()
+
+        # Add user added context
         if self.context:
-            context_section = "\n\nUSER CONTEXT:\n"
-            for i, ctx in enumerate(self.context):
-                context_section += f"\n--- Context File {i + 1}: {ctx['name']} ---\n{ctx['content']}\n"
-            file_content += context_section
+            builder.add_context(self.context)
 
-        # Make a temp messages list for initial request to llm to analyze what this request needs
-        messages = []
-        if file_content != "":
-            messages.append({"role": "user", "content": f"Supporting Context: {file_content}"})
-        if project_message is not None:
-            messages.append(project_message)
-        messages.append({"role": "user", "content": user_message})
+        files_sent = builder.get_files()
+        builder.append_to_user_section(user_message)
+        builder.finalize_user_section()
+        messages = builder.build()
 
-        # Add first step to quickly identify if certain files should be included with this
-        files_to_send = None
-        if self.use_project_context:
-            # Load the prompt using PromptManager
-            dev_msg = PromptManager.load("get_files_check")
-            messages.insert(0, {"role": "system", "content": dev_msg})
-            terminal_print(f"\nmistral-31-24b is interpreting request...", PrintType.PROCESSING)
-            needed_files_response = await stream_request(self, "mistral-31-24b", messages, print_stream=False)
-
-            files_to_send = requested_files(needed_files_response)
-
-        if files_to_send:
-            terminal_print(f"Adding files: {files_to_send}")
-            if len(files_to_send) > 0:
-                new_content = get_file_contents(files_to_send)
-                if len(new_content) > 0:
-                    file_content = f"{file_content}\n{new_content}"
-                    self.logger.info(f"Added content: {file_content}")
-
-        # use model's message thread
-        if file_content != "":
-            self.add_message_history(f"Supporting Context: {file_content}")
-        self.add_message_history(user_message)
+        # reset history to the current chain
+        self.set_message_history(messages, files_sent)
 
         model_name = self.model
         terminal_print(f"\n{model_name} is processing request...", PrintType.PROCESSING)
 
         try:
             # Pass the print_stream parameter to control whether to print the model's response
-            response_text = await stream_request(self, self.model, self.message_history(), print_stream)
+            response_text = await stream_request(self, self.model, messages, print_stream)
             self.logger.info("Successfully received response from model")
 
             # Add response to messages

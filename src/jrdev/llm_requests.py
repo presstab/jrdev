@@ -22,33 +22,14 @@ def is_inside_think_tag(text):
     return think_open > think_close
 
 
-async def stream_openai_format(terminal, model, messages, print_stream=True):
+async def stream_openai_format(terminal, model, messages, print_stream=True, json_output=False):
     # Start timing the response
     start_time = time.time()
-    
-    # Log the request with context file names
-    context_files = []
-    for message in messages:
-        if "Supporting Context" in message.get("content", ""):
-            # Extract file names from context message
-            content = message["content"]
-            if "Context File" in content:
-                # Extract file names from the context sections
-                for line in content.split("\n"):
-                    if "Context File" in line and ":" in line:
-                        try:
-                            file_name = line.split(":", 1)[1].strip()
-                            context_files.append(file_name)
-                        except IndexError:
-                            pass
 
     log_msg = f"Sending request to {model} with {len(messages)} messages"
-    if context_files:
-        log_msg += f", context files: {', '.join(context_files)}"
     terminal.logger.info(log_msg)
     
     # Get the appropriate client
-    client = None
     model_provider = None
 
     # Find the model in AVAILABLE_MODELS
@@ -73,64 +54,29 @@ async def stream_openai_format(terminal, model, messages, print_stream=True):
         raise ValueError(f"Unknown provider for model {model}")
 
     # Create a streaming completion
+    kwargs = {
+        "model": model,
+        "messages": messages,
+        "stream": True,
+        "temperature": 0.0
+    }
+
     if model_provider == "openai":
         if "o3-mini" in model:
-            stream = await client.chat.completions.create(model=model, messages=messages, stream=True, reasoning_effort="high")
-        else:
-            stream = await client.chat.completions.create(model=model, messages=messages, stream=True, temperature=0.0)
+            kwargs["reasoning_effort"] = "high"
     elif model == "qwen-2.5-qwq-32b":
-        stream = await client.chat.completions.create(
-            model=model, messages=messages, stream=True, temperature=0.0, top_p=0.95,
-            extra_body={"venice_parameters":{"include_venice_system_prompt": False}, "frequency_penalty": 0.3}
-        )
+        kwargs["top_p"] = 0.95
+        kwargs["extra_body"] = {"venice_parameters":{"include_venice_system_prompt": False}, "frequency_penalty": 0.3}
     elif model == "deepseek-r1-671b":
-        stream = await client.chat.completions.create(
-            model=model, messages=messages, stream=True, extra_body={"venice_parameters": {"include_venice_system_prompt": False}}
-        )
-    elif model == "deepseek-reasoner":
-        structured_messages = []
-        sys_msg = None
-        previous_role = None
-
-        # deepseek requires strict ordering of messages
-        for i, message in enumerate(messages):
-            # system role has to only be first
-            if message["role"] == "system":
-                if i != 0:
-                    if sys_msg is None:
-                        sys_msg = message["content"]
-                    else:
-                        sys_msg = f"{sys_msg} | {message['content']}"
-                continue
-
-            elif message["role"] == "user":
-                if previous_role is None or previous_role == "assistant":
-                    structured_messages.append(message)
-                elif previous_role == "user":
-                    # out of order user messages, combine them
-                    structured_messages[-1]["content"] += f" {message['content']}"
-                previous_role = "user"
-
-            elif message["role"] == "assistant":
-                if previous_role is None:
-                    # out of order assistant should not come first
-                    raise Exception("assistant message comes first")
-                elif previous_role == "assistant":
-                    # two assistant messages in a row, combine them
-                    structured_messages[-1]["content"] += f" {message['content']}"
-                elif previous_role == "user":
-                    structured_messages.append(message)
-                previous_role = "assistant"
-
-        if sys_msg:
-            structured_messages.insert(0, {"role": "system", "content": sys_msg})
-
-        stream = await client.chat.completions.create(model="deepseek-reasoner", messages=structured_messages, stream=True, max_tokens=8000)
+        kwargs["extra_body"] = {"venice_parameters": {"include_venice_system_prompt": False}}
+    elif model == "deepseek-reasoner" or model == "deepseek-chat":
+        kwargs["max_tokens"] = 8000
+        if json_output:
+            kwargs["response_format"] = {"type": "json_object"}
     else:
-        stream = await client.chat.completions.create(
-            model=model, messages=messages, stream=True, temperature=0.0,
-            extra_body={"venice_parameters": {"include_venice_system_prompt": False}}
-        )
+        kwargs["extra_body"] = {"venice_parameters": {"include_venice_system_prompt": False}}
+
+    stream = await client.chat.completions.create(**kwargs)
 
     uses_think = is_think_model(model, terminal.get_models())
     response_text = ""
@@ -352,7 +298,7 @@ async def stream_messages_format(terminal, model, messages, print_stream=True):
         terminal.logger.error(f"Error making Anthropic API request: {str(e)}")
         raise ValueError(f"Error making Anthropic API request: {str(e)}")
 
-async def stream_request(terminal, model, messages, print_stream=True):
+async def stream_request(terminal, model, messages, print_stream=True, json_output=False):
     # Determine which client to use based on the model provider
     model_provider = None
 
@@ -367,4 +313,4 @@ async def stream_request(terminal, model, messages, print_stream=True):
     if model_provider == "anthropic":
         return await stream_messages_format(terminal, model, messages, print_stream)
     else:
-        return await stream_openai_format(terminal, model, messages, print_stream)
+        return await stream_openai_format(terminal, model, messages, print_stream, json_output)
