@@ -335,27 +335,6 @@ class JrDevTerminal:
         user_additional_modifier = " Here is the user's question or instruction:"
         user_message = f"{user_additional_modifier} {content}"
 
-
-        # Use MessageBuilder for the initial file check
-        check_builder = MessageBuilder(self)
-        check_builder.load_system_prompt("get_files_check")
-        
-        # Add supporting context files if available
-        if self.context:
-            check_builder.add_context(self.context)
-            
-        # Add user message
-        check_builder.add_user_message(user_message)
-        
-        # Get messages for file check
-        files_to_send = None
-        #todo broken
-        # if self.use_project_context:
-        #     messages = check_builder.build()
-        #     terminal_print(f"\nmistral-31-24b is interpreting request...", PrintType.PROCESSING)
-        #     needed_files_response = await stream_request(self, "mistral-31-24b", messages, print_stream=False)
-        #     files_to_send = requested_files(needed_files_response)
-
         # Build actual request to send to LLM
         builder = MessageBuilder(self)
         builder.set_embedded_files(self.files_in_history)
@@ -371,19 +350,6 @@ class JrDevTerminal:
         # Add user added context
         if self.context:
             builder.add_context(self.context)
-
-        # Ask user about adding suggested files
-        if files_to_send:
-            terminal_print(f"Suggested files to add: {files_to_send}", PrintType.INFO)
-            terminal_print("Do you want to add these files? (y/n):", PrintType.INFO)
-            user_decision = await self.get_user_input()
-            should_add = user_decision.strip().lower() in ("y", "yes")
-
-            if should_add and len(files_to_send) > 0:
-                terminal_print(f"Adding files: {files_to_send}")
-
-                for file_path in files_to_send:
-                    builder.add_file(file_path)
 
         files_sent = builder.get_files()
         builder.append_to_user_section(user_message)
