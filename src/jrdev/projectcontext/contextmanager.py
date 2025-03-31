@@ -397,6 +397,19 @@ class ContextManager:
 
         return outdated_files
 
+    def get_index_paths(self) -> List[List[str]]:
+        """
+        Get relative paths of all indexes in the context manager.
+
+        Returns:
+            Dict of index file path -> indexed file path (ie the real file that was indexed)
+        """
+        indexes_list = []
+        for file_path in self.index.get("files", {}):
+            context_path = self._get_context_path(file_path)
+            indexes_list.append([context_path, str(file_path)])
+        return indexes_list
+
     def get_all_context(self) -> str:
         """
         Get all context files combined into a single string.

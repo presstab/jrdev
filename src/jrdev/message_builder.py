@@ -4,14 +4,21 @@ from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.file_utils import get_file_contents
 from jrdev.ui.ui import terminal_print, PrintType
 
+import logging
+# Get the global logger instance
+logger = logging.getLogger("jrdev")
+
 
 class MessageBuilder:
     def __init__(self, terminal: Optional[Any] = None):
         self.messages: List[Dict[str, str]] = []
         self.files: Set[str] = set()
+        self.file_aliases: Dict[str, str] = {}
+        self.embedded_files: Set[str] = set()
         self.context: List[Dict[str, str]] = []
         self.terminal = terminal
         self._current_user_content: List[str] = []
+        self.isUserSectionFinal = False
 
     def add_system_message(self, content: str) -> None:
         """Add a system-level message to the conversation"""
@@ -25,18 +32,42 @@ class MessageBuilder:
         """Add an assistant message to the conversation"""
         self.messages.append({"role": "assistant", "content": content})
 
+    def add_historical_messages(self, messages: List[Dict[str, str]]) -> None:
+        """Add historical message chain"""
+        self.messages.extend(messages)
+
     def add_file(self, file_path: str) -> None:
         """Queue a file to include in the message (prevents duplicates)"""
         if os.path.exists(file_path):
-            self.files.add(file_path)
+            if file_path not in self.embedded_files:
+                self.files.add(file_path)
         else:
             terminal_print(f"File not found: {file_path}", PrintType.WARNING)
+
+    def add_index_file(self, file_path: str, alias_path: str):
+        """Add index files that will be added as 'Index of file alias_path' """
+        self.file_aliases[file_path] = alias_path
+        self.files.add(file_path)
+
+    def set_embedded_files(self, files: Set[str]) -> None:
+        """Set files that are already embedded within historical message thread as text. This prevents multiple files
+        being added over and over"""
+        self.embedded_files = files
+
+    def get_files(self) -> Set[str]:
+        return self.files
 
     def add_project_files(self) -> None:
         """Add all files from the terminal's project_files"""
         if self.terminal and hasattr(self.terminal, "project_files"):
             for file_path in self.terminal.project_files.values():
+                logger.info(f"add project file {file_path}")
                 self.add_file(file_path)
+
+            for aliases in self.terminal.context_manager.get_index_paths():
+                self.add_index_file(aliases[0], aliases[1])
+                logger.info(f"add project index {aliases[0]}")
+
 
     def add_context(self, context: List[str]) -> None:
         """Add context file paths to include in the message
@@ -66,40 +97,40 @@ class MessageBuilder:
         content = []
         for file_path in self.files:
             try:
-                file_content = get_file_contents([file_path])
-                content.append(
-                    f"\n\n{os.path.basename(file_path).upper()}:\n{file_content}"
-                )
+                # mark indexes differently
+                if file_path in self.file_aliases:
+                    alias_path = self.file_aliases[file_path]
+                    file_content = get_file_contents([file_path], alias_path)
+                    content.append(file_content)
+                else:
+                    file_content = get_file_contents([file_path])
+                    content.append(file_content)
             except Exception as e:
                 terminal_print(
                     f"Error reading {file_path}: {str(e)}", PrintType.WARNING
                 )
         return "".join(content)
 
-    def _build_context_section(self) -> str:
-        """Generate formatted context section"""
-        if not self.context:
-            return ""
-
-        context_section = "\n\nUSER CONTEXT:"
-        for i, ctx in enumerate(self.context):
-            context_section += f"\n--- Context File {i + 1}: {ctx.get('name', '')} ---\n{ctx.get('content', '')}\n"
-        return context_section
 
     def finalize_user_section(self) -> None:
         """Finalize and add the complex user message to messages"""
         if not self._current_user_content:
             return
 
-        full_content = "".join(self._current_user_content)
-        full_content += self._build_file_content()
-        full_content += self._build_context_section()
+        full_content = f"{self._build_file_content()}"
+        full_content += "".join(self._current_user_content)
 
         self.add_user_message(full_content)
         self._current_user_content = []
-        self.files.clear()
         self.context.clear()
+        self.isUserSectionFinal = True
+
+    def clean(self) -> None:
+        self.messages = [m for m in self.messages if m["content"] != ""]
 
     def build(self) -> List[Dict[str, str]]:
         """Return the fully constructed message list"""
+        if not self.isUserSectionFinal:
+            self.finalize_user_section()
+        self.clean()
         return self.messages.copy()

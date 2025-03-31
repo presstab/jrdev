@@ -138,7 +138,7 @@ def pair_header_source_files(file_list):
     return paired_list
 
 
-def get_file_contents(file_list):
+def get_file_contents(file_list, file_alias=None):
     """
     Reads the contents of a list of files. If a file doesn't exist, it attempts to find a similar file.
     """
@@ -161,7 +161,10 @@ def get_file_contents(file_list):
 
     formatted_content = ""
     for path, content in file_contents.items():
-        formatted_content += f"\n\n--- BEGIN FILE: {path} ---\n{content}\n--- END FILE: {path} ---\n"
+        if file_alias:
+            formatted_content += f"\n\n--- BEGIN SUMMARY FOR FILE: {file_alias} ---\n{content}\n--- END SUMMARY FOR FILE: {file_alias} ---\n"
+        else:
+            formatted_content += f"\n\n--- BEGIN FILE: {path} ---\n{content}\n--- END FILE: {path} ---\n"
 
     return formatted_content
 
