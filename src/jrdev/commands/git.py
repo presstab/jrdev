@@ -129,7 +129,7 @@ def show_git_help() -> None:
             end=""
         )
         # Description text (plain style like in help command)
-        terminal_print(f" - PR-related commands")
+        terminal_print(f" - Pull Request related commands: create a PR summary, or create a PR review")
 
     # Check for config commands
     if any(cmd.startswith("config_") for cmd in GIT_SUBCOMMANDS):
