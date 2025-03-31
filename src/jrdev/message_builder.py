@@ -38,9 +38,14 @@ class MessageBuilder:
             for file_path in self.terminal.project_files.values():
                 self.add_file(file_path)
 
-    def add_context(self, context: List[Dict[str, str]]) -> None:
-        """Add context entries to include in the message"""
-        self.context.extend(context)
+    def add_context(self, context: List[str]) -> None:
+        """Add context file paths to include in the message
+        
+        This method takes a list of file paths and adds them to the internal
+        file list for later inclusion when finalizing the user section.
+        """
+        for file_path in context:
+            self.add_file(file_path)
 
     def load_system_prompt(self, prompt_key: str) -> None:
         """Load and add a system prompt from PromptManager"""

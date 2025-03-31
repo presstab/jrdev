@@ -381,12 +381,9 @@ class JrDevTerminal:
         check_builder = MessageBuilder(self)
         check_builder.load_system_prompt("get_files_check")
         
-        # Add supporting context if available
+        # Add supporting context files if available
         if self.context:
-            context_content = "\n\nUSER CONTEXT:\n"
-            for i, ctx in enumerate(self.context):
-                context_content += f"\n--- Context File {i + 1}: {ctx['name']} ---\n{ctx['content']}\n"
-            check_builder.add_user_message(f"Supporting Context: {context_content}")
+            check_builder.add_context(self.context)
         
         # Add project message if available
         if self.use_project_context and project_message is not None:
