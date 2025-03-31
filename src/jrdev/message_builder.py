@@ -84,6 +84,12 @@ class MessageBuilder:
         if prompt:
             self.add_system_message(prompt)
 
+    def load_user_prompt(self, prompt_key: str) -> None:
+        """Load and add a user prompt from PromptManager"""
+        prompt = PromptManager.load(prompt_key)
+        if prompt:
+            self.append_to_user_section(prompt)
+
     def start_user_section(self, base_text: str = "") -> None:
         """Begin constructing a complex user message with files/context"""
         self._current_user_content = [base_text]

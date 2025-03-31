@@ -27,17 +27,12 @@ class CodeProcessor:
           3. Requesting file content if needed, parsing returned steps, and executing each step
           4. Validating the changed files at the end
         """
-        # Save current message history in case we need to revert later.
-        current_history = self.terminal.message_history()
         try:
             initial_response = await self.send_initial_request(user_task)
             await self.process_code_response(initial_response, user_task)
         except Exception as e:
             self.terminal.logger.error(f"Error in CodeProcessor: {str(e)}")
             terminal_print(f"Error processing code: {str(e)}", PrintType.ERROR)
-        finally:
-            # Restore the original message history.
-            self.terminal.set_message_history(current_history)
 
     async def send_initial_request(self, user_task: str) -> str:
         """
@@ -46,8 +41,8 @@ class CodeProcessor:
         """
         # Use MessageBuilder for consistent message construction
         builder = MessageBuilder(self.terminal)
-        builder.load_system_prompt("analyze_task_return_getfiles")
-        builder.start_user_section(f"Here is the task to complete: {user_task}")
+        builder.start_user_section(f"The user is seeking guidance for this task to complete: {user_task}")
+        builder.load_user_prompt("analyze_task_return_getfiles")
         builder.add_project_files()
         builder.add_context(self.terminal.context)
         builder.finalize_user_section()
@@ -65,7 +60,10 @@ class CodeProcessor:
         this triggers the file request workflow.
         """
         files_to_send = requested_files(response_text)
+        if not files_to_send:
+            raise Exception("Get files failed")
         if files_to_send:
+            # Send requested files and request STEPS to be created
             self.terminal.logger.info(f"File request detected: {files_to_send}")
             file_response = await self.send_file_request(files_to_send, user_task, response_text)
             steps = await self.parse_steps(file_response, files_to_send)
@@ -164,14 +162,16 @@ class CodeProcessor:
 
         # Use MessageBuilder to construct messages
         builder = MessageBuilder(self.terminal)
+        builder.start_user_section()
         builder.add_system_message(dev_msg)
-        builder.add_user_message(file_content)
-        builder.add_user_message(prompt)
+        builder.append_to_user_section(file_content)
+        builder.append_to_user_section(prompt)
         messages = builder.build()
+
+        # Send request
         self.terminal.logger.info(f"Sending code request to {self.terminal.model}")
-        terminal_print(f"\nSending code request to {self.terminal.model}...", PrintType.PROCESSING)
-        response = await stream_request(self.terminal, self.terminal.model, messages)
-        terminal_print("", PrintType.INFO)
+        terminal_print(f"\nSending code request to {self.terminal.model}...\n", PrintType.PROCESSING)
+        response = await stream_request(self.terminal, self.terminal.model, messages, print_stream=True, json_output=True)
         self.terminal.add_message_history(response, is_assistant=True)
         return response
 
@@ -195,14 +195,17 @@ class CodeProcessor:
         send the content of those files along with the task details back to the LLM.
         """
         builder = MessageBuilder(self.terminal)
-        builder.load_system_prompt("create_steps")
-        builder.add_user_message(f"Task To Accomplish: {user_task}")
-        builder.add_assistant_message(initial_response)
-        
-        # Add file contents as a user message
-        files_content = get_file_contents(files_to_send)
-        builder.add_user_message(files_content)
+        builder.start_user_section()
+        builder.append_to_user_section(f"Initial Plan: {initial_response}")
+
+        # Add file contents
+        for file in files_to_send:
+            builder.add_file(file)
+
+        builder.load_user_prompt("create_steps")
+        builder.append_to_user_section(f"**Task**: {user_task}")
         messages = builder.build()
+
         self.terminal.logger.info(f"Sending file contents to {self.terminal.model}")
         terminal_print(f"\nSending requested files to {self.terminal.model}...", PrintType.PROCESSING)
         response = await stream_request(self.terminal, self.terminal.model, messages)
