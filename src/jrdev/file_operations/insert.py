@@ -151,7 +151,15 @@ def insert_after_function(change, lines, filepath):
 
     # Insert at the right position
     indentation_hint = change.get("indentation_hint")
-    indent = indent_from_hint(indentation_hint, lines[func_end_idx])
+    prev_lines = []
+    current_idx = func_end_idx
+    while current_idx >= 0:
+        current_line = lines[current_idx]
+        prev_lines.append(current_line)
+        if current_line.strip() != '':
+            break
+    current_idx -= 1
+    indent = indent_from_hint(indentation_hint, prev_lines)
     orig_first_line = new_content_lines[0]
     indent_all = True
     if indent != "":
@@ -374,8 +382,15 @@ def insert_within_function(change, lines, filepath):
 
     # Get indentation from the target line
     indentation_hint = change.get("indentation_hint")
-    prev_line = lines[insert_idx - 1]
-    indentation = indent_from_hint(indentation_hint, prev_line)
+    prev_lines = []
+    current_idx = insert_idx - 1
+    while current_idx >= 0:
+        line = lines[current_idx]
+        prev_lines.append(line)
+        if line.strip() != '':
+            break
+        current_idx -= 1
+    indentation = indent_from_hint(indentation_hint, prev_lines)
 
     # Prepare the content with proper indentation
     new_content_lines = []
@@ -415,7 +430,7 @@ def insert_after_marker(change, lines, filepath):
     logger.info(f"insert_after_marker '{marker}'")
 
     # Get the new content and replace escaped newlines
-    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
+    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"").replace('\\\\', '\\')
 
     # check indentation hint
     indentation_hint = None
@@ -429,7 +444,15 @@ def insert_after_marker(change, lines, filepath):
     for i, line in enumerate(lines):
         if unescaped_marker.strip() in line.strip() or marker.strip() in line.strip():
             # get suggested indent
-            use_indentation = indent_from_hint(indentation_hint, line)
+            prev_lines = []
+            current_idx = i
+            while current_idx >= 0:
+                current_line = lines[current_idx]
+                prev_lines.append(current_line)
+                if current_line.strip() != '':
+                    break
+                current_idx -= 1
+            use_indentation = indent_from_hint(indentation_hint, prev_lines)
 
             # Prepare the new content with proper indentation
             new_content_lines = []
@@ -555,7 +578,14 @@ def insert_global(change, lines, filepath):
         logger.info(message)
 
 
-def indent_from_hint(hint, prev_line):
+def indent_from_hint(hint, prev_lines: list[str]):
+    # Find first non-empty line in prev_lines
+    prev_line = ''
+    for line in prev_lines:
+        if line.strip() != '':
+            prev_line = line
+            break
+
     prev_line_indent = prev_line[:len(prev_line) - len(prev_line.lstrip())]
     indent_level = " " * 4
     use_indentation = ""
