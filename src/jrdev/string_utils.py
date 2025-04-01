@@ -1,4 +1,4 @@
-
+import re
 
 def find_code_snippet(lines, code_snippet):
     """
@@ -39,3 +39,6 @@ def find_code_snippet(lines, code_snippet):
             return i, i + len(snippet_lines)
 
     return -1, -1
+
+def contains_chinese(text: str) -> bool:
+    return bool(re.search(r'[\u4e00-\u9fff]', text))
