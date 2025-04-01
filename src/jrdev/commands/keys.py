@@ -1,13 +1,43 @@
 """
 Command handler for API key management.
 """
+import asyncio
 import os
 from getpass import getpass
-from typing import Dict, Optional, Tuple, Any
+from typing import Dict, Optional, Tuple, Any, Callable
 from dotenv import load_dotenv
+from functools import partial
 
 from jrdev.file_utils import add_to_gitignore
 from jrdev.ui.ui import terminal_print, PrintType
+
+
+async def async_input(prompt: str = "") -> str:
+    """
+    Asynchronous version of input() that doesn't block the event loop.
+    
+    Args:
+        prompt: The prompt to display to the user
+        
+    Returns:
+        The string entered by the user
+    """
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, lambda: input(prompt))
+
+
+async def async_getpass(prompt: str = "") -> str:
+    """
+    Asynchronous version of getpass() that doesn't block the event loop.
+    
+    Args:
+        prompt: The prompt to display to the user
+        
+    Returns:
+        The password entered by the user
+    """
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, lambda: getpass(prompt))
 
 
 async def handle_keys(terminal: Any, args: list[str]) -> None:
@@ -22,10 +52,10 @@ async def handle_keys(terminal: Any, args: list[str]) -> None:
     terminal_print("API Key Management", PrintType.HEADER)
     terminal_print(choices, PrintType.INFO)
     
-    choice = input("Enter your choice (1-4): ")
+    choice = await async_input("Enter your choice (1-4): ")
     
     if choice == "1":
-        _view_keys(terminal)
+        await _view_keys(terminal)
     elif choice == "2":
         await _add_update_key(terminal)
     elif choice == "3":
@@ -37,7 +67,7 @@ async def handle_keys(terminal: Any, args: list[str]) -> None:
         terminal_print("Invalid choice. Please try again.", PrintType.ERROR)
 
 
-def _view_keys(terminal: Any) -> None:
+async def _view_keys(terminal: Any) -> None:
     """Display configured API keys (masked for security)."""
     keys = {
         "VENICE_API_KEY": os.getenv("VENICE_API_KEY"),
@@ -57,6 +87,10 @@ def _view_keys(terminal: Any) -> None:
             terminal_print(f"{name}: {masked} (configured)", PrintType.SUCCESS)
         else:
             terminal_print(f"{name}: Not configured", PrintType.WARNING)
+            
+    # Wait for user acknowledgment before returning to the main menu
+    await async_input("\nPress Enter to continue...")
+    terminal_print("Returning to main menu.", PrintType.INFO)
 
 
 async def _add_update_key(terminal: Any) -> None:
@@ -73,7 +107,7 @@ async def _add_update_key(terminal: Any) -> None:
     for num, (_, name) in services.items():
         terminal_print(f"{num}. {name}", PrintType.INFO)
     
-    service_choice = input("Enter your choice (1-5): ")
+    service_choice = await async_input("Enter your choice (1-5): ")
     
     if service_choice == "5" or service_choice.lower() in ["cancel", "back", "q", "quit", "exit"]:
         terminal_print("Cancelled key update.", PrintType.INFO)
@@ -88,7 +122,7 @@ async def _add_update_key(terminal: Any) -> None:
     
     terminal_print(f"Enter API key for {service_name} (or press Ctrl+C to cancel):", PrintType.INFO)
     try:
-        new_key = _prompt_key(service_name, required=is_required)
+        new_key = await _prompt_key(service_name, required=is_required)
         if new_key:
             keys = _load_current_keys()
             keys[key_name] = new_key
@@ -115,7 +149,7 @@ async def _remove_key(terminal: Any) -> None:
     for num, (_, name) in services.items():
         terminal_print(f"{num}. {name}", PrintType.INFO)
     
-    service_choice = input("Enter your choice (1-4): ")
+    service_choice = await async_input("Enter your choice (1-4): ")
     
     if service_choice == "4" or service_choice.lower() in ["cancel", "back", "q", "quit", "exit"]:
         terminal_print("Cancelled key removal.", PrintType.INFO)
@@ -128,7 +162,7 @@ async def _remove_key(terminal: Any) -> None:
     key_name, service_name = services[service_choice]
     
     # Confirm removal
-    confirm = input(f"Are you sure you want to remove the {service_name} API key? (y/n): ")
+    confirm = await async_input(f"Are you sure you want to remove the {service_name} API key? (y/n): ")
     if confirm.lower() not in ["y", "yes"]:
         terminal_print("Key removal cancelled.", PrintType.INFO)
         return
@@ -146,7 +180,7 @@ async def _remove_key(terminal: Any) -> None:
         terminal_print(f"{service_name} API key not found.", PrintType.WARNING)
 
 
-def _prompt_key(service: str, required: bool = False) -> str:
+async def _prompt_key(service: str, required: bool = False) -> str:
     """
     Prompt the user for an API key with masking.
     
@@ -169,7 +203,7 @@ def _prompt_key(service: str, required: bool = False) -> str:
                 prompt += " (press Enter to skip)"
             prompt += ": "
                 
-            value = getpass(prompt)
+            value = await async_getpass(prompt)
             if value or not required:
                 return value
             terminal_print("This key is required!", PrintType.ERROR)
@@ -248,7 +282,7 @@ def check_existing_keys() -> bool:
     return all(key in keys and keys[key] for key in required)
 
 
-def run_first_time_setup() -> bool:
+async def run_first_time_setup() -> bool:
     """
     Run first-time setup to configure API keys.
     
@@ -256,20 +290,49 @@ def run_first_time_setup() -> bool:
         True if setup was completed successfully, False otherwise
     """
     try:
-        terminal_print("First-time setup - Let's configure your API keys!", PrintType.HEADER)
+        # Welcome message
+        terminal_print("Welcome to JrDev Terminal!", PrintType.HEADER)
         
+        terminal_print("This appears to be your first time running JrDev.", PrintType.INFO)
+        terminal_print("Let's set up your API keys to get started.", PrintType.INFO)
+        
+        terminal_print("API Key Requirements:", PrintType.SUBHEADER)
+        terminal_print("- Venice AI API key is required", PrintType.WARNING)
+        terminal_print("- OpenAI, Anthropic, and DeepSeek keys are optional", PrintType.INFO)
+        
+        # Instructions
+        terminal_print("Security Information:", PrintType.SUBHEADER)
+        terminal_print("- API keys will be stored in a local .env file", PrintType.INFO)
+        terminal_print("- Restricted file permissions (600) for security", PrintType.INFO)
+        terminal_print("- Automatically added to .gitignore", PrintType.INFO)
+        
+        await async_input("Press Enter to continue with setup...")
+        
+        # Get the keys
+        terminal_print("API Key Configuration", PrintType.HEADER)
         keys = {
-            "VENICE_API_KEY": _prompt_key("Venice AI", required=True),
-            "OPENAI_API_KEY": _prompt_key("OpenAI (optional)"),
-            "ANTHROPIC_API_KEY": _prompt_key("Anthropic (optional)"),
-            "DEEPSEEK_API_KEY": _prompt_key("DeepSeek (optional)")
+            "VENICE_API_KEY": await _prompt_key("Venice AI", required=True),
+            "OPENAI_API_KEY": await _prompt_key("OpenAI (optional)"),
+            "ANTHROPIC_API_KEY": await _prompt_key("Anthropic (optional)"),
+            "DEEPSEEK_API_KEY": await _prompt_key("DeepSeek (optional)")
         }
         
         _save_keys_to_env(keys)
         
         # Reload environment variables
         load_dotenv()
+        
+        # Success message
+        terminal_print("Setup complete!", PrintType.SUCCESS)
+        terminal_print("Your API keys have been saved securely.", PrintType.INFO)
+        terminal_print("You can manage your keys anytime with the /keys command.", PrintType.INFO)
+        
         return True
+    except KeyboardInterrupt:
+        terminal_print("Setup cancelled.", PrintType.WARNING)
+        terminal_print("You can run setup again with the /keys command.", PrintType.INFO)
+        return False
     except Exception as e:
         terminal_print(f"Error during setup: {str(e)}", PrintType.ERROR)
+        terminal_print("You can try again with the /keys command.", PrintType.INFO)
         return False

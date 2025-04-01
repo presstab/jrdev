@@ -63,7 +63,25 @@ class JrDevTerminal:
             
         # Check for API keys and run first-time setup if needed
         if not check_existing_keys():
-            run_first_time_setup()
+            # We need to run the async function from a synchronous context
+            # Create a new event loop for just this call
+            import asyncio
+            loop = asyncio.new_event_loop()
+            setup_success = False
+            
+            try:
+                setup_success = loop.run_until_complete(run_first_time_setup())
+            except Exception as e:
+                self.logger.error(f"Error during first-time setup: {str(e)}")
+                terminal_print(f"Error during setup: {str(e)}", PrintType.ERROR)
+            finally:
+                loop.close()
+            
+            # Check if setup was successful
+            if not setup_success:
+                terminal_print("Failed to set up required API keys. Exiting...", PrintType.ERROR)
+                sys.exit(1)
+                
             # Reload environment variables after setup
             load_dotenv()
         # If keys exist, we already loaded the .env file above
@@ -74,12 +92,13 @@ class JrDevTerminal:
         self.anthropic_client = None
         self.deepseek_client = None
 
-        # Get Venice API key
+        # Get Venice API key - should be set now after setup
         venice_api_key = os.getenv("VENICE_API_KEY")
         if not venice_api_key:
-            error_msg = "VENICE_API_KEY not found in .env file"
+            error_msg = "VENICE_API_KEY not found even after setup"
             self.logger.error(error_msg)
             terminal_print(f"Error: {error_msg}", PrintType.ERROR)
+            terminal_print("Please restart the application and provide a valid Venice API key.", PrintType.INFO)
             sys.exit(1)
 
         # Initialize Venice client
