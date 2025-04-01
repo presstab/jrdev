@@ -281,7 +281,9 @@ async def handle_git_config_set(terminal: JrDevTerminal, args: List[str]) -> Non
         terminal: The JrDevTerminal instance
         args: Command arguments (including the key and value to set)
     """
-    if len(args) < 3:
+    # Check if we have the correct number of arguments
+    # args structure: ['/git', 'config', 'set', 'key', 'value']
+    if len(args) < 5:
         terminal_print(
             "Missing arguments. Usage: /git config set <key> <value>", PrintType.ERROR
         )
@@ -294,8 +296,9 @@ async def handle_git_config_set(terminal: JrDevTerminal, args: List[str]) -> Non
         terminal_print("  /git config set base_branch origin/main", PrintType.INFO)
         return
 
-    key = args[1]
-    value = args[2]
+    # Extract key and value from the correct positions in the args list
+    key = args[3]
+    value = args[4]
 
     # Handle special cases
     if key == "base_branch":

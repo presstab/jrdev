@@ -7,21 +7,19 @@ import argparse
 import asyncio
 import json
 import os
-import platform
 import re
 import sys
-from getpass import getpass
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
-from typing import Dict, List, Set
-import anthropic  # Import Anthropic SDK
+from typing import Any, Dict, List, Set
+import anthropic
 
 from jrdev.colors import Colors
 from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
                             handle_clearcontext, handle_clearmessages, handle_code,
                             handle_cost, handle_exit, handle_git, handle_git_pr_summary, handle_help, 
-                            handle_init, handle_keys, handle_model, handle_models,
+                            handle_init, handle_keys, handle_model, handle_models, handle_modelprofile,
                             handle_projectcontext, handle_stateinfo, handle_tasks,
                             handle_viewcontext)
 from jrdev.file_utils import requested_files, get_file_contents, add_to_gitignore, JRDEV_DIR
@@ -31,6 +29,7 @@ from jrdev.llm_requests import stream_request
 from jrdev.logger import setup_logger
 from jrdev.message_builder import MessageBuilder
 from jrdev.model_list import ModelList
+from jrdev.model_profiles import ModelProfileManager
 from jrdev.model_utils import load_hardcoded_models
 from jrdev.models import fetch_venice_models
 from jrdev.prompts.prompt_utils import PromptManager
@@ -166,6 +165,9 @@ class JrDevTerminal:
         # Initialize the context manager
         self.context_manager = ContextManager()
         
+        # Initialize the model profile manager
+        self.model_profile_manager = ModelProfileManager()
+        
         # Track active background tasks
         self.active_tasks = {}
 
@@ -177,6 +179,7 @@ class JrDevTerminal:
             "/exit": handle_exit,
             "/model": handle_model,
             "/models": handle_models,
+            "/modelprofile": handle_modelprofile,
             "/stateinfo": handle_stateinfo,
             "/clearcontext": handle_clearcontext,
             "/clearmessages": handle_clearmessages,
@@ -216,7 +219,7 @@ class JrDevTerminal:
         # setup initial models
         self.model_list.set_model_list(load_hardcoded_models())
 
-    def get_models(self):
+    def get_models(self) -> List[Dict[str, Any]]:
         return self.model_list.get_model_list()
 
     def get_model_names(self):

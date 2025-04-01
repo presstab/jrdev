@@ -22,6 +22,7 @@ from jrdev.treechart import generate_compact_tree
 from jrdev.string_utils import contains_chinese
 from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.message_builder import MessageBuilder
+from jrdev.model_profiles import ModelProfileManager
 
 
 # Create an asyncio lock for safe file access
@@ -88,6 +89,9 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
     # Record start time
     start_time = time.time()
 
+    # Initialize the profile manager once for the entire function
+    profile_manager = terminal.model_profile_manager
+
     try:
         output_file = f"{JRDEV_DIR}jrdev_filetree.txt"
         if len(args) > 1:
@@ -110,9 +114,9 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
             if line.strip() and not line.endswith("/")  # Skip directories
         ]
 
-        # Switch the model to deepseek-r1-671b
-        terminal.model = "deepseek-r1-671b"
-        terminal_print(f"Model changed to: {terminal.model}", PrintType.INFO)
+        # Switch the model to the advanced reasoning profile
+        terminal.model = profile_manager.get_model("advanced_reasoning")
+        terminal_print(f"Model changed to: {terminal.model} (advanced_reasoning profile)", PrintType.INFO)
 
         # Send the file tree to the LLM with a request for file recommendations
         terminal_print(
@@ -178,9 +182,9 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                 )
 
                 # Now switch to a different model for file analysis
-                terminal.model = "mistral-31-24b"
+                terminal.model = profile_manager.get_model("intermediate_reasoning")
                 terminal_print(
-                    f"\nSwitching model to: {terminal.model} for analysis",
+                    f"\nSwitching model to: {terminal.model} (intermediate_reasoning profile) for analysis",
                     PrintType.INFO,
                 )
 
@@ -216,8 +220,8 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                         f"\nAnalyzing project conventions...", PrintType.PROCESSING
                     )
 
-                    # Use a local model variable instead of changing terminal.model
-                    conventions_model = "deepseek-r1-671b"
+                    # Use a local model variable from profile instead of changing terminal.model
+                    conventions_model = profile_manager.get_model("advanced_reasoning")
 
                     # Use MessageBuilder for conventions
                     conventions_builder = MessageBuilder(terminal)
@@ -332,7 +336,7 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
 
                 # Start project overview
                 terminal_print("\nGenerating project overview...", PrintType.PROCESSING)
-                terminal.model = "deepseek-r1-671b"
+                terminal.model = profile_manager.get_model("advanced_reasoning")
 
                 # Read the file tree
                 with open(output_file, "r") as f:
