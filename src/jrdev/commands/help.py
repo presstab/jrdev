@@ -71,6 +71,12 @@ async def handle_help(terminal, args):
     )
     terminal_print(f" - List all available models")
     terminal_print(
+        f"  {format_command_with_args('/modelprofile', '<list|get|set|default|showdefault>')}",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Manage model profiles for different task types")
+    terminal_print(
         f"  /init",
         print_type=PrintType.COMMAND,
         end=""

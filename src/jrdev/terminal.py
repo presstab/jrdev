@@ -7,30 +7,29 @@ import argparse
 import asyncio
 import json
 import os
-import platform
 import re
 import sys
-from getpass import getpass
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
-from typing import Dict, List, Set
-import anthropic  # Import Anthropic SDK
+from typing import Any, Dict, List, Set
+import anthropic
 
 from jrdev.colors import Colors
 from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
                             handle_clearcontext, handle_clearmessages, handle_code,
                             handle_cost, handle_exit, handle_git, handle_git_pr_summary, handle_help, 
-                            handle_init, handle_keys, handle_model, handle_models,
+                            handle_init, handle_keys, handle_model, handle_models, handle_modelprofile,
                             handle_projectcontext, handle_stateinfo, handle_tasks,
                             handle_viewcontext)
-from jrdev.file_utils import requested_files, get_file_contents, add_to_gitignore, JRDEV_DIR
+from jrdev.file_utils import requested_files, get_file_contents, add_to_gitignore, JRDEV_DIR, get_env_path
 from jrdev.commands.keys import check_existing_keys, run_first_time_setup
 from jrdev.llm_requests import stream_request
 # JrDev modules
 from jrdev.logger import setup_logger
 from jrdev.message_builder import MessageBuilder
 from jrdev.model_list import ModelList
+from jrdev.model_profiles import ModelProfileManager
 from jrdev.model_utils import load_hardcoded_models
 from jrdev.models import fetch_venice_models
 from jrdev.prompts.prompt_utils import PromptManager
@@ -58,32 +57,16 @@ class JrDevTerminal:
         self._check_gitignore()
 
         # Try to load any existing .env file first
-        if os.path.exists('.env'):
-            load_dotenv()
+        env_path = get_env_path()
+        if os.path.exists(env_path):
+            load_dotenv(dotenv_path=env_path)
             
         # Check for API keys and run first-time setup if needed
         if not check_existing_keys():
-            # We need to run the async function from a synchronous context
-            # Create a new event loop for just this call
-            import asyncio
-            loop = asyncio.new_event_loop()
-            setup_success = False
-            
-            try:
-                setup_success = loop.run_until_complete(run_first_time_setup())
-            except Exception as e:
-                self.logger.error(f"Error during first-time setup: {str(e)}")
-                terminal_print(f"Error during setup: {str(e)}", PrintType.ERROR)
-            finally:
-                loop.close()
-            
-            # Check if setup was successful
-            if not setup_success:
-                terminal_print("Failed to set up required API keys. Exiting...", PrintType.ERROR)
-                sys.exit(1)
-                
-            # Reload environment variables after setup
-            load_dotenv()
+            # Set a flag to run setup during the main event loop instead
+            self.need_first_time_setup = True
+            terminal_print("API keys not found. Setup will begin shortly...", PrintType.INFO)
+            # We'll continue initialization but will run setup in the main event loop
         # If keys exist, we already loaded the .env file above
 
         # Initialize API clients
@@ -92,54 +75,62 @@ class JrDevTerminal:
         self.anthropic_client = None
         self.deepseek_client = None
 
-        # Get Venice API key - should be set now after setup
-        venice_api_key = os.getenv("VENICE_API_KEY")
-        if not venice_api_key:
-            error_msg = "VENICE_API_KEY not found even after setup"
-            self.logger.error(error_msg)
-            terminal_print(f"Error: {error_msg}", PrintType.ERROR)
-            terminal_print("Please restart the application and provide a valid Venice API key.", PrintType.INFO)
-            sys.exit(1)
+        # Only check for Venice API key if we're not going to run setup
+        if not hasattr(self, 'need_first_time_setup') or not self.need_first_time_setup:
+            # Get Venice API key - should be set now after setup
+            venice_api_key = os.getenv("VENICE_API_KEY")
+            if not venice_api_key:
+                error_msg = "VENICE_API_KEY not found even after setup"
+                self.logger.error(error_msg)
+                terminal_print(f"Error: {error_msg}", PrintType.ERROR)
+                terminal_print("Please restart the application and provide a valid Venice API key.", PrintType.INFO)
+                sys.exit(1)
 
-        # Initialize Venice client
-        self.venice_client = AsyncOpenAI(
-            api_key=venice_api_key,
-            organization=None,
-            project=None,
-            base_url="https://api.venice.ai/api/v1",
-        )
-
-        # Get OpenAI API key (optional)
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-        if openai_api_key:
-            self.logger.info("OpenAI API key found, initializing OpenAI client")
-            # Initialize OpenAI client
-            self.openai_client = AsyncOpenAI(
-                api_key=openai_api_key
-            )
-        else:
-            self.logger.info("No OpenAI API key found, OpenAI models will not be available")
-            
-        # Get Anthropic API key (optional)
-        anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-        if anthropic_api_key:
-            self.logger.info("Anthropic API key found, initializing Anthropic client")
-            # Initialize Anthropic client - using AsyncAnthropic for async compatibility
-            self.anthropic_client = anthropic.AsyncAnthropic(api_key=anthropic_api_key)
-        else:
-            self.logger.info("No Anthropic API key found, Anthropic models will not be available")
-
-        # Get DeepSeek API key (optional)
-        deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
-        if deepseek_api_key:
-            self.logger.info("DeepSeek API key found, initializing DeepSeek client")
-            # Initialize OpenAI client
-            self.deepseek_client = AsyncOpenAI(
-                api_key=deepseek_api_key,
+            # Initialize Venice client
+            self.venice_client = AsyncOpenAI(
+                api_key=venice_api_key,
                 organization=None,
                 project=None,
-                base_url="https://api.deepseek.com",
+                base_url="https://api.venice.ai/api/v1",
             )
+
+        # Only initialize optional clients if we're not doing first-time setup
+        if not hasattr(self, 'need_first_time_setup') or not self.need_first_time_setup:
+            # Get OpenAI API key (optional)
+            openai_api_key = os.getenv("OPENAI_API_KEY")
+            if openai_api_key:
+                self.logger.info("OpenAI API key found, initializing OpenAI client")
+                # Initialize OpenAI client
+                self.openai_client = AsyncOpenAI(
+                    api_key=openai_api_key
+                )
+            else:
+                self.logger.info("No OpenAI API key found, OpenAI models will not be available")
+                
+            # Get Anthropic API key (optional)
+            anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+            if anthropic_api_key:
+                self.logger.info("Anthropic API key found, initializing Anthropic client")
+                # Initialize Anthropic client - using AsyncAnthropic for async compatibility
+                self.anthropic_client = anthropic.AsyncAnthropic(api_key=anthropic_api_key)
+            else:
+                self.logger.info("No Anthropic API key found, Anthropic models will not be available")
+
+            # Get DeepSeek API key (optional)
+            deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
+            if deepseek_api_key:
+                self.logger.info("DeepSeek API key found, initializing DeepSeek client")
+                # Initialize OpenAI client
+                self.deepseek_client = AsyncOpenAI(
+                    api_key=deepseek_api_key,
+                    organization=None,
+                    project=None,
+                    base_url="https://api.deepseek.com",
+                )
+            else:
+                self.logger.info("No DeepSeek API key found, DeepSeek models will not be available")
+        else:
+            self.logger.info("Skipping optional client initialization, will be done after setup")
 
 
         self.model = "deepseek-r1-671b"
@@ -166,6 +157,9 @@ class JrDevTerminal:
         # Initialize the context manager
         self.context_manager = ContextManager()
         
+        # Initialize the model profile manager
+        self.model_profile_manager = ModelProfileManager()
+        
         # Track active background tasks
         self.active_tasks = {}
 
@@ -177,6 +171,7 @@ class JrDevTerminal:
             "/exit": handle_exit,
             "/model": handle_model,
             "/models": handle_models,
+            "/modelprofile": handle_modelprofile,
             "/stateinfo": handle_stateinfo,
             "/clearcontext": handle_clearcontext,
             "/clearmessages": handle_clearmessages,
@@ -216,7 +211,10 @@ class JrDevTerminal:
         # setup initial models
         self.model_list.set_model_list(load_hardcoded_models())
 
-    def get_models(self):
+    def profile_manager(self):
+        return self.model_profile_manager
+
+    def get_models(self) -> List[Dict[str, Any]]:
         return self.model_list.get_model_list()
 
     def get_model_names(self):
@@ -760,6 +758,67 @@ class JrDevTerminal:
 
     async def run_terminal(self):
         self.logger.info(f"JrDev Terminal started with model: {self.model}")
+        
+        # Run first-time setup if needed
+        if hasattr(self, 'need_first_time_setup') and self.need_first_time_setup:
+            self.logger.info("Running first-time setup in main event loop")
+            setup_success = await run_first_time_setup()
+            
+            # Check if setup was successful
+            if not setup_success:
+                terminal_print("Failed to set up required API keys. Exiting...", PrintType.ERROR)
+                sys.exit(1)
+                
+            # Reload environment variables after setup
+            env_path = get_env_path()
+            load_dotenv(dotenv_path=env_path)
+            
+            # Initialize all API clients after successful setup
+            
+            # Venice API key (required)
+            venice_api_key = os.getenv("VENICE_API_KEY")
+            if not venice_api_key:
+                error_msg = "VENICE_API_KEY not found even after setup"
+                self.logger.error(error_msg)
+                terminal_print(f"Error: {error_msg}", PrintType.ERROR)
+                terminal_print("Please restart the application and provide a valid Venice API key.", PrintType.INFO)
+                sys.exit(1)
+                
+            # Initialize Venice client
+            self.venice_client = AsyncOpenAI(
+                api_key=venice_api_key,
+                organization=None,
+                project=None,
+                base_url="https://api.venice.ai/api/v1",
+            )
+            
+            # Initialize optional clients
+            
+            # OpenAI API key (optional)
+            openai_api_key = os.getenv("OPENAI_API_KEY")
+            if openai_api_key:
+                self.logger.info("OpenAI API key found, initializing OpenAI client")
+                self.openai_client = AsyncOpenAI(
+                    api_key=openai_api_key
+                )
+                
+            # Anthropic API key (optional)
+            anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+            if anthropic_api_key:
+                self.logger.info("Anthropic API key found, initializing Anthropic client")
+                self.anthropic_client = anthropic.AsyncAnthropic(api_key=anthropic_api_key)
+                
+            # DeepSeek API key (optional)
+            deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
+            if deepseek_api_key:
+                self.logger.info("DeepSeek API key found, initializing DeepSeek client")
+                self.deepseek_client = AsyncOpenAI(
+                    api_key=deepseek_api_key,
+                    organization=None,
+                    project=None,
+                    base_url="https://api.deepseek.com",
+                )
+        
         terminal_print(f"JrDev Terminal (Model: {self.model})", PrintType.HEADER)
         terminal_print("Type a message to chat with the model", PrintType.INFO)
         terminal_print("Type /help for available commands", PrintType.INFO)

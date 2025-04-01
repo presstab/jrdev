@@ -17,6 +17,7 @@ class CodeProcessor:
         project_files, context, model information, and message-history management.
         """
         self.terminal = terminal
+        self.profile_manager = terminal.profile_manager()
 
     async def process(self, user_task: str) -> None:
         """
@@ -48,8 +49,8 @@ class CodeProcessor:
         builder.finalize_user_section()
         messages = builder.build()
 
-        model_name = self.terminal.model
-        terminal_print(f"\n{model_name} is processing the request...", PrintType.PROCESSING)
+        model_name = self.profile_manager.get_model("advanced_reasoning")
+        terminal_print(f"\n{model_name} is processing the request... (advanced_reasoning profile)", PrintType.PROCESSING)
         response_text = await stream_request(self.terminal, model_name, messages)
         terminal_print("", PrintType.INFO)
         return response_text
@@ -169,9 +170,10 @@ class CodeProcessor:
         messages = builder.build()
 
         # Send request
-        self.terminal.logger.info(f"Sending code request to {self.terminal.model}")
-        terminal_print(f"\nSending code request to {self.terminal.model}...\n", PrintType.PROCESSING)
-        response = await stream_request(self.terminal, self.terminal.model, messages, print_stream=True, json_output=True)
+        model = self.profile_manager.get_model("advanced_coding")
+        self.terminal.logger.info(f"Sending code request to {model}")
+        terminal_print(f"\nSending code request to {model} (advanced_coding profile)...\n", PrintType.PROCESSING)
+        response = await stream_request(self.terminal, model, messages, print_stream=True, json_output=True)
         self.terminal.add_message_history(response, is_assistant=True)
         return response
 
@@ -206,9 +208,10 @@ class CodeProcessor:
         builder.append_to_user_section(f"**Task**: {user_task}")
         messages = builder.build()
 
-        self.terminal.logger.info(f"Sending file contents to {self.terminal.model}")
-        terminal_print(f"\nSending requested files to {self.terminal.model}...", PrintType.PROCESSING)
-        response = await stream_request(self.terminal, self.terminal.model, messages)
+        model = self.profile_manager.get_model("advanced_reasoning")
+        self.terminal.logger.info(f"Sending file contents to {model}")
+        terminal_print(f"\nSending requested files to {model} (advanced_reasoning profile)...", PrintType.PROCESSING)
+        response = await stream_request(self.terminal, model, messages)
         terminal_print("", PrintType.INFO)
         return response
 
@@ -239,18 +242,18 @@ class CodeProcessor:
         Validate that the files changed by the LLM are not malformed.
         Sends the modified file contents to the LLM using a validation prompt.
         """
-        self.terminal.logger.info("Validating changed files")
-        terminal_print("\nValidating changed files...", PrintType.PROCESSING)
         files_content = get_file_contents(list(changed_files))
         builder = MessageBuilder(self.terminal)
         builder.load_system_prompt("validator")
         builder.add_user_message(f"Please validate these files:\n{files_content}")
         messages = builder.build()
-        original_model = self.terminal.model
-        # Temporarily switch to a model used for validation.
-        self.terminal.model = "qwen-2.5-coder-32b"
+
+        # Validation Model
+        model = self.profile_manager.get_model("intermediate_reasoning")
+        self.terminal.logger.info(f"Validating changed files with {model}")
+        terminal_print(f"\nValidating changed files with {model} (intermediate_reasoning profile)", PrintType.PROCESSING)
         validation_response = await stream_request(
-            self.terminal, self.terminal.model, messages, print_stream=False
+            self.terminal, model, messages, print_stream=False
         )
         self.terminal.logger.info(f"Validation response: {validation_response}")
         if validation_response.strip().startswith("VALID"):
@@ -263,4 +266,3 @@ class CodeProcessor:
             terminal_print(f"⚠ Files may be malformed: {reason}", PrintType.ERROR)
         else:
             terminal_print("⚠ Could not determine file validation status", PrintType.WARNING)
-        self.terminal.model = original_model

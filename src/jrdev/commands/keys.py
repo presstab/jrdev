@@ -8,7 +8,7 @@ from typing import Dict, Optional, Tuple, Any, Callable
 from dotenv import load_dotenv
 from functools import partial
 
-from jrdev.file_utils import add_to_gitignore
+from jrdev.file_utils import add_to_gitignore, get_env_path
 from jrdev.ui.ui import terminal_print, PrintType
 
 
@@ -219,7 +219,7 @@ def _load_current_keys() -> Dict[str, str]:
         Dictionary of current API keys
     """
     keys: Dict[str, str] = {}
-    env_path = os.path.join(os.getcwd(), '.env')
+    env_path = get_env_path()
     
     if os.path.exists(env_path):
         with open(env_path, 'r') as f:
@@ -243,7 +243,7 @@ def _save_keys_to_env(keys: Dict[str, str]) -> None:
     Args:
         keys: Dictionary of API keys to save
     """
-    env_path = os.path.join(os.getcwd(), '.env')
+    env_path = get_env_path()
     
     # Filter out empty values and write to file
     with open(env_path, 'w') as f:
@@ -274,7 +274,8 @@ def check_existing_keys() -> bool:
         return True
     
     # If not in environment, check if they exist in .env file
-    if not os.path.exists('.env'):
+    env_path = get_env_path()
+    if not os.path.exists(env_path):
         return False
         
     # Parse .env file to check for required keys

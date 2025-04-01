@@ -19,6 +19,7 @@ from jrdev.commands.init import handle_init
 from jrdev.commands.keys import handle_keys
 from jrdev.commands.model import handle_model
 from jrdev.commands.models import handle_models
+from jrdev.commands.modelprofile import handle_modelprofile
 from jrdev.commands.projectcontext import handle_projectcontext
 from jrdev.commands.stateinfo import handle_stateinfo
 from jrdev.commands.tasks import handle_tasks
@@ -36,6 +37,7 @@ __all__ = [
     "handle_keys",
     "handle_model",
     "handle_models",
+    "handle_modelprofile",
     "handle_clearcontext",
     "handle_clearmessages",
     "handle_init",
