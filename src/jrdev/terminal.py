@@ -10,6 +10,7 @@ import os
 import platform
 import re
 import sys
+from getpass import getpass
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
@@ -20,10 +21,11 @@ from jrdev.colors import Colors
 from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
                             handle_clearcontext, handle_clearmessages, handle_code,
                             handle_cost, handle_exit, handle_git, handle_git_pr_summary, handle_help, 
-                            handle_init, handle_model, handle_models, handle_process,
+                            handle_init, handle_keys, handle_model, handle_models,
                             handle_projectcontext, handle_stateinfo, handle_tasks,
                             handle_viewcontext)
 from jrdev.file_utils import requested_files, get_file_contents, add_to_gitignore, JRDEV_DIR
+from jrdev.commands.keys import check_existing_keys, run_first_time_setup
 from jrdev.llm_requests import stream_request
 # JrDev modules
 from jrdev.logger import setup_logger
@@ -55,8 +57,34 @@ class JrDevTerminal:
         # Check if jrdev/ is in gitignore and add it if not
         self._check_gitignore()
 
-        # Load environment variables from .env file
-        load_dotenv()
+        # Try to load any existing .env file first
+        if os.path.exists('.env'):
+            load_dotenv()
+            
+        # Check for API keys and run first-time setup if needed
+        if not check_existing_keys():
+            # We need to run the async function from a synchronous context
+            # Create a new event loop for just this call
+            import asyncio
+            loop = asyncio.new_event_loop()
+            setup_success = False
+            
+            try:
+                setup_success = loop.run_until_complete(run_first_time_setup())
+            except Exception as e:
+                self.logger.error(f"Error during first-time setup: {str(e)}")
+                terminal_print(f"Error during setup: {str(e)}", PrintType.ERROR)
+            finally:
+                loop.close()
+            
+            # Check if setup was successful
+            if not setup_success:
+                terminal_print("Failed to set up required API keys. Exiting...", PrintType.ERROR)
+                sys.exit(1)
+                
+            # Reload environment variables after setup
+            load_dotenv()
+        # If keys exist, we already loaded the .env file above
 
         # Initialize API clients
         self.venice_client = None
@@ -64,12 +92,13 @@ class JrDevTerminal:
         self.anthropic_client = None
         self.deepseek_client = None
 
-        # Get Venice API key
+        # Get Venice API key - should be set now after setup
         venice_api_key = os.getenv("VENICE_API_KEY")
         if not venice_api_key:
-            error_msg = "VENICE_API_KEY not found in .env file"
+            error_msg = "VENICE_API_KEY not found even after setup"
             self.logger.error(error_msg)
             terminal_print(f"Error: {error_msg}", PrintType.ERROR)
+            terminal_print("Please restart the application and provide a valid Venice API key.", PrintType.INFO)
             sys.exit(1)
 
         # Initialize Venice client
@@ -134,9 +163,6 @@ class JrDevTerminal:
         # Use project overview, filetree, filecontext files in each request
         self.use_project_context = True
 
-        # Controls whether to process file requests and code changes
-        self.process_follow_up = False
-
         # Initialize the context manager
         self.context_manager = ContextManager()
         
@@ -157,7 +183,6 @@ class JrDevTerminal:
             "/cost": handle_cost,
             "/init": handle_init,
             "/help": handle_help,
-            "/process": handle_process,
             "/addcontext": handle_addcontext,
             "/viewcontext": handle_viewcontext,
             "/asyncsend": handle_asyncsend,
@@ -165,7 +190,8 @@ class JrDevTerminal:
             "/cancel": handle_cancel,
             "/code": handle_code,
             "/projectcontext": handle_projectcontext,
-            "/git": handle_git
+            "/git": handle_git,
+            "/keys": handle_keys
         }
 
         # Debug commands

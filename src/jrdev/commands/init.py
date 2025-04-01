@@ -19,6 +19,7 @@ from jrdev.llm_requests import stream_request
 from jrdev.languages.utils import detect_language, is_headers_language
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.treechart import generate_compact_tree
+from jrdev.string_utils import contains_chinese
 from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.message_builder import MessageBuilder
 
@@ -67,7 +68,7 @@ async def get_file_summary(
         )
 
         if file_analysis:
-            return f"Analysis for: {file_path} : {file_analysis}"
+            return f"{file_analysis}"
         return None
 
     except Exception as e:
@@ -292,10 +293,11 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                 conventions_result = results[0]
                 file_analysis_results = results[1:]
 
-                # Filter out None results from file analysis
-                returned_analysis = [
-                    result for result in file_analysis_results if result
-                ]
+                # Filter out bad results
+                returned_analysis = []
+                for result in file_analysis_results:
+                    if result and not contains_chinese(result):
+                        returned_analysis.append(result)
 
                 terminal_print(
                     f"\nCompleted analysis of all {len(returned_analysis)} files",

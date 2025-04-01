@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, cast
 from jrdev.file_utils import JRDEV_DIR
 from jrdev.llm_requests import stream_request
 from jrdev.prompts.prompt_utils import PromptManager
+from jrdev.string_utils import contains_chinese
 from jrdev.ui.ui import PrintType, terminal_print
 
 # Create an asyncio lock for safe file access
@@ -278,8 +279,8 @@ class ContextManager:
 
             # Create a new chat thread for each file
             temp_messages: List[Dict[str, str]] = [
-                {"role": "user", "content": full_content},
                 {"role": "system", "content": text_prompt},
+                {"role": "user", "content": full_content},
             ]
             if len(additional_context) > 0:
                 temp_messages.append(
@@ -295,6 +296,10 @@ class ContextManager:
                 terminal, terminal.model, temp_messages, print_stream=False
             )
             file_analysis = str(file_analysis_result)
+            if contains_chinese(file_analysis):
+                terminal_print(f"Malformed file analysis for {file_path}: detected Chinese characters", PrintType.ERROR)
+                logger.error(f"Malformed file analysis for {file_path}: detected Chinese characters:\n{file_analysis}")
+                return None
 
             # Print the analysis
             terminal_print(f"\nFile Analysis for {file_path}:", PrintType.HEADER)
