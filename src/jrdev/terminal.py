@@ -20,7 +20,7 @@ from jrdev.colors import Colors
 from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
                             handle_clearcontext, handle_clearmessages, handle_code,
                             handle_cost, handle_exit, handle_git, handle_git_pr_summary, handle_help, 
-                            handle_init, handle_model, handle_models, handle_process,
+                            handle_init, handle_model, handle_models,
                             handle_projectcontext, handle_stateinfo, handle_tasks,
                             handle_viewcontext)
 from jrdev.file_utils import requested_files, get_file_contents, add_to_gitignore, JRDEV_DIR
@@ -134,9 +134,6 @@ class JrDevTerminal:
         # Use project overview, filetree, filecontext files in each request
         self.use_project_context = True
 
-        # Controls whether to process file requests and code changes
-        self.process_follow_up = False
-
         # Initialize the context manager
         self.context_manager = ContextManager()
         
@@ -157,7 +154,6 @@ class JrDevTerminal:
             "/cost": handle_cost,
             "/init": handle_init,
             "/help": handle_help,
-            "/process": handle_process,
             "/addcontext": handle_addcontext,
             "/viewcontext": handle_viewcontext,
             "/asyncsend": handle_asyncsend,
