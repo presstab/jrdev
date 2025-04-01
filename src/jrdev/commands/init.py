@@ -90,7 +90,7 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
     start_time = time.time()
 
     # Initialize the profile manager once for the entire function
-    profile_manager = terminal.model_profile_manager
+    profile_manager = terminal.profile_manager()
 
     try:
         output_file = f"{JRDEV_DIR}jrdev_filetree.txt"

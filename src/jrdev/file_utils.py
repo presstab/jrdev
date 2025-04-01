@@ -7,7 +7,12 @@ from difflib import SequenceMatcher
 from jrdev.languages.utils import detect_language, is_headers_language
 from jrdev.ui.ui import terminal_print, PrintType
 
+# Base directory for jrdev files
 JRDEV_DIR = "jrdev/"
+
+# Get the absolute path to the jrdev package directory
+JRDEV_PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+JRDEV_ROOT_DIR = os.path.dirname(os.path.dirname(JRDEV_PACKAGE_DIR))  # Move up to the project root
 
 
 # Get the global logger instance
@@ -210,6 +215,15 @@ def write_string_to_file(filename: str, content: str):
         terminal_print(f"Writing {filename}", PrintType.WARNING)
         file.write(content)
 
+
+def get_env_path() -> str:
+    """
+    Get the path to the .env file in the jrdev installation directory.
+    
+    Returns:
+        Path to the .env file
+    """
+    return os.path.join(JRDEV_ROOT_DIR, '.env')
 
 def add_to_gitignore(gitignore_path: str, ignore_str: str, create_if_dne: bool = False) -> bool:
     """

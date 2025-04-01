@@ -46,7 +46,7 @@ class ModelProfileManager:
             "profiles": {
                 "advanced_reasoning": "deepseek-r1-671b",
                 "advanced_coding": "deepseek-r1-671b",
-                "intermediate_reasoning": "mistral-31-24b",
+                "intermediate_reasoning": "llama-3.3-70b",
                 "intermediate_coding": "qwen-2.5-coder-32b",
                 "quick_reasoning": "qwen-2.5-coder-32b",
             },
