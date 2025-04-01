@@ -178,7 +178,7 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                 )
 
                 # Now switch to a different model for file analysis
-                terminal.model = "qwen-2.5-qwq-32b"
+                terminal.model = "mistral-31-24b"
                 terminal_print(
                     f"\nSwitching model to: {terminal.model} for analysis",
                     PrintType.INFO,
@@ -293,10 +293,10 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                 conventions_result = results[0]
                 file_analysis_results = results[1:]
 
-                # Filter out bad results
+                # Filter out None results and those containing Chinese characters
                 returned_analysis = []
                 for result in file_analysis_results:
-                    if result and not contains_chinese(result):
+                    if result is not None and not contains_chinese(result):
                         returned_analysis.append(result)
 
                 terminal_print(
@@ -304,19 +304,33 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                     PrintType.SUCCESS,
                 )
 
-                # Print conventions if they were generated successfully
+                # Check if conventions were generated successfully
                 conventions_file_path = f"{JRDEV_DIR}jrdev_conventions.md"
-                if conventions_result and os.path.exists(conventions_file_path):
-                    terminal_print("\nProject Conventions Analysis:", PrintType.HEADER)
-                    terminal_print(conventions_result, PrintType.INFO)
-
+                if conventions_result is None or not os.path.exists(conventions_file_path):
                     terminal_print(
-                        f"\nProject conventions generated and saved to "
-                        f"{conventions_file_path}",
-                        PrintType.SUCCESS,
+                        "\nError: Project conventions generation failed. Please try running /init again.",
+                        PrintType.ERROR
                     )
+                    # Calculate elapsed time before exiting
+                    elapsed_time = time.time() - start_time
+                    minutes, seconds = divmod(elapsed_time, 60)
+                    terminal_print(
+                        f"\nProject initialization failed (took {int(minutes)}m {int(seconds)}s)",
+                        PrintType.ERROR,
+                    )
+                    return
 
-                # Start project overview immediately
+                # Print conventions
+                terminal_print("\nProject Conventions Analysis:", PrintType.HEADER)
+                terminal_print(conventions_result, PrintType.INFO)
+
+                terminal_print(
+                    f"\nProject conventions generated and saved to "
+                    f"{conventions_file_path}",
+                    PrintType.SUCCESS,
+                )
+
+                # Start project overview
                 terminal_print("\nGenerating project overview...", PrintType.PROCESSING)
                 terminal.model = "deepseek-r1-671b"
 
