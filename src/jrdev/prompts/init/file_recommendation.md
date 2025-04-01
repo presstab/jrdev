@@ -1,72 +1,80 @@
 Respond only with a list of files in the format get_files ['path/to/file.cpp', 'path/to/file2.json', ...] etc. 
 Do not include any other text or communication.
 
-# File Structure Analysis Guide
+File Structure Analysis Guide
 
-This document outlines the methodology for identifying critical files in a codebase based on observed patterns and standard development practices.
+This document guides the selection of critical files based *only* on the file tree structure.
+No file content is available at this stage, so analysis relies on naming conventions and directory layout.
 
-__Objective:__ Identify a maximum of 20 critical files that reveal core functionality, architectural patterns, and entry points. Prioritize files that provide maximum insight into how the system works.
+__Objective:__ Identify a maximum of 20 critical files based on their names and locations in the file tree.
+Prioritize files likely to contain entry points, core logic, configuration, or architectural elements based on common practices.
 
 ## 1. Priority Guidelines
 
+These files/directories often indicate key parts of an application, even without seeing the content.
 ### High Priority Targets
 - __Entry Points:__ 
-    - Language-specific main files (`main.py`, `index.js`, `App.tsx`)
-    - Framework initialization files (`AppConfig.java`, `startup.cs`)
-    - Examples: `src/main.tsx`, `app/Application.java`
+    Look for standard main files or framework-specific startup files, often at the root or in `src`/`app`.
+    - Common names are: `main.py`, `__main__.py`, `index.js`, `index.ts`, `server.js`, `server.ts`, `app.js`, `app.ts`, `App.tsx`, `App.jsx`, `Program.cs`, `Startup.cs`, `Application.java`, `manage.py`, `wsgi.py`, `asgi.py`, ...
+    - Framework initialization files: `AppConfig.java`, `startup.cs`, `nuxt.config.js`, ...
+    - Examples: `src/main.tsx`, `app/Application.java`, `cmd/server/main.go`, ...
 - __Core Implementation:__
-    - Files containing primary business logic
-    - Pattern-matching names: `*service.*`, `*core.*`, `*manager.*`
+    Look for files/directories suggesting core business logic through naming conventions.
+    - Pattern-matching names: `*service.*`, `*core.*`, `*manager.*`, `*controller.*`, `*handler.*`, `*model.*`, `*domain.*`, `*repository.*`, `*provider.*`, ...
+    - Common directories: `src/core/`, `app/services/`, `lib/`, `pkg/`, ...
 - __Architectural Foundations:__
-    - Dependency injection configurations
-    - Routing definitions (`routes.ts`, `web.php`)
-    - State management setups (`store.js`, `redux/`)
-- __Documentation:__
-    - Active `README.md` files with structural explanations
-    - Architectural decision records (`adr/` directory)
+    Identify potential configuration or setup files based on common names/directories.
+    - Routing definitions: `routes.ts`, `web.php`, `urls.py`, `api.py`, `routes/`, `controllers/`, `routers/`, ...
+    - State management setups: `store.js`, `store.ts`, `rootReducer.js`, `store/`, `redux/`, `vuex/`, ...
+    - Dependency injection/config: `container.*`, `services.*`, `config.*`, `settings.*`, `application.*`, `bootstrap.*`, `config/`, `app/config/`, ...
+- __Key Documentation:__
+    READMEs in important locations can give context. ADRs document architectural choices.
+    - `README.md` (especially root, `/src`, `/app`)
+    - Architectural decision records: `adr/`, `docs/adr/`
 
 ### Medium Priority Targets
-- __Configuration:__
-    - Build process files (`webpack.config.js`, `CMakeLists.txt`)
-    - Environment setups (`.env.*`, `config/`)
-- __Testing:__
-    - Comprehensive test suites (`*spec.js`, `*test.py`)
-    - Integration test directories (`tests/e2e/`)
+These files are important but often secondary to the core logic or entry points.
+- __Configuration & Build:__
+    Build process files and environment settings are crucial for understanding setup.
+    - Build process files: `webpack.config.js`, `vite.config.js`, `CMakeLists.txt`, `Makefile`, `pom.xml`, `build.gradle`, `*.csproj`, `*.sln`, `package.json`, `composer.json`, `requirements.txt`, `pyproject.toml`, `go.mod`, ...
+    - Environment setups (by name/dir): `.env*`, `config/`, `settings/`, `docker-compose.yml`, `Dockerfile`, ...
 - __Utilities:__
-    - Widely-reused helper modules (`utils/`, `helpers/`)
-    - Shared constants files (`constants.js`, `Settings.cs`)
+    Reusable code is important, often found in dedicated directories.
+    - Common directories: `utils/`, `helpers/`, `shared/`, `common/`, `lib/`, ... (if not core)
+    - Shared constants: `constants.*`, `config.*`, `settings.*`, ... (if not high priority config)
+- __Testing:__
+    Test files indicate quality practices but are less critical for understanding *what* the app does initially.
+    - Common test directories: `test/`, `tests/`, `spec/`, `__tests__/`, `e2e/`, ...
+    - Pattern-matching names: `*test.*`, `*spec.*`, ...
 
 ### Low Priority/Ignore
-- __Boilerplate:__
-    - Framework-generated files (`angular.json`, `package-lock.json`)
-    - IDE configurations (`.vscode/`, `.idea/`)
-- __Assets:__
-    - Media files (`images/`, `fonts/`)
-    - Compiled resources (`dist/`, `build/`)
-- __Third-party:__
-    - Vendor dependencies (`node_modules/`, `venv/`)
-    - License files (`LICENSE`, `NOTICE`)
+These files usually don't contain core logic or are environment-specific/generated.
+- __Boilerplate & Generated:__
+    Framework config/lock files, IDE settings - less important for core understanding.
+    - Framework/tooling files: `angular.json`, `package-lock.json`, `yarn.lock`, `composer.lock`, `.gitignore`, `.dockerignore`, ...
+    - IDE configurations: `.vscode/`, `.idea/`, `.project`, `.settings/`, ....
+- __Assets & Resources:__
+    Non-code files.
+    - Media files: `images/`, `fonts/`, `assets/`, `public/`, ...
+    - Compiled/built output: `dist/`, `build/`, `out/`, `target/`, `bin/`, ...
+- __Third-party Dependencies:__
+    Code not part of the project itself.
+    - Vendor dependencies: `node_modules/`, `venv/`, `vendor/`, `Pods/`, ...
+    - License/Notice files: `LICENSE`, `NOTICE`, `COPYING`, ...
+    
+---
 
 ## 2. Analysis Process
 
-1. __Language Identification__
-    - Examine file extensions (`*.tsx`, `*.java`, `*.go`)
-    - Check for manifest files (`package.json`, `requirements.txt`)
-    - Identify framework-specific patterns (`@Component` decorators, `SpringApplication`)
+1. __Language/Framework Identification__
+    Infer primary languages/frameworks from file extensions and manifest files.
+    - Examine common file extensions: `*.ts`, `*.tsx`, `*.js`, `*.jsx`, `*.py`, `*.java`, `*.go`, `*.cs`, `*.php`, `*.rb`, ...
+    - Check for manifest/build files: `package.json`, `requirements.txt`, `pom.xml`, `build.gradle`, `*.csproj`, `composer.json`, `go.mod`, `Gemfile`, ...
+    Note: Cannot reliably identify frameworks just from tree, but file names might give clues (e.g., `next.config.js`, `nuxt.config.js`, ...).
 
 2. __Entry Point Discovery__
-    - Follow language conventions:
-        - Python: `__main__.py`, files with `if __name__ == "__main__"`
-        - JavaScript: `index.js`, Webpack entry points
-        - Java: `main()` method declarations
-    - Search for common patterns:
-        ```javascript
-        // React entry pattern
-        ReactDOM.render(
-          ,
-          document.getElementById('root')
-        );
-        ```
+    Look for standard entry point filenames in likely locations.
+    - Check root directory, `src/`, `app/`, `cmd/*/` for files listed in "High Priority Targets > Entry Points".
 
 3. __Architectural Analysis__
     - Identify infrastructure patterns:
@@ -74,8 +82,13 @@ __Objective:__ Identify a maximum of 20 critical files that reveal core function
         - API routing: `routes/`, `app/Http/Controllers/`
     - Detect layered architecture:
         ```plaintext
+        Example structure hint
         src/
-        ├── presentation/
-        ├── application/
-        └── domain/
+        ├── api/ or presentation/ or controllers/
+        ├── application/ or services/ or use_cases/
+        └── domain/ or core/ or models/
+        └── infrastructure/ or db/ or data/
         ```
+    Identify files matching patterns in "High Priority Targets > Core Implementation" and "Architectural Foundations".
+
+## Summary: Choose up to 20 files balancing coverage across entry points, potential core logic, configuration, and structure. Prioritize based on the High/Medium lists, using naming and location as the primary guides.
