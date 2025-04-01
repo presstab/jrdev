@@ -16,6 +16,7 @@ from jrdev.commands.git import handle_git
 from jrdev.commands.git_pr import handle_git_pr_summary, handle_git_pr_review
 from jrdev.commands.help import handle_help
 from jrdev.commands.init import handle_init
+from jrdev.commands.keys import handle_keys
 from jrdev.commands.model import handle_model
 from jrdev.commands.models import handle_models
 from jrdev.commands.projectcontext import handle_projectcontext
@@ -32,6 +33,7 @@ __all__ = [
     "handle_git",
     "handle_git_pr_summary",
     "handle_git_pr_review",
+    "handle_keys",
     "handle_model",
     "handle_models",
     "handle_clearcontext",

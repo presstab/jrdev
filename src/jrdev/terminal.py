@@ -10,6 +10,7 @@ import os
 import platform
 import re
 import sys
+from getpass import getpass
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
@@ -20,10 +21,11 @@ from jrdev.colors import Colors
 from jrdev.commands import (handle_addcontext, handle_asyncsend, handle_cancel,
                             handle_clearcontext, handle_clearmessages, handle_code,
                             handle_cost, handle_exit, handle_git, handle_git_pr_summary, handle_help, 
-                            handle_init, handle_model, handle_models,
+                            handle_init, handle_keys, handle_model, handle_models,
                             handle_projectcontext, handle_stateinfo, handle_tasks,
                             handle_viewcontext)
 from jrdev.file_utils import requested_files, get_file_contents, add_to_gitignore, JRDEV_DIR
+from jrdev.commands.keys import check_existing_keys, run_first_time_setup
 from jrdev.llm_requests import stream_request
 # JrDev modules
 from jrdev.logger import setup_logger
@@ -55,8 +57,16 @@ class JrDevTerminal:
         # Check if jrdev/ is in gitignore and add it if not
         self._check_gitignore()
 
-        # Load environment variables from .env file
-        load_dotenv()
+        # Try to load any existing .env file first
+        if os.path.exists('.env'):
+            load_dotenv()
+            
+        # Check for API keys and run first-time setup if needed
+        if not check_existing_keys():
+            run_first_time_setup()
+            # Reload environment variables after setup
+            load_dotenv()
+        # If keys exist, we already loaded the .env file above
 
         # Initialize API clients
         self.venice_client = None
@@ -161,7 +171,8 @@ class JrDevTerminal:
             "/cancel": handle_cancel,
             "/code": handle_code,
             "/projectcontext": handle_projectcontext,
-            "/git": handle_git
+            "/git": handle_git,
+            "/keys": handle_keys
         }
 
         # Debug commands

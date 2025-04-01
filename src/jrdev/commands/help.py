@@ -49,6 +49,12 @@ async def handle_help(terminal, args):
         end=""
     )
     terminal_print(f" - Display session costs")
+    terminal_print(
+        f"  /keys",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Manage API keys")
 
     # Use AI commands
     terminal_print(f"{COLORS['BRIGHT_WHITE']}{COLORS['BOLD']}{COLORS['UNDERLINE']}Use AI:{COLORS['RESET']}", print_type=None)
