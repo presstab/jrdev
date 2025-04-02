@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Init command implementation for the JrDev terminal.
+Init command implementation for the JrDev application.
 """
 import asyncio
 import os
@@ -30,7 +30,7 @@ context_file_lock = asyncio.Lock()
 
 
 async def get_file_summary(
-    terminal: Any,
+    app: Any,
     file_path: Any,
     additional_context: Optional[List[str]] = None,
 ) -> Optional[str]:
@@ -38,7 +38,7 @@ async def get_file_summary(
     Generate a summary of a file using an LLM and store in the ContextManager.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         file_path: Path to the file to analyze. This may also be a list of file paths
         additional_context: Optional additional context for the LLM
 
@@ -64,8 +64,8 @@ async def get_file_summary(
 
         # Use the context manager to generate the context
         file_input = files[0] if len(files) == 1 else files
-        file_analysis = await terminal.context_manager.generate_context(
-            file_input, terminal, additional_context
+        file_analysis = await app.context_manager.generate_context(
+            file_input, app, additional_context
         )
 
         if file_analysis:
@@ -77,20 +77,20 @@ async def get_file_summary(
         return None
 
 
-async def handle_init(terminal: Any, args: List[str]) -> None:
+async def handle_init(app: Any, args: List[str]) -> None:
     """
     Handle the /init command to generate file tree, analyze files, and create
     project overview.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         args: Command arguments
     """
     # Record start time
     start_time = time.time()
 
     # Initialize the profile manager once for the entire function
-    profile_manager = terminal.profile_manager()
+    profile_manager = app.profile_manager()
 
     try:
         output_file = f"{JRDEV_DIR}jrdev_filetree.txt"
@@ -115,8 +115,8 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
         ]
 
         # Switch the model to the advanced reasoning profile
-        terminal.model = profile_manager.get_model("advanced_reasoning")
-        terminal_print(f"Model changed to: {terminal.model} (advanced_reasoning profile)", PrintType.INFO)
+        app.state.model = profile_manager.get_model("advanced_reasoning")
+        terminal_print(f"Model changed to: {app.state.model} (advanced_reasoning profile)", PrintType.INFO)
 
         # Send the file tree to the LLM with a request for file recommendations
         terminal_print(
@@ -124,7 +124,7 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
         )
 
         # Use MessageBuilder for file recommendations
-        builder = MessageBuilder(terminal)
+        builder = MessageBuilder(app)
         builder.load_system_prompt("files/get_files_format")
         
         # Start user section with file recommendation prompt
@@ -140,7 +140,7 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
         # Send the request to the LLM
         try:
             recommendation_response = await stream_request(
-                terminal, terminal.model, temp_messages
+                app, app.state.model, temp_messages
             )
 
             # Parse the file list from the response
@@ -182,9 +182,9 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                 )
 
                 # Now switch to a different model for file analysis
-                terminal.model = profile_manager.get_model("intermediate_reasoning")
+                app.state.model = profile_manager.get_model("intermediate_reasoning")
                 terminal_print(
-                    f"\nSwitching model to: {terminal.model} (intermediate_reasoning profile) for analysis",
+                    f"\nSwitching model to: {app.state.model} (intermediate_reasoning profile) for analysis",
                     PrintType.INFO,
                 )
 
@@ -205,7 +205,7 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                         f"{len(cleaned_file_list)}: {file_path}",
                         PrintType.PROCESSING,
                     )
-                    result = await get_file_summary(terminal, file_path)
+                    result = await get_file_summary(app, file_path)
                     terminal_print(
                         f"Completed analysis for file {index + 1}/"
                         f"{len(cleaned_file_list)}: {file_path}",
@@ -220,11 +220,11 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                         f"\nAnalyzing project conventions...", PrintType.PROCESSING
                     )
 
-                    # Use a local model variable from profile instead of changing terminal.model
+                    # Use a local model variable from profile instead of changing app.state.model
                     conventions_model = profile_manager.get_model("advanced_reasoning")
 
                     # Use MessageBuilder for conventions
-                    conventions_builder = MessageBuilder(terminal)
+                    conventions_builder = MessageBuilder(app)
                     conventions_builder.load_system_prompt("project_conventions")
                     
                     # Start building user content
@@ -245,7 +245,7 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                                     else:
                                         size_mb = len(content) / (1024 * 1024)
                                         error_msg = f"File {file_path} is too large ({size_mb:.2f} MB) for analysis (max: 2MB)"
-                                        terminal.logger.error(error_msg)
+                                        app.logger.error(error_msg)
                                         terminal_print(error_msg, PrintType.ERROR)
                         except Exception as e:
                             terminal_print(
@@ -260,9 +260,9 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                     conventions_messages = conventions_builder.build()
 
                     try:
-                        # Use conventions_model directly instead of changing terminal.model
+                        # Use conventions_model directly instead of changing app.state.model
                         conventions_result = await stream_request(
-                            terminal,
+                            app,
                             conventions_model,
                             conventions_messages,
                             print_stream=False,
@@ -336,17 +336,17 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
 
                 # Start project overview
                 terminal_print("\nGenerating project overview...", PrintType.PROCESSING)
-                terminal.model = profile_manager.get_model("advanced_reasoning")
+                app.state.model = profile_manager.get_model("advanced_reasoning")
 
                 # Read the file tree
                 with open(output_file, "r") as f:
                     file_tree_content = f.read()
 
                 # Get all file contexts from the context manager
-                file_context_content = terminal.context_manager.get_all_context()
+                file_context_content = app.context_manager.get_all_context()
 
                 # Use MessageBuilder for project overview
-                overview_builder = MessageBuilder(terminal)
+                overview_builder = MessageBuilder(app)
                 overview_builder.load_system_prompt("project_overview")
                 
                 # Create the overview prompt with multiple sections
@@ -364,7 +364,7 @@ async def handle_init(terminal: Any, args: List[str]) -> None:
                 # Send request to the model for project overview
                 try:
                     full_overview = await stream_request(
-                        terminal, terminal.model, overview_messages
+                        app, app.state.model, overview_messages
                     )
 
                     # Save to markdown file

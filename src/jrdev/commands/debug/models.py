@@ -9,7 +9,7 @@ from typing import Any, List
 from jrdev.commands.models import handle_models
 
 
-async def handle_modelswin(terminal: Any, args: List[str]) -> None:
+async def handle_modelswin(app: Any, args: List[str]) -> None:
     """
     Force the non-curses model selection UI.
 
@@ -18,4 +18,4 @@ async def handle_modelswin(terminal: Any, args: List[str]) -> None:
         args: Command arguments (unused)
     """
     # Pass --no-curses flag to force non-curses UI
-    await handle_models(terminal, ["modelswin", "--no-curses"])
+    await handle_models(app, ["modelswin", "--no-curses"])

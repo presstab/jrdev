@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Tasks command implementation for the JrDev terminal.
+Tasks command implementation for the JrDev application.
 Lists all active asynchronous tasks.
 """
 
@@ -11,22 +11,22 @@ from typing import Any, List
 from jrdev.ui.ui import terminal_print, PrintType
 
 
-async def handle_tasks(terminal: Any, args: List[str]) -> None:
+async def handle_tasks(app: Any, args: List[str]) -> None:
     """
     Handle the /tasks command to display current background tasks.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         args: Command arguments (unused)
     """
-    if not terminal.active_tasks:
+    if not app.state.active_tasks:
         terminal_print("No active background tasks.", print_type=PrintType.INFO)
         return
 
     terminal_print("\nActive Background Tasks:", print_type=PrintType.HEADER)
 
     current_time = asyncio.get_event_loop().time()
-    for task_id, task_info in terminal.active_tasks.items():
+    for task_id, task_info in app.state.active_tasks.items():
         # Calculate how long the task has been running
         elapsed = current_time - task_info["timestamp"]
         elapsed_str = format_time(elapsed)

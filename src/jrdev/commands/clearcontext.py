@@ -4,21 +4,22 @@
 ClearContext command implementation for the JrDev terminal.
 """
 
+from typing import Any, List
 from jrdev.ui.ui import terminal_print, PrintType
 
 
-async def handle_clearcontext(terminal, args):
+async def handle_clearcontext(app: Any, args: List[str]) -> None:
     """
     Handle the /clearcontext command to clear context files and conversation history.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         args: Command arguments (unused)
     """
     # Clear the context array
-    num_files = len(terminal.context)
-    terminal.context = []
+    num_files = len(app.state.context)
+    app.state.clear_context()
     terminal_print(f"Cleared {num_files} file(s) from context.", print_type=PrintType.SUCCESS)
 
     # Clear conversation history
-    terminal.clear_messages()
+    app.clear_messages()

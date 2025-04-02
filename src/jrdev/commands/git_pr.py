@@ -8,21 +8,21 @@ Provides functionality to generate PR summaries and code reviews based on git di
 import logging
 import subprocess
 import shlex
-from typing import Awaitable, Dict, List, Optional, Protocol
+from typing import Awaitable, Dict, List, Optional, Protocol, Any
 
 from jrdev.commands.git_config import get_git_config, DEFAULT_GIT_CONFIG
 from jrdev.llm_requests import stream_request
 from jrdev.message_builder import MessageBuilder
 from jrdev.ui.ui import PrintType, terminal_print
 
-# Define a Protocol for JrDevTerminal to avoid circular imports
-class JrDevTerminal(Protocol):
+# Define a Protocol for Application to avoid circular imports
+class ApplicationProtocol(Protocol):
     model: str
     logger: logging.Logger
 
 
 async def _handle_git_pr_common(
-    terminal: JrDevTerminal,
+    app: Any,
     args: List[str],
     prompt_path: str,
     operation_type: str,
@@ -33,7 +33,7 @@ async def _handle_git_pr_common(
     """
     Common helper function for PR operations.
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         args: Command arguments
         prompt_path: Path to the prompt file
         operation_type: Type of operation being performed (for display)
@@ -83,7 +83,7 @@ async def _handle_git_pr_common(
         )
     except subprocess.TimeoutExpired as timeout_err:
         # Log detailed error information for debugging
-        terminal.logger.warning(
+        app.logger.warning(
             f"Git branch verification timeout: branch='{base_branch}', safe_branch='{safe_base_branch}', "
             f"timeout={timeout_err.timeout}s, command={' '.join(timeout_err.cmd)}"
         )
@@ -105,7 +105,7 @@ async def _handle_git_pr_common(
         command = ' '.join(cmd_err.cmd) if isinstance(cmd_err.cmd, list) else cmd_err.cmd
         
         # Log detailed error context
-        terminal.logger.warning(
+        app.logger.warning(
             f"Git branch verification failed: branch='{base_branch}', safe_branch='{safe_base_branch}', "
             f"return_code={return_code}, command='{command}', error_output='{error_output}'"
         )
@@ -133,7 +133,7 @@ async def _handle_git_pr_common(
         )
     except subprocess.TimeoutExpired as timeout_err:
         # Log detailed error information for debugging
-        terminal.logger.warning(
+        app.logger.warning(
             f"Git diff timeout: branch='{base_branch}', safe_branch='{safe_base_branch}', "
             f"timeout={timeout_err.timeout}s, command={' '.join(timeout_err.cmd)}"
         )
@@ -159,7 +159,7 @@ async def _handle_git_pr_common(
         command = ' '.join(cmd_err.cmd) if isinstance(cmd_err.cmd, list) else cmd_err.cmd
         
         # Log detailed error context
-        terminal.logger.warning(
+        app.logger.warning(
             f"Git diff command failed: branch='{base_branch}', safe_branch='{safe_base_branch}', "
             f"return_code={return_code}, command='{command}', error_output='{error_output}'"
         )
@@ -181,7 +181,7 @@ async def _handle_git_pr_common(
         return None
 
     # Use MessageBuilder to construct messages
-    builder = MessageBuilder(terminal)
+    builder = MessageBuilder(app)
     builder.start_user_section()
     if add_project_files:
         builder.add_project_files()
@@ -199,12 +199,12 @@ async def _handle_git_pr_common(
     # Send request
     try:
         terminal_print(
-            f"\n{terminal.model} is creating {message_type}...\n",
+            f"\n{app.state.model} is creating {message_type}...\n",
             PrintType.PROCESSING,
         )
         # mypy: ignore[no-untyped-call]
         response = await stream_request(
-            terminal, terminal.model, messages, print_stream=True
+            app, app.state.model, messages, print_stream=True
         )
         return str(response) if response is not None else None
     except Exception as e:
@@ -213,13 +213,13 @@ async def _handle_git_pr_common(
         error_tb = traceback.format_exc()
         
         # Structured log with detailed context
-        terminal.logger.error(
+        app.logger.error(
             f"{error_message}: type={type(e).__name__}, message={str(e)}, "
             f"operation={operation_type}, prompt_path={prompt_path}"
         )
         
         # Log the full traceback at debug level
-        terminal.logger.debug(f"Traceback for {error_message}:\n{error_tb}")
+        app.logger.debug(f"Traceback for {error_message}:\n{error_tb}")
         
         # User-friendly error message
         terminal_print(
@@ -233,15 +233,15 @@ async def _handle_git_pr_common(
         return None
 
 
-async def handle_git_pr_summary(terminal: JrDevTerminal, args: List[str]) -> None:
+async def handle_git_pr_summary(app: Any, args: List[str]) -> None:
     """
     Generate a PR summary based on git diff with configured base branch.
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         args: Command arguments
     """
     await _handle_git_pr_common(
-        terminal=terminal,
+        app=app,
         args=args,
         prompt_path="git/pr_summary",
         operation_type="summary",
@@ -251,15 +251,15 @@ async def handle_git_pr_summary(terminal: JrDevTerminal, args: List[str]) -> Non
     )
 
 
-async def handle_git_pr_review(terminal: JrDevTerminal, args: List[str]) -> None:
+async def handle_git_pr_review(app: Any, args: List[str]) -> None:
     """
     Generate a detailed PR code review based on git diff with configured base branch.
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         args: Command arguments
     """
     await _handle_git_pr_common(
-        terminal=terminal,
+        app=app,
         args=args,
         prompt_path="git/pr_review",
         operation_type="code review",

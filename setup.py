@@ -18,7 +18,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "jrdev=jrdev.terminal:run_cli",
+            "jrdev=jrdev.__main__:run_cli",
         ],
     },
     classifiers=[

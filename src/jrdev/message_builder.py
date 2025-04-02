@@ -10,13 +10,13 @@ logger = logging.getLogger("jrdev")
 
 
 class MessageBuilder:
-    def __init__(self, terminal: Optional[Any] = None):
+    def __init__(self, app: Optional[Any] = None):
         self.messages: List[Dict[str, str]] = []
         self.files: Set[str] = set()
         self.file_aliases: Dict[str, str] = {}
         self.embedded_files: Set[str] = set()
         self.context: List[Dict[str, str]] = []
-        self.terminal = terminal
+        self.app = app
         self._current_user_content: List[str] = []
         self.isUserSectionFinal = False
 
@@ -59,13 +59,13 @@ class MessageBuilder:
 
     def add_project_files(self) -> None:
         """Add all files from the terminal's project_files"""
-        if self.terminal and hasattr(self.terminal, "project_files"):
+        if self.app and hasattr(self.app.state, "project_files"):
             # Simple 10MB total size limit
             total_size_limit = 10 * 1024 * 1024  # Default 10MB limit
             current_size = 0
             
             # Add project files
-            for file_path in self.terminal.project_files.values():
+            for file_path in self.app.state.project_files.values():
                 # Skip files that would exceed the limit
                 if os.path.exists(file_path) and os.path.isfile(file_path):
                     file_size = os.path.getsize(file_path)
@@ -75,8 +75,8 @@ class MessageBuilder:
                 self.add_file(file_path)
                 
             # Add context files
-            if hasattr(self.terminal, "context_manager"):
-                for aliases in self.terminal.context_manager.get_index_paths():
+            if hasattr(self.app, "state") and hasattr(self.app.state, "context_manager"):
+                for aliases in self.app.state.context_manager.get_index_paths():
                     self.add_index_file(aliases[0], aliases[1])
 
 

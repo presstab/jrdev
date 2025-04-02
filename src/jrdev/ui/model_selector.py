@@ -17,12 +17,12 @@ from jrdev.model_utils import VCU_Value
 from jrdev.ui.ui import terminal_print, PrintType
 
 
-async def text_based_model_selector(terminal: Any, models: List[Dict[str, Any]]) -> None:
+async def text_based_model_selector(app: Any, models: List[Dict[str, Any]]) -> None:
     """
     Text-based model selector for systems without curses support.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         models: List of models to display
     """
     # Get VCU dollar value for cost calculations
@@ -56,13 +56,13 @@ async def text_based_model_selector(terminal: Any, models: List[Dict[str, Any]])
 
         # Add indicator for current model
         indicator = ""
-        if model_name == terminal.model:
+        if model_name == app.state.model:
             indicator = "* "
 
         print(f"{i+1:<3} | {indicator}{display_name:<20} | {provider:<10} | {think_status:<10} | {input_cost_str:<12} | {output_cost_str:<12} | {context_str:<10}")
 
     # Prompt for selection
-    print("\nCurrent model: " + terminal.model)
+    print("\nCurrent model: " + app.state.model)
     print("\nEnter the number of the model to select, or press Enter to cancel:")
 
     try:
@@ -71,8 +71,8 @@ async def text_based_model_selector(terminal: Any, models: List[Dict[str, Any]])
             choice_num = int(choice.strip())
             if 1 <= choice_num <= len(models):
                 selected_model = models[choice_num-1]["name"]
-                terminal.model = selected_model
-                terminal_print(f"Model changed to: {terminal.model}", print_type=PrintType.SUCCESS)
+                app.state.model = selected_model
+                terminal_print(f"Model changed to: {app.state.model}", print_type=PrintType.SUCCESS)
             else:
                 terminal_print(f"Invalid selection: {choice_num}. Please enter a number between 1 and {len(models)}",
                               print_type=PrintType.ERROR)
@@ -82,13 +82,13 @@ async def text_based_model_selector(terminal: Any, models: List[Dict[str, Any]])
         terminal_print("Invalid input. Please enter a number.", print_type=PrintType.ERROR)
 
 
-def interactive_model_selector(stdscr, terminal, models):
+def interactive_model_selector(stdscr, app, models):
     """
     Interactive model selector using curses.
 
     Args:
         stdscr: The curses standard screen
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         models: List of models to display
 
     Returns:
@@ -118,7 +118,7 @@ def interactive_model_selector(stdscr, terminal, models):
         # Find current model position
         current_idx = 0
         for i, model in enumerate(models):
-            if model["name"] == terminal.model:
+            if model["name"] == app.state.model:
                 current_idx = i
                 break
 
@@ -187,7 +187,7 @@ def interactive_model_selector(stdscr, terminal, models):
                 if idx == current_idx:
                     attr = curses.color_pair(1) | curses.A_BOLD
                     prefix = "→ "
-                elif model_name == terminal.model:
+                elif model_name == app.state.model:
                     attr = curses.color_pair(1)
                     prefix = "* "
 

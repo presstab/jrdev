@@ -18,7 +18,7 @@ class JrDevTerminal(Protocol):
     logger: logging.Logger
 
 
-async def handle_git_debug_config_dump(terminal: JrDevTerminal, args: List[str]) -> None:
+async def handle_git_debug_config_dump(app: Any, args: List[str]) -> None:
     """
     Debug command to dump git configuration information including the validation schema.
     

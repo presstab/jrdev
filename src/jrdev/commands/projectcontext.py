@@ -10,7 +10,7 @@ from typing import Any, Dict, List
 from jrdev.ui.ui import PrintType, terminal_print
 
 
-async def handle_projectcontext(terminal: Any, args: List[str]) -> None:
+async def handle_projectcontext(app: Any, args: List[str]) -> None:
     """
     Handle the /projectcontext command for managing project context.
 
@@ -26,7 +26,7 @@ async def handle_projectcontext(terminal: Any, args: List[str]) -> None:
         /projectcontext help - Show usage information
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         args: Command arguments
     """
     if len(args) < 2:
@@ -42,30 +42,30 @@ async def handle_projectcontext(terminal: Any, args: List[str]) -> None:
         _show_usage()
 
     elif command == "on":
-        terminal.use_project_context = True
+        app.state.use_project_context = True
         terminal_print("Project context is now ON", PrintType.SUCCESS)
 
     elif command == "off":
-        terminal.use_project_context = False
+        app.state.use_project_context = False
         terminal_print("Project context is now OFF", PrintType.SUCCESS)
 
     elif command == "status":
-        await _show_status(terminal)
+        await _show_status(app)
 
     elif command == "list":
-        await _list_context_files(terminal)
+        await _list_context_files(app)
 
     elif command == "view" and len(args) > 2:
-        await _view_file_context(terminal, args[2])
+        await _view_file_context(app, args[2])
 
     elif command == "refresh" and len(args) > 2:
-        await _refresh_file_context(terminal, args[2])
+        await _refresh_file_context(app, args[2])
 
     elif command == "add" and len(args) > 2:
-        await _add_file_to_context(terminal, args[2])
+        await _add_file_to_context(app, args[2])
 
     elif command == "remove" and len(args) > 2:
-        await _remove_file_from_context(terminal, args[2])
+        await _remove_file_from_context(app, args[2])
 
     else:
         _show_usage()
@@ -164,19 +164,19 @@ def _show_usage() -> None:
     )
 
 
-async def _show_status(terminal: Any) -> None:
+async def _show_status(app: Any) -> None:
     """
     Show the current status of the project context system.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
     """
-    context_manager = terminal.context_manager
+    context_manager = app.state.context_manager
     file_count = len(context_manager.index.get("files", {}))
     outdated_files = context_manager.get_outdated_files()
 
     terminal_print("Project Context Status:", PrintType.HEADER)
-    terminal_print(f"Context enabled: {terminal.use_project_context}", PrintType.INFO)
+    terminal_print(f"Context enabled: {app.state.use_project_context}", PrintType.INFO)
     terminal_print(f"Files tracked: {file_count}", PrintType.INFO)
     terminal_print(f"Outdated files: {len(outdated_files)}", PrintType.INFO)
 
@@ -189,14 +189,14 @@ async def _show_status(terminal: Any) -> None:
             terminal_print(f"... and {len(outdated_files) - 10} more", PrintType.INFO)
 
 
-async def _list_context_files(terminal: Any) -> None:
+async def _list_context_files(app: Any) -> None:
     """
     List all files tracked in the context system.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
     """
-    context_manager = terminal.context_manager
+    context_manager = app.state.context_manager
     files = list(context_manager.index.get("files", {}).keys())
 
     if not files:
@@ -220,15 +220,15 @@ async def _list_context_files(terminal: Any) -> None:
             terminal_print(f"  - {filename}", PrintType.INFO)
 
 
-async def _view_file_context(terminal: Any, file_path: str) -> None:
+async def _view_file_context(app: Any, file_path: str) -> None:
     """
     View the context for a specific file.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         file_path: Path to the file to view context for
     """
-    context_manager = terminal.context_manager
+    context_manager = app.state.context_manager
     context = context_manager._read_context_file(file_path)
 
     if not context:
@@ -239,12 +239,12 @@ async def _view_file_context(terminal: Any, file_path: str) -> None:
     terminal_print(context, PrintType.INFO)
 
 
-async def _refresh_file_context(terminal: Any, file_path: str) -> None:
+async def _refresh_file_context(app: Any, file_path: str) -> None:
     """
     Refresh the context for a specific file.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         file_path: Path to the file to refresh context for
     """
     if not os.path.exists(file_path):
@@ -254,7 +254,7 @@ async def _refresh_file_context(terminal: Any, file_path: str) -> None:
     terminal_print(f"Refreshing context for {file_path}...", PrintType.PROCESSING)
 
     # Use the context manager to regenerate the context
-    analysis = await terminal.context_manager.generate_context(file_path, terminal)
+    analysis = await app.state.context_manager.generate_context(file_path, app)
 
     if analysis:
         terminal_print(
@@ -264,25 +264,25 @@ async def _refresh_file_context(terminal: Any, file_path: str) -> None:
         terminal_print(f"Failed to refresh context for {file_path}", PrintType.ERROR)
 
 
-async def _add_file_to_context(terminal: Any, file_path: str) -> None:
+async def _add_file_to_context(app: Any, file_path: str) -> None:
     """
     Add a file to the context system and generate its initial analysis.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         file_path: Path to the file to add to the context
     """
     if not os.path.exists(file_path):
         terminal_print(f"File not found: {file_path}", PrintType.ERROR)
         return
 
-    context_manager = terminal.context_manager
+    context_manager = app.state.context_manager
 
     # Check if file is already in the index
     if file_path in context_manager.index.get("files", {}):
         terminal_print(f"File already tracked: {file_path}", PrintType.WARNING)
         terminal_print("Refreshing context instead...", PrintType.INFO)
-        await _refresh_file_context(terminal, file_path)
+        await _refresh_file_context(app, file_path)
         return
 
     terminal_print(
@@ -291,7 +291,7 @@ async def _add_file_to_context(terminal: Any, file_path: str) -> None:
     )
 
     # Generate context for the file and add it to the index
-    analysis = await context_manager.generate_context(file_path, terminal)
+    analysis = await context_manager.generate_context(file_path, app)
 
     if analysis:
         terminal_print(f"Successfully added {file_path} to project context", PrintType.SUCCESS)
@@ -299,15 +299,15 @@ async def _add_file_to_context(terminal: Any, file_path: str) -> None:
         terminal_print(f"Failed to add {file_path} to project context", PrintType.ERROR)
 
 
-async def _remove_file_from_context(terminal: Any, file_path: str) -> None:
+async def _remove_file_from_context(app: Any, file_path: str) -> None:
     """
     Remove a file from the context system.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         file_path: Path to the file to remove from the context
     """
-    context_manager = terminal.context_manager
+    context_manager = app.state.context_manager
 
     # Check if file is in the index
     if file_path not in context_manager.index.get("files", {}):

@@ -28,17 +28,17 @@ class ModelInfo(TypedDict):
     context_tokens: int
 
 
-async def handle_models(terminal: Any, args: List[str]) -> None:
+async def handle_models(app: Any, args: List[str]) -> None:
     """
     Handle the /models command to list all available models.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         args: Command arguments (unused)
     """
 
     # Get all models
-    models_list = terminal.get_models()
+    models_list = app.get_models()
 
     # Sort models first by provider, then by name alphabetically
     models = parse_obj_as(List[ModelInfo], models_list)
@@ -52,20 +52,20 @@ async def handle_models(terminal: Any, args: List[str]) -> None:
         try:
             selected_model = curses.wrapper(
                 interactive_model_selector,
-                terminal,
+                app,
                 sorted_models
             )
 
             if selected_model:
                 # User selected a model
-                terminal.model = selected_model
-                terminal_print(f"Model changed to: {terminal.model}", print_type=PrintType.SUCCESS)
+                app.state.model = selected_model
+                terminal_print(f"Model changed to: {app.state.model}", print_type=PrintType.SUCCESS)
         except Exception as e:
             # Handle any curses errors gracefully
             terminal_print(f"Error in model selection: {str(e)}", print_type=PrintType.ERROR)
             # Fall back to text-based selector
             terminal_print("Falling back to text-based model selection", print_type=PrintType.INFO)
-            await text_based_model_selector(terminal, sorted_models)
+            await text_based_model_selector(app, sorted_models)
     else:
         # Use text-based selector
-        await text_based_model_selector(terminal, sorted_models)
+        await text_based_model_selector(app, sorted_models)

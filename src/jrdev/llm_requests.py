@@ -22,18 +22,18 @@ def is_inside_think_tag(text):
     return think_open > think_close
 
 
-async def stream_openai_format(terminal, model, messages, print_stream=True, json_output=False):
+async def stream_openai_format(app, model, messages, print_stream=True, json_output=False):
     # Start timing the response
     start_time = time.time()
 
     log_msg = f"Sending request to {model} with {len(messages)} messages"
-    terminal.logger.info(log_msg)
+    app.logger.info(log_msg)
     
     # Get the appropriate client
     model_provider = None
 
     # Find the model in AVAILABLE_MODELS
-    available_models = terminal.get_models()
+    available_models = app.get_models()
     for entry in available_models:
         if entry["name"] == model:
             model_provider = entry["provider"]
@@ -41,13 +41,13 @@ async def stream_openai_format(terminal, model, messages, print_stream=True, jso
 
     # Select the appropriate client based on provider
     if model_provider == "venice":
-        client = terminal.venice_client
+        client = app.state.clients.venice
     elif model_provider == "openai":
-        client = terminal.openai_client
+        client = app.state.clients.openai
         if not client:
             raise ValueError(f"OpenAI API key not configured but model {model} requires it")
     elif model_provider == "deepseek":
-        client = terminal.deepseek_client
+        client = app.state.clients.deepseek
         if not client:
             raise ValueError(f"DeepSeek API key not configured but model {model} requires it")
     else:
@@ -80,7 +80,7 @@ async def stream_openai_format(terminal, model, messages, print_stream=True, jso
 
     stream = await client.chat.completions.create(**kwargs)
 
-    uses_think = is_think_model(model, terminal.get_models())
+    uses_think = is_think_model(model, app.get_models())
     response_text = ""
     first_chunk = True
     chunk_count = 0
@@ -93,7 +93,7 @@ async def stream_openai_format(terminal, model, messages, print_stream=True, jso
             stream_start_time = time.time()  # Start timing from first chunk
             if print_stream:
                 terminal_print(f"Receiving response from {model}...", PrintType.PROCESSING)
-            terminal.logger.info(f"Started receiving response from {model}")
+            app.logger.info(f"Started receiving response from {model}")
             first_chunk = False
         
         chunk_count += 1
@@ -103,7 +103,7 @@ async def stream_openai_format(terminal, model, messages, print_stream=True, jso
             elapsed_time = current_time - stream_start_time
             chunks_per_second = round(chunk_count / elapsed_time, 2) if elapsed_time > 0 else 0
             
-            terminal.logger.info(f"Received {chunk_count} chunks from {model} ({chunks_per_second} chunks/sec)")
+            app.logger.info(f"Received {chunk_count} chunks from {model} ({chunks_per_second} chunks/sec)")
 
         # Handle OpenAI-compatible chunks (Venice and OpenAI)
         if chunk.choices and chunk.choices[0].delta.content:
@@ -160,7 +160,7 @@ async def stream_openai_format(terminal, model, messages, print_stream=True, jso
             )
 
         # Log completion stats
-        terminal.logger.info(
+        app.logger.info(
             f"Response completed: {model}, {input_tokens} input tokens, {output_tokens} output tokens, "
             f"{elapsed_seconds}s, {chunk_count} chunks, {chunks_per_second} chunks/sec"
         )
@@ -174,7 +174,7 @@ async def stream_openai_format(terminal, model, messages, print_stream=True, jso
     else:
         return response_text
 
-async def stream_messages_format(terminal, model, messages, print_stream=True):
+async def stream_messages_format(app, model, messages, print_stream=True):
     # Start timing the response
     start_time = time.time()
     
@@ -197,10 +197,10 @@ async def stream_messages_format(terminal, model, messages, print_stream=True):
     log_msg = f"Sending request to {model} with {len(messages)} messages"
     if context_files:
         log_msg += f", context files: {', '.join(context_files)}"
-    terminal.logger.info(log_msg)
+    app.logger.info(log_msg)
     
     # Get Anthropic client
-    client = terminal.anthropic_client
+    client = app.state.clients.anthropic
     if not client:
         raise ValueError(f"Anthropic API key not configured but model {model} requires it")
     
@@ -246,7 +246,7 @@ async def stream_messages_format(terminal, model, messages, print_stream=True):
         # Start the streaming session with the context manager
         if print_stream:
             terminal_print(f"Receiving response from {model}...", PrintType.PROCESSING)
-        terminal.logger.info(f"Started receiving response from {model}")
+        app.logger.info(f"Started receiving response from {model}")
         stream_start_time = time.time()
         
         async with stream_manager as stream:
@@ -266,7 +266,7 @@ async def stream_messages_format(terminal, model, messages, print_stream=True):
                     current_time = time.time()
                     elapsed_time = current_time - stream_start_time
                     chunks_per_second = round(chunk_count / elapsed_time, 2) if elapsed_time > 0 else 0
-                    terminal.logger.info(f"Received {chunk_count} chunks from {model} ({chunks_per_second} chunks/sec)")
+                    app.logger.info(f"Received {chunk_count} chunks from {model} ({chunks_per_second} chunks/sec)")
                 
             # Get usage information after stream is complete
             if hasattr(stream, 'usage'):
@@ -290,7 +290,7 @@ async def stream_messages_format(terminal, model, messages, print_stream=True):
                     )
                 
                 # Log completion stats
-                terminal.logger.info(
+                app.logger.info(
                     f"Response completed: {model}, {input_tokens} input tokens, {output_tokens} output tokens, "
                     f"{elapsed_seconds}s, {chunk_count} chunks, {chunks_per_second} chunks/sec"
                 )
@@ -303,15 +303,15 @@ async def stream_messages_format(terminal, model, messages, print_stream=True):
             return response_text
                 
     except Exception as e:
-        terminal.logger.error(f"Error making Anthropic API request: {str(e)}")
+        app.logger.error(f"Error making Anthropic API request: {str(e)}")
         raise ValueError(f"Error making Anthropic API request: {str(e)}")
 
-async def stream_request(terminal, model, messages, print_stream=True, json_output=False):
+async def stream_request(app, model, messages, print_stream=True, json_output=False):
     # Determine which client to use based on the model provider
     model_provider = None
 
     # Find the model in AVAILABLE_MODELS
-    available_models = terminal.get_models()
+    available_models = app.get_models()
     for entry in available_models:
         if entry["name"] == model:
             model_provider = entry["provider"]
@@ -319,6 +319,6 @@ async def stream_request(terminal, model, messages, print_stream=True, json_outp
             
     # Call the appropriate streaming function based on provider
     if model_provider == "anthropic":
-        return await stream_messages_format(terminal, model, messages, print_stream)
+        return await stream_messages_format(app, model, messages, print_stream)
     else:
-        return await stream_openai_format(terminal, model, messages, print_stream, json_output)
+        return await stream_openai_format(app, model, messages, print_stream, json_output)
