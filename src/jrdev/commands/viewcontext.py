@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 
 """
-ViewContext command implementation for the JrDev terminal.
+ViewContext command implementation for the JrDev application.
 """
 import os
+from typing import Any, List
 
 from jrdev.ui.ui import terminal_print, PrintType
 
 
-async def handle_viewcontext(terminal, args):
+async def handle_viewcontext(app: Any, args: List[str]):
     """
     Handle the /viewcontext command to view the content in the LLM context window.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         args: Command arguments (optional file number to view in detail)
     """
     # Check if a specific file number was requested
@@ -24,17 +25,17 @@ async def handle_viewcontext(terminal, args):
         except ValueError:
             terminal_print(f"Invalid file number: {args[1]}. Please use a number.", PrintType.ERROR)
             return
-    if not terminal.context:
+    if not app.context:
         terminal_print("No context files have been added yet. Use /addcontext <file_path> to add files.", PrintType.INFO)
         return
 
     # If a specific file was requested
     if file_num is not None:
-        if file_num < 0 or file_num >= len(terminal.context):
-            terminal_print(f"Invalid file number. Please use a number between 1 and {len(terminal.context)}.", PrintType.ERROR)
+        if file_num < 0 or file_num >= len(app.context):
+            terminal_print(f"Invalid file number. Please use a number between 1 and {len(app.context)}.", PrintType.ERROR)
             return
 
-        file_path = terminal.context[file_num]
+        file_path = app.context[file_num]
         terminal_print(f"Context File {file_num+1}: {file_path}", PrintType.HEADER)
         
         # Read the file content to display
@@ -50,11 +51,11 @@ async def handle_viewcontext(terminal, args):
 
     # Otherwise show a summary of all files
     terminal_print("Current context content:", PrintType.HEADER)
-    terminal_print(f"Total files in context: {len(terminal.context)}", PrintType.INFO)
+    terminal_print(f"Total files in context: {len(app.context)}", PrintType.INFO)
 
     # Show a summary of files in the context
     terminal_print("Files in context:", PrintType.INFO)
-    for i, file_path in enumerate(terminal.context):
+    for i, file_path in enumerate(app.context):
         # Try to read a preview of the content
         try:
             current_dir = os.getcwd()

@@ -6,11 +6,11 @@ from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.usage import get_instance
 
 
-async def handle_cost(terminal: Any, cmd_parts: List[str]) -> None:
+async def handle_cost(app: Any, cmd_parts: List[str]) -> None:
     """Handle the /cost command.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         cmd_parts: The command and its arguments
     """
     usage_tracker = get_instance()
@@ -28,7 +28,7 @@ async def handle_cost(terminal: Any, cmd_parts: List[str]) -> None:
     costs_by_model: Dict[str, Dict[str, Any]] = {}
 
     for model, tokens in usage_data.items():
-        available_models = terminal.model_list.get_model_list()
+        available_models = app.state.model_list.get_model_list()
         model_cost = cast(Dict[str, float], get_model_cost(model, available_models))
         if not model_cost:
             terminal_print(f"Warning: No cost data available for model {model}", PrintType.WARNING)

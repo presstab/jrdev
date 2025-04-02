@@ -224,7 +224,7 @@ class ContextManager:
     async def generate_context(
         self,
         file_path: str,
-        terminal: Any = None,
+        app: Any = None,
         additional_context: Optional[List[str]] = None,
     ) -> Optional[str]:
         """
@@ -232,7 +232,7 @@ class ContextManager:
 
         Args:
             file_path: Path to the file to analyze
-            terminal: The JrDevTerminal instance
+            app: The Application instance
             additional_context: Optional additional context for the LLM
 
         Returns:
@@ -241,8 +241,8 @@ class ContextManager:
         if additional_context is None:
             additional_context = []
 
-        if not terminal:
-            logger.error("Terminal instance is required for generate_context")
+        if not app:
+            logger.error("Application instance is required for generate_context")
             return None
 
         # Handle file path as string or list
@@ -293,7 +293,7 @@ class ContextManager:
 
             # Send the request to the LLM
             file_analysis_result: Any = await stream_request(
-                terminal, terminal.model, temp_messages, print_stream=False
+                app, app.state.model, temp_messages, print_stream=False
             )
             file_analysis = str(file_analysis_result)
             if contains_chinese(file_analysis):
@@ -463,13 +463,13 @@ class ContextManager:
         return "\n\n".join(contexts)
 
     def batch_update_contexts(
-        self, terminal: Any, file_paths: List[str], concurrency: int = 5
+        self, app: Any, file_paths: List[str], concurrency: int = 5
     ) -> asyncio.Future[List[Optional[str]]]:
         """
         Update contexts for multiple files concurrently.
 
         Args:
-            terminal: The JrDevTerminal instance
+            app: The Application instance
             file_paths: List of file paths to update
             concurrency: Maximum number of concurrent updates
 
@@ -484,7 +484,7 @@ class ContextManager:
                 async with semaphore:
                     # Add a small delay to avoid rate limiting
                     await asyncio.sleep(0.5)
-                    return await self.generate_context(file_path, terminal)
+                    return await self.generate_context(file_path, app)
 
             tasks = [_process_file(file_path) for file_path in file_paths]
             results = await asyncio.gather(*tasks)

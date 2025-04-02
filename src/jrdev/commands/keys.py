@@ -40,7 +40,7 @@ async def async_getpass(prompt: str = "") -> str:
     return await loop.run_in_executor(None, lambda: getpass(prompt))
 
 
-async def handle_keys(terminal: Any, args: list[str]) -> None:
+async def handle_keys(app: Any, args: list[str]) -> None:
     """Manage API keys through an interactive menu."""
     choices = """
     1. View configured keys
@@ -55,11 +55,11 @@ async def handle_keys(terminal: Any, args: list[str]) -> None:
     choice = await async_input("Enter your choice (1-4): ")
     
     if choice == "1":
-        await _view_keys(terminal)
+        await _view_keys(app)
     elif choice == "2":
-        await _add_update_key(terminal)
+        await _add_update_key(app)
     elif choice == "3":
-        await _remove_key(terminal)
+        await _remove_key(app)
     elif choice == "4" or choice.lower() in ["cancel", "exit", "q", "quit"]:
         terminal_print("Cancelled API key management.", PrintType.INFO)
         return
@@ -67,7 +67,7 @@ async def handle_keys(terminal: Any, args: list[str]) -> None:
         terminal_print("Invalid choice. Please try again.", PrintType.ERROR)
 
 
-async def _view_keys(terminal: Any) -> None:
+async def _view_keys(app: Any) -> None:
     """Display configured API keys (masked for security)."""
     keys = {
         "VENICE_API_KEY": os.getenv("VENICE_API_KEY"),
@@ -93,7 +93,7 @@ async def _view_keys(terminal: Any) -> None:
     terminal_print("Returning to main menu.", PrintType.INFO)
 
 
-async def _add_update_key(terminal: Any) -> None:
+async def _add_update_key(app: Any) -> None:
     """Add or update an API key."""
     services: Dict[str, Tuple[str, str]] = {
         "1": ("VENICE_API_KEY", "Venice AI"),
@@ -136,7 +136,7 @@ async def _add_update_key(terminal: Any) -> None:
         terminal_print("Cancelled key update.", PrintType.INFO)
 
 
-async def _remove_key(terminal: Any) -> None:
+async def _remove_key(app: Any) -> None:
     """Remove an API key."""
     services: Dict[str, Tuple[str, str]] = {
         "1": ("OPENAI_API_KEY", "OpenAI"),
@@ -292,7 +292,7 @@ async def run_first_time_setup() -> bool:
     """
     try:
         # Welcome message
-        terminal_print("Welcome to JrDev Terminal!", PrintType.HEADER)
+        terminal_print("Welcome to JrDev!", PrintType.HEADER)
         
         terminal_print("This appears to be your first time running JrDev.", PrintType.INFO)
         terminal_print("Let's set up your API keys to get started.", PrintType.INFO)

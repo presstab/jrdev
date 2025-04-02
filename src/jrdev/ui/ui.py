@@ -141,13 +141,13 @@ def display_diff(diff_lines: List[str]) -> None:
             terminal_print(line.rstrip())
 
 
-def print_steps(terminal: Any, steps: Dict[str, Any], completed_steps: Optional[List[int]] = None, current_step: Optional[int] = None) -> None:
+def print_steps(app: Any, steps: Dict[str, Any], completed_steps: Optional[List[int]] = None, current_step: Optional[int] = None) -> None:
     """
     Print steps in the form of a colorful todo list with check marks for completed steps
     and highlighting for the current step being worked on.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         steps: Dictionary containing the steps to print
         completed_steps: Optional list of step indices (0-based) that have been completed
         current_step: Optional index (0-based) of the current step being worked on

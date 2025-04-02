@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Cancel command implementation for the JrDev terminal.
+Cancel command implementation for the JrDev application.
 Cancels active background tasks.
 """
 
@@ -10,16 +10,16 @@ from typing import Any, List
 from jrdev.ui.ui import terminal_print, PrintType
 
 
-async def handle_cancel(terminal: Any, args: List[str]) -> None:
+async def handle_cancel(app: Any, args: List[str]) -> None:
     """
     Handle the /cancel command to cancel background tasks.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         args: Command arguments (task_id or 'all')
     """
     # Check if there are any active tasks
-    if not terminal.active_tasks:
+    if not app.state.active_tasks:
         terminal_print("No active background tasks to cancel.", print_type=PrintType.INFO)
         return
 
@@ -35,22 +35,22 @@ async def handle_cancel(terminal: Any, args: List[str]) -> None:
 
     # Cancel all tasks
     if task_id == "all":
-        task_count = len(terminal.active_tasks)
+        task_count = len(app.state.active_tasks)
 
         # Cancel each task
-        for tid, task_info in list(terminal.active_tasks.items()):
+        for tid, task_info in list(app.state.active_tasks.items()):
             task_info["task"].cancel()
-            if tid in terminal.active_tasks:
-                del terminal.active_tasks[tid]
+            if tid in app.state.active_tasks:
+                del app.state.active_tasks[tid]
 
         terminal_print(f"Cancelled {task_count} background task(s).", print_type=PrintType.SUCCESS)
         return
 
     # Cancel a specific task
-    if task_id in terminal.active_tasks:
-        task_info = terminal.active_tasks[task_id]
+    if task_id in app.state.active_tasks:
+        task_info = app.state.active_tasks[task_id]
         task_info["task"].cancel()
-        del terminal.active_tasks[task_id]
+        del app.state.active_tasks[task_id]
 
         terminal_print(f"Cancelled task #{task_id}.", print_type=PrintType.SUCCESS)
     else:

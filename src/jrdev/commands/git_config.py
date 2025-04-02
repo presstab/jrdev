@@ -16,8 +16,8 @@ from jrdev.colors import Colors
 from jrdev.file_utils import JRDEV_DIR
 from jrdev.ui.ui import PrintType, terminal_print
 
-# Define a Protocol for JrDevTerminal to avoid circular imports
-class JrDevTerminal(Protocol):
+# Define a Protocol for Application to avoid circular imports
+class Application(Protocol):
     model: str
     logger: logging.Logger
 
@@ -176,11 +176,11 @@ def save_git_config(config: Dict[str, Any]) -> bool:
         return False
 
 
-async def handle_git_config_list(terminal: JrDevTerminal, args: List[str]) -> None:
+async def handle_git_config_list(app: Any, args: List[str]) -> None:
     """
     List all git configuration values.
     Args:
-        terminal: The JrDevTerminal instance
+        terminal: The Application instance
         args: Command arguments
     """
     config = get_git_config()
@@ -219,11 +219,11 @@ async def handle_git_config_list(terminal: JrDevTerminal, args: List[str]) -> No
                 )
 
 
-async def handle_git_config_get(terminal: JrDevTerminal, args: List[str]) -> None:
+async def handle_git_config_get(app: Any, args: List[str]) -> None:
     """
     Get a specific git configuration value.
     Args:
-        terminal: The JrDevTerminal instance
+        terminal: The Application instance
         args: Command arguments (including the key to get)
     """
     if len(args) < 2:
@@ -274,11 +274,11 @@ async def handle_git_config_get(terminal: JrDevTerminal, args: List[str]) -> Non
         )
 
 
-async def handle_git_config_set(terminal: JrDevTerminal, args: List[str]) -> None:
+async def handle_git_config_set(app: Any, args: List[str]) -> None:
     """
     Set a git configuration value.
     Args:
-        terminal: The JrDevTerminal instance
+        terminal: The Application instance
         args: Command arguments (including the key and value to set)
     """
     # Check if we have the correct number of arguments

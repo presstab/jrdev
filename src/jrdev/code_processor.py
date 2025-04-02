@@ -10,14 +10,14 @@ from jrdev.message_builder import MessageBuilder
 
 
 class CodeProcessor:
-    def __init__(self, terminal: Any):
+    def __init__(self, app: Any):
         """
-        Initialize the CodeProcessor with the terminal instance.
-        The terminal object should provide access to logging, message history,
+        Initialize the CodeProcessor with the application instance.
+        The app object should provide access to logging, message history,
         project_files, context, model information, and message-history management.
         """
-        self.terminal = terminal
-        self.profile_manager = terminal.profile_manager()
+        self.app = app
+        self.profile_manager = app.profile_manager()
 
     async def process(self, user_task: str) -> None:
         """
@@ -32,7 +32,7 @@ class CodeProcessor:
             initial_response = await self.send_initial_request(user_task)
             await self.process_code_response(initial_response, user_task)
         except Exception as e:
-            self.terminal.logger.error(f"Error in CodeProcessor: {str(e)}")
+            self.app.logger.error(f"Error in CodeProcessor: {str(e)}")
             terminal_print(f"Error processing code: {str(e)}", PrintType.ERROR)
 
     async def send_initial_request(self, user_task: str) -> str:
@@ -41,17 +41,17 @@ class CodeProcessor:
         then send it to the LLM.
         """
         # Use MessageBuilder for consistent message construction
-        builder = MessageBuilder(self.terminal)
+        builder = MessageBuilder(self.app)
         builder.start_user_section(f"The user is seeking guidance for this task to complete: {user_task}")
         builder.load_user_prompt("analyze_task_return_getfiles")
         builder.add_project_files()
-        builder.add_context(self.terminal.context)
+        builder.add_context(self.app.state.context)
         builder.finalize_user_section()
         messages = builder.build()
 
         model_name = self.profile_manager.get_model("advanced_reasoning")
         terminal_print(f"\n{model_name} is processing the request... (advanced_reasoning profile)", PrintType.PROCESSING)
-        response_text = await stream_request(self.terminal, model_name, messages)
+        response_text = await stream_request(self.app, model_name, messages)
         terminal_print("", PrintType.INFO)
         return response_text
 
@@ -65,19 +65,19 @@ class CodeProcessor:
             raise Exception("Get files failed")
         if files_to_send:
             # Send requested files and request STEPS to be created
-            self.terminal.logger.info(f"File request detected: {files_to_send}")
+            self.app.logger.info(f"File request detected: {files_to_send}")
             file_response = await self.send_file_request(files_to_send, user_task, response_text)
             steps = await self.parse_steps(file_response, files_to_send)
             if "steps" not in steps or not steps["steps"]:
                 raise Exception("No valid steps found in response.")
-            print_steps(self.terminal, steps)
+            print_steps(self.app, steps)
 
             # Process each step (first pass)
             completed_steps = []
             changed_files: Set[str] = set()
             failed_steps = []
             for i, step in enumerate(steps["steps"]):
-                print_steps(self.terminal, steps, completed_steps, current_step=i)
+                print_steps(self.app, steps, completed_steps, current_step=i)
                 terminal_print(
                     f"Working on step {i + 1}: {step.get('operation_type')} for {step.get('filename')}",
                     PrintType.PROCESSING
@@ -92,19 +92,19 @@ class CodeProcessor:
             # Second pass for any steps that did not succeed on the first try.
             for idx, step in failed_steps:
                 terminal_print(f"Retrying step {idx + 1}", PrintType.PROCESSING)
-                print_steps(self.terminal, steps, completed_steps, current_step=idx)
+                print_steps(self.app, steps, completed_steps, current_step=idx)
                 new_changes = await self.complete_step(step, files_to_send)
                 if new_changes:
                     completed_steps.append(idx)
                     changed_files.update(new_changes)
 
-            print_steps(self.terminal, steps, completed_steps)
+            print_steps(self.app, steps, completed_steps)
             if changed_files:
                 await self.validate_changed_files(changed_files)
             else:
-                self.terminal.logger.info("No files were changed during processing.")
+                self.app.logger.info("No files were changed during processing.")
         else:
-            self.terminal.logger.info("No file changes were requested by the LLM response.")
+            self.app.logger.info("No file changes were requested by the LLM response.")
 
     async def complete_step(self, step: Dict, files_to_send: List[str], retry_message: str = None) -> List[str]:
         """
@@ -149,7 +149,7 @@ class CodeProcessor:
         location = change_instruction.get("target_location")
         if not all([description, filename, location]):
             error_msg = "Missing required fields in change instruction."
-            self.terminal.logger.error(error_msg)
+            self.app.logger.error(error_msg)
             raise KeyError(error_msg)
 
         prompt = (
@@ -162,7 +162,7 @@ class CodeProcessor:
             prompt = f"{prompt} {additional_prompt}"
 
         # Use MessageBuilder to construct messages
-        builder = MessageBuilder(self.terminal)
+        builder = MessageBuilder(self.app)
         builder.start_user_section()
         builder.add_system_message(dev_msg)
         builder.append_to_user_section(file_content)
@@ -171,10 +171,10 @@ class CodeProcessor:
 
         # Send request
         model = self.profile_manager.get_model("advanced_coding")
-        self.terminal.logger.info(f"Sending code request to {model}")
+        self.app.logger.info(f"Sending code request to {model}")
         terminal_print(f"\nSending code request to {model} (advanced_coding profile)...\n", PrintType.PROCESSING)
-        response = await stream_request(self.terminal, model, messages, print_stream=True, json_output=True)
-        self.terminal.add_message_history(response, is_assistant=True)
+        response = await stream_request(self.app, model, messages, print_stream=True, json_output=True)
+        self.app.add_message_history(response, is_assistant=True)
         return response
 
     def check_and_apply_code_changes(self, response_text: str) -> Dict:
@@ -196,7 +196,7 @@ class CodeProcessor:
         When the initial request detects file changes,
         send the content of those files along with the task details back to the LLM.
         """
-        builder = MessageBuilder(self.terminal)
+        builder = MessageBuilder(self.app)
         builder.start_user_section()
         builder.append_to_user_section(f"Initial Plan: {initial_response}")
 
@@ -209,9 +209,9 @@ class CodeProcessor:
         messages = builder.build()
 
         model = self.profile_manager.get_model("advanced_reasoning")
-        self.terminal.logger.info(f"Sending file contents to {model}")
+        self.app.logger.info(f"Sending file contents to {model}")
         terminal_print(f"\nSending requested files to {model} (advanced_reasoning profile)...", PrintType.PROCESSING)
-        response = await stream_request(self.terminal, model, messages)
+        response = await stream_request(self.app, model, messages)
         terminal_print("", PrintType.INFO)
         return response
 
@@ -233,7 +233,7 @@ class CodeProcessor:
                     if not any((os.path.basename(f) == basename or f == filename) for f in filelist):
                         missing_files.append(filename)
         if missing_files:
-            self.terminal.logger.warning(f"Files not found: {missing_files}")
+            self.app.logger.warning(f"Files not found: {missing_files}")
             steps_json["missing_files"] = missing_files
         return steps_json
 
@@ -243,19 +243,19 @@ class CodeProcessor:
         Sends the modified file contents to the LLM using a validation prompt.
         """
         files_content = get_file_contents(list(changed_files))
-        builder = MessageBuilder(self.terminal)
+        builder = MessageBuilder(self.app)
         builder.load_system_prompt("validator")
         builder.add_user_message(f"Please validate these files:\n{files_content}")
         messages = builder.build()
 
         # Validation Model
         model = self.profile_manager.get_model("intermediate_reasoning")
-        self.terminal.logger.info(f"Validating changed files with {model}")
+        self.app.logger.info(f"Validating changed files with {model}")
         terminal_print(f"\nValidating changed files with {model} (intermediate_reasoning profile)", PrintType.PROCESSING)
         validation_response = await stream_request(
-            self.terminal, model, messages, print_stream=False
+            self.app, model, messages, print_stream=False
         )
-        self.terminal.logger.info(f"Validation response: {validation_response}")
+        self.app.logger.info(f"Validation response: {validation_response}")
         if validation_response.strip().startswith("VALID"):
             terminal_print("✓ Files validated successfully", PrintType.SUCCESS)
         elif "INVALID" in validation_response:

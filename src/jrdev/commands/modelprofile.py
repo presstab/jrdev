@@ -23,7 +23,7 @@ async def async_input(prompt: str = "") -> str:
     return await loop.run_in_executor(None, lambda: input(prompt))
 
 
-async def handle_modelprofile(terminal: Any, args: List[str]) -> None:
+async def handle_modelprofile(app: Any, args: List[str]) -> None:
     """
     Handle /modelprofile commands for managing model profiles.
 
@@ -36,18 +36,18 @@ async def handle_modelprofile(terminal: Any, args: List[str]) -> None:
       /modelprofile showdefault - Show the current default profile
 
     Args:
-        terminal: The terminal instance
+        app: The Application instance
         args: Command line arguments
     """
     # Initialize profile manager if not already initialized
-    if not hasattr(terminal, "model_profile_manager"):
-        terminal.model_profile_manager = ModelProfileManager()
+    if not hasattr(app, "model_profile_manager"):
+        app.model_profile_manager = ModelProfileManager()
 
-    manager = terminal.model_profile_manager
+    manager = app.model_profile_manager
 
     # If no arguments provided, show interactive menu
     if len(args) == 1:
-        await show_interactive_menu(terminal, manager)
+        await show_interactive_menu(app, manager)
         return
 
     # Process standard command-line arguments
@@ -137,12 +137,12 @@ async def list_profiles(manager: ModelProfileManager) -> None:
             terminal_print(f"  {profile}: {model}", PrintType.INFO)
 
 
-async def show_interactive_menu(terminal: Any, manager: ModelProfileManager) -> None:
+async def show_interactive_menu(app: Any, manager: ModelProfileManager) -> None:
     """
     Display an interactive menu for managing model profiles.
 
     Args:
-        terminal: The terminal instance
+        app: The Application instance
         manager: The ModelProfileManager instance
     """
     while True:
@@ -183,7 +183,7 @@ Choose an action:
 
         elif choice == "2":
             # Set a profile model
-            await set_profile_model_interactive(terminal, manager)
+            await set_profile_model_interactive(app, manager)
 
         elif choice == "3":
             # Set default profile
@@ -198,13 +198,13 @@ Choose an action:
 
 
 async def set_profile_model_interactive(
-    terminal: Any, manager: ModelProfileManager
+    app: Any, manager: ModelProfileManager
 ) -> None:
     """
     Interactive menu for setting a profile's model.
 
     Args:
-        terminal: The terminal instance
+        app: The Application instance
         manager: The ModelProfileManager instance
     """
     # Get all profiles
@@ -237,13 +237,13 @@ async def set_profile_model_interactive(
             terminal_print(f"Current model: {current_model}", PrintType.INFO)
 
             # Get available models
-            models: List[Dict[str, Any]] = terminal.get_models()
+            models: List[Dict[str, Any]] = app.get_models()
             
             # Check which API keys are available
-            has_venice_key = bool(terminal.venice_client)
-            has_openai_key = bool(terminal.openai_client)
-            has_anthropic_key = bool(terminal.anthropic_client)
-            has_deepseek_key = bool(terminal.deepseek_client)
+            has_venice_key = bool(app.state.clients.venice if app.state.clients else None)
+            has_openai_key = bool(app.state.clients.openai if app.state.clients else None)
+            has_anthropic_key = bool(app.state.clients.anthropic if app.state.clients else None)
+            has_deepseek_key = bool(app.state.clients.deepseek if app.state.clients else None)
             
             # Group models by provider
             providers_dict: Dict[str, List[Dict[str, Any]]] = {}
@@ -344,7 +344,7 @@ async def set_profile_model_interactive(
                     success = manager.update_profile(
                         selected_profile, 
                         selected_model,
-                        model_list=terminal.model_list
+                        model_list=app.state.model_list
                     )
 
                     if success:

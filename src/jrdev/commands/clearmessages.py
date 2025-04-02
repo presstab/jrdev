@@ -9,13 +9,13 @@ from typing import Any, List
 from jrdev.ui.ui import terminal_print, PrintType
 
 
-async def handle_clearmessages(terminal: Any, args: List[str]) -> None:
+async def handle_clearmessages(app: Any, args: List[str]) -> None:
     """
     Handle the /clearmessages command to clear conversation history for all models.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         args: Command arguments (unused)
     """
-    terminal.clear_messages()
+    app.clear_messages()
     terminal_print(f"Cleared message history", print_type=PrintType.SUCCESS)

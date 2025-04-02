@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
 """
-Help command implementation for the JrDev terminal.
+Help command implementation for the JrDev application.
 """
+
+from typing import Any, List
 
 from jrdev.ui.ui import terminal_print, PrintType, COLORS, FORMAT_MAP
 
@@ -25,7 +27,7 @@ def format_command_with_args(command, args=None):
     return command
 
 
-async def handle_help(terminal, args):
+async def handle_help(app: Any, args: List[str]):
     """
     Handle the /help command to display available commands categorized.
     """
@@ -36,7 +38,7 @@ async def handle_help(terminal, args):
         print_type=PrintType.COMMAND,
         end=""
     )
-    terminal_print(f" - Exit the terminal")
+    terminal_print(f" - Exit the application")
     terminal_print(
         f"  /help",
         print_type=PrintType.COMMAND,
@@ -159,7 +161,7 @@ async def handle_help(terminal, args):
         print_type=PrintType.COMMAND,
         end=""
     )
-    terminal_print(f" - Display terminal state information")
+    terminal_print(f" - Display application state information")
     
     # Git Operations
     terminal_print(f"{COLORS['BRIGHT_WHITE']}{COLORS['BOLD']}{COLORS['UNDERLINE']}Git Operations:{COLORS['RESET']}", print_type=None)

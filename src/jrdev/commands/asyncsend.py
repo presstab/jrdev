@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-AsyncSend command implementation for the JrDev terminal.
+AsyncSend command implementation for the JrDev application.
 This command sends a message to the LLM and optionally saves the response to a file,
 without waiting for the response to be returned to the terminal.
 """
@@ -12,13 +12,13 @@ from typing import Any, List
 from jrdev.ui.ui import terminal_print, PrintType
 
 
-async def handle_asyncsend(terminal: Any, args: List[str]) -> None:
+async def handle_asyncsend(app: Any, args: List[str]) -> None:
     """
     Handle the /asyncsend command to send a message and optionally save the response to a file.
     This command returns control to the terminal immediately while processing continues in background.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         args: Command arguments [filepath] [prompt...]
     """
     import asyncio
@@ -43,29 +43,29 @@ async def handle_asyncsend(terminal: Any, args: List[str]) -> None:
         if not os.path.isabs(filepath):
             filepath = os.path.join(os.getcwd(), filepath)
 
-        terminal.logger.info(f"Starting async task #{job_id} to save response to {filepath}")
+        app.logger.info(f"Starting async task #{job_id} to save response to {filepath}")
         terminal_print(f"Task #{job_id} started: Saving response to {filepath}",
                       print_type=PrintType.INFO)
 
         # Create a task to process the request in the background
         async def background_task():
             try:
-                terminal.logger.info(f"Background task #{job_id} sending message to model")
-                response = await terminal.send_message(prompt, writepath=filepath, print_stream=False)
+                app.logger.info(f"Background task #{job_id} sending message to model")
+                response = await app.send_message(prompt, writepath=filepath, print_stream=False)
                 if response:
-                    terminal.logger.info(f"Background task #{job_id} completed successfully")
+                    app.logger.info(f"Background task #{job_id} completed successfully")
                 else:
-                    terminal.logger.error(f"Background task #{job_id} failed to get response")
+                    app.logger.error(f"Background task #{job_id} failed to get response")
 
                 # Task monitor will handle cleanup of completed tasks
             except Exception as e:
                 error_msg = str(e)
-                terminal.logger.error(f"Background task #{job_id} failed with error: {error_msg}")
+                app.logger.error(f"Background task #{job_id} failed with error: {error_msg}")
                 # Task monitor will handle cleanup of failed tasks
 
         # Schedule the task but don't wait for it
         task = asyncio.create_task(background_task())
-        terminal.active_tasks[job_id] = {
+        app.state.active_tasks[job_id] = {
             "task": task,
             "type": "file_response",
             "path": filepath,
@@ -76,28 +76,28 @@ async def handle_asyncsend(terminal: Any, args: List[str]) -> None:
         # No filepath provided, just send the message
         prompt = " ".join(args[1:])
 
-        terminal.logger.info(f"Starting async task #{job_id} to process message")
+        app.logger.info(f"Starting async task #{job_id} to process message")
 
         # Create a task to process the request in the background
         async def background_task():
             try:
-                terminal.logger.info(f"Background task #{job_id} sending message to model")
-                response = await terminal.send_message(prompt)
+                app.logger.info(f"Background task #{job_id} sending message to model")
+                response = await app.send_message(prompt)
                 if response:
-                    terminal.logger.info(f"Background task #{job_id} completed successfully")
+                    app.logger.info(f"Background task #{job_id} completed successfully")
                 else:
-                    terminal.logger.error(f"Background task #{job_id} failed to get response")
+                    app.logger.error(f"Background task #{job_id} failed to get response")
 
                 # Task monitor will handle cleanup of completed tasks
             except Exception as e:
                 error_msg = str(e)
-                terminal.logger.error(f"Background task #{job_id} failed with error: {error_msg}")
+                app.logger.error(f"Background task #{job_id} failed with error: {error_msg}")
 
                 # Task monitor will handle cleanup of failed tasks
 
         # Schedule the task but don't wait for it
         task = asyncio.create_task(background_task())
-        terminal.active_tasks[job_id] = {
+        app.state.active_tasks[job_id] = {
             "task": task,
             "type": "message",
             "prompt": prompt[:30] + "..." if len(prompt) > 30 else prompt,

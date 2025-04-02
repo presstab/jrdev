@@ -5,16 +5,17 @@ AddContext command implementation for the JrDev terminal.
 """
 import glob
 import os
+from typing import Any, List
 
 from jrdev.ui.ui import terminal_print, PrintType
 
 
-async def handle_addcontext(terminal, args):
+async def handle_addcontext(app: Any, args: List[str]) -> None:
     """
     Handle the /addcontext command to add a file to the LLM context.
 
     Args:
-        terminal: The JrDevTerminal instance
+        app: The Application instance
         args: Command arguments (file path or glob pattern)
     """
     if len(args) < 2:
@@ -62,13 +63,13 @@ async def handle_addcontext(terminal, args):
                     f.read(1)
             except Exception as e:
                 error_msg = f"Skipping {rel_path}: Cannot read file: {str(e)}"
-                terminal.logger.error(error_msg)
+                app.logger.error(error_msg)
                 terminal_print(error_msg, PrintType.ERROR)
                 files_skipped += 1
                 continue
 
-            # Add the relative path to the terminal's context array
-            terminal.context.append(rel_path)
+            # Add the relative path to the app's context array
+            app.state.add_context_file(rel_path)
 
             terminal_print(f"Added: {rel_path}", PrintType.SUCCESS)
             files_added += 1
@@ -81,6 +82,6 @@ async def handle_addcontext(terminal, args):
         terminal_print(f"Added {files_added} file(s) to context", PrintType.SUCCESS)
         if files_skipped > 0:
             terminal_print(f"Skipped {files_skipped} file(s)", PrintType.WARNING)
-        terminal_print(f"Total files in context: {len(terminal.context)}", PrintType.INFO)
+        terminal_print(f"Total files in context: {len(app.state.context)}", PrintType.INFO)
     else:
         terminal_print("No files were added to context", PrintType.ERROR)
