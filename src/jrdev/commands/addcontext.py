@@ -51,6 +51,8 @@ async def handle_addcontext(app: Any, args: List[str]) -> None:
     files_added = 0
     files_skipped = 0
 
+    current_thread = app.get_current_thread()
+
     for full_path in matching_files:
         try:
             # Get the relative path for display
@@ -69,7 +71,8 @@ async def handle_addcontext(app: Any, args: List[str]) -> None:
                 continue
 
             # Add the relative path to the app's context array
-            app.state.add_context_file(rel_path)
+            msg_thread = app.get_current_thread()
+            msg_thread.add_new_context(rel_path)
 
             terminal_print(f"Added: {rel_path}", PrintType.SUCCESS)
             files_added += 1
@@ -82,6 +85,6 @@ async def handle_addcontext(app: Any, args: List[str]) -> None:
         terminal_print(f"Added {files_added} file(s) to context", PrintType.SUCCESS)
         if files_skipped > 0:
             terminal_print(f"Skipped {files_skipped} file(s)", PrintType.WARNING)
-        terminal_print(f"Total files in context: {len(app.state.context)}", PrintType.INFO)
+        terminal_print(f"Total files in context: {len(app.get_current_thread().context)}", PrintType.INFO)
     else:
         terminal_print("No files were added to context", PrintType.ERROR)

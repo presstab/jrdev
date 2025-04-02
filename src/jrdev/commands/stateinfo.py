@@ -23,19 +23,17 @@ async def handle_stateinfo(app: Any, args: List[str]) -> None:
     terminal_print(f"  Model: {app.state.model}", print_type=PrintType.INFO)
     
     # Display message history count
-    messages = app.message_history() if callable(getattr(app, 'message_history', None)) else app.state.messages
-    message_count = len(messages)
+    current_thread = app.get_current_thread()
+    message_count = len(current_thread.messages)
     terminal_print(f"  Total messages: {message_count}", print_type=PrintType.INFO)
-    
-    
+
     # Display context file count
-    if hasattr(app.state, 'context') and isinstance(app.state.context, list):
-        context_count = len(app.state.context)
-        terminal_print(f"  Context files: {context_count}", print_type=PrintType.INFO)
-        # Show context files if any exist
-        if context_count > 0:
-            for ctx_file in app.state.context:
-                terminal_print(f"    - {ctx_file}", print_type=PrintType.INFO)
+    context_count = len(current_thread.context)
+    terminal_print(f"  Context files: {context_count}", print_type=PrintType.INFO)
+    # Show context files if any exist
+    if context_count > 0:
+        for ctx_file in current_thread.context:
+            terminal_print(f"    - {ctx_file}", print_type=PrintType.INFO)
     else:
         terminal_print(f"  Context files: 0", print_type=PrintType.INFO)
     

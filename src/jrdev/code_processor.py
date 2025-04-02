@@ -45,7 +45,6 @@ class CodeProcessor:
         builder.start_user_section(f"The user is seeking guidance for this task to complete: {user_task}")
         builder.load_user_prompt("analyze_task_return_getfiles")
         builder.add_project_files()
-        builder.add_context(self.app.state.context)
         builder.finalize_user_section()
         messages = builder.build()
 
@@ -174,7 +173,6 @@ class CodeProcessor:
         self.app.logger.info(f"Sending code request to {model}")
         terminal_print(f"\nSending code request to {model} (advanced_coding profile)...\n", PrintType.PROCESSING)
         response = await stream_request(self.app, model, messages, print_stream=True, json_output=True)
-        self.app.add_message_history(response, is_assistant=True)
         return response
 
     def check_and_apply_code_changes(self, response_text: str) -> Dict:
