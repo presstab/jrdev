@@ -255,3 +255,66 @@ def prompt_for_confirmation(prompt_text: str = "Apply these changes?") -> Tuple[
             return 'edit', None
         else:
             terminal_print("Please enter 'y', 'n', 'r', or 'e'", PrintType.ERROR)
+
+
+def show_conversation(app: Any, max_messages: int = 10) -> None:
+    """
+    Display the conversation history for the current thread with color coding.
+    
+    Args:
+        app: The application instance
+        max_messages: Maximum number of messages to display
+    """
+    # Get the current thread
+    current_thread = app.get_current_thread()
+    thread_id = app.state.active_thread
+    
+    # Show thread header with ID
+    terminal_print(f"\n💬 Thread: {thread_id}", PrintType.HEADER)
+    
+    # Get messages from the thread
+    messages = current_thread.messages
+    
+    # If no messages, show empty message
+    if not messages:
+        terminal_print("No messages in this thread yet.", PrintType.INFO)
+        return
+    
+    # Get the last N messages
+    recent_messages = messages[-max_messages:] if len(messages) > max_messages else messages
+    
+    # Show message count
+    if len(messages) > max_messages:
+        terminal_print(f"Showing last {max_messages} of {len(messages)} messages", PrintType.INFO)
+    
+    # Display message divider
+    terminal_print("───────────────────────────────────────────", PrintType.INFO)
+    
+    # Display each message
+    for idx, msg in enumerate(recent_messages):
+        role = msg.get("role", "unknown")
+        content = msg.get("content", "")
+        
+        # Truncate long messages for display
+        max_preview_len = 100
+        preview = content[:max_preview_len]
+        if len(content) > max_preview_len:
+            preview += "..."
+        
+        # Format based on role
+        if role == "system":
+            terminal_print(f"🔧 System:", PrintType.SUBHEADER)
+            terminal_print(f"   {preview}", PrintType.INFO)
+        elif role == "user":
+            terminal_print(f"👤 You:", PrintType.SUBHEADER)
+            terminal_print(f"   {preview}", PrintType.USER)
+        elif role == "assistant":
+            terminal_print(f"🤖 Assistant:", PrintType.SUBHEADER)
+            terminal_print(f"   {preview}", PrintType.LLM)
+        else:
+            terminal_print(f"[{role}]:", PrintType.SUBHEADER)
+            terminal_print(f"   {preview}", PrintType.INFO)
+        
+        # Add separator between messages except for the last one
+        if idx < len(recent_messages) - 1:
+            terminal_print("   · · ·", PrintType.INFO)

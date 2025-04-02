@@ -6,7 +6,6 @@ from jrdev.commands import (
     handle_asyncsend,
     handle_cancel,
     handle_clearcontext,
-    handle_clearmessages,
     handle_code,
     handle_cost,
     handle_exit,
@@ -20,6 +19,7 @@ from jrdev.commands import (
     handle_projectcontext,
     handle_stateinfo,
     handle_tasks,
+    handle_thread,
     handle_viewcontext
 )
 
@@ -41,7 +41,6 @@ class CommandHandler:
             "/modelprofile": handle_modelprofile,
             "/stateinfo": handle_stateinfo,
             "/clearcontext": handle_clearcontext,
-            "/clearmessages": handle_clearmessages,
             "/cost": handle_cost,
             "/init": handle_init,
             "/help": handle_help,
@@ -53,7 +52,8 @@ class CommandHandler:
             "/code": handle_code,
             "/projectcontext": handle_projectcontext,
             "/git": handle_git,
-            "/keys": handle_keys
+            "/keys": handle_keys,
+            "/thread": handle_thread
         }
 
         self.commands.update(core_commands)

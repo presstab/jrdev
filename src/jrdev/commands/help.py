@@ -124,8 +124,14 @@ async def handle_help(app: Any, args: List[str]):
     )
     terminal_print(f" - Cancel background tasks")
 
-    # Context Control commands
-    terminal_print(f"{COLORS['BRIGHT_WHITE']}{COLORS['BOLD']}{COLORS['UNDERLINE']}Context Control:{COLORS['RESET']}", print_type=None)
+    # Thread and Context Control commands
+    terminal_print(f"{COLORS['BRIGHT_WHITE']}{COLORS['BOLD']}{COLORS['UNDERLINE']}Message Threads & Context Control:{COLORS['RESET']}", print_type=None)
+    terminal_print(
+        f"  {format_command_with_args('/thread', '<new|list|switch|info>')}",
+        print_type=PrintType.COMMAND,
+        end=""
+    )
+    terminal_print(f" - Manage separate message threads with isolated context")
     terminal_print(
         f"  {format_command_with_args('/addcontext', '<file_path or pattern>')}",
         print_type=PrintType.COMMAND,
@@ -150,12 +156,6 @@ async def handle_help(app: Any, args: List[str]):
         end=""
     )
     terminal_print(f" - Clear context and conversation history")
-    terminal_print(
-        f"  /clearmessages",
-        print_type=PrintType.COMMAND,
-        end=""
-    )
-    terminal_print(f" - Clear message history for all models")
     terminal_print(
         f"  /stateinfo",
         print_type=PrintType.COMMAND,

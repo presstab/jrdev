@@ -109,7 +109,8 @@ The application demonstrates a solid architectural foundation but...
 - `/tasks` - List active background tasks
 - `/cancel <task_id>|all` - Cancel background tasks
 
-#### Context Control
+#### Thread & Context Control
+- `/thread <new|list|switch|info|view>` - Manage separate message threads with isolated context
 - `/addcontext <file_path or pattern>` - Add file(s) to the LLM context window
 - `/viewcontext [number]` - View the LLM context window content
 - `/projectcontext <argument|help>` - Manage project context for efficient LLM interactions
@@ -134,6 +135,48 @@ The application demonstrates a solid architectural foundation but...
 - `gpt-4o` - Latest OpenAI GPT-4o model
 - `gpt-4-turbo` - Faster GPT-4 model
 - `gpt-3.5-turbo` - Affordable GPT-3.5 model
+
+### Using Message Threads
+
+JrDev supports multiple conversation threads with isolated contexts, similar to chat applications. Each thread maintains its own conversation history and context files.
+
+Create a new thread:
+```
+$ jrdev
+> /thread new
+Created and switched to new thread: thread_a1b2c3d4
+```
+
+List available threads:
+```
+> /thread list
+Message Threads:
+  main - 0 messages, 0 context files
+* thread_a1b2c3d4 - 0 messages, 0 context files
+```
+
+Switch between threads:
+```
+> /thread switch main
+Switched to thread: main
+```
+
+View thread information:
+```
+> /thread info
+Thread ID: main
+Total messages: 4
+  User messages: 2
+  Assistant messages: 2
+  System messages: 0
+Context files: 2
+Files referenced: 3
+```
+
+View conversation history:
+```
+> /thread view
+```
 
 ## Development
 

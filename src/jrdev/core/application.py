@@ -124,25 +124,26 @@ class Application:
             # Show help message for unknown commands
             if cmd not in self.command_handler.get_commands():
                 terminal_print("Type /help for available commands", print_type=PrintType.INFO)
+        
+    def get_current_thread(self):
+        """Get the currently active thread"""
+        return self.state.get_current_thread()
+        
+    def switch_thread(self, thread_id):
+        """Switch to a different thread"""
+        return self.state.switch_thread(thread_id)
+        
+    def create_thread(self, thread_id="") -> str:
+        """Create a new thread"""
+        return self.state.create_thread(thread_id)
 
-    def set_message_history(self, messages, files):
-        self.state.set_message_history(messages, files)
-
-    def add_message_history(self, text, is_assistant=False):
-        self.state.add_message_history(text, is_assistant)
-
-    def message_history(self):
-        return self.state.messages
-
-    def clear_messages(self):
-        self.state.clear_messages()
-
-    async def send_message(self, content, writepath=None, print_stream=True):
+    async def send_message(self, msg_thread, content, writepath=None, print_stream=True):
         """
         Send a message to the LLM with default behavior.
         If writepath is provided, the response will be saved to that file.
 
         Args:
+            msg_thread: The message thread that this is being added to
             content: The message content to send
             writepath: Optional. If provided, the response will be saved to this path as a markdown file
             print_stream: Whether to print the stream response to terminal (default: True)
@@ -163,38 +164,40 @@ class Application:
 
         # Build actual request to send to LLM
         builder = MessageBuilder(self)
-        builder.set_embedded_files(self.state.files_in_history)
+        builder.set_embedded_files(msg_thread.embedded_files)
         builder.start_user_section()
 
         # Update message history in the builder
-        if self.message_history():
-            builder.add_historical_messages(self.message_history())
+        if msg_thread.messages:
+            builder.add_historical_messages(msg_thread.messages)
         elif self.state.use_project_context:
             # only add project files on the first message in the thread
             builder.add_project_files()
 
         # Add user added context
-        if self.state.context:
-            builder.add_context(self.state.context)
+        thread_context = msg_thread.context
+        if thread_context:
+            builder.add_context(list(thread_context))
 
         files_sent = builder.get_files()
         builder.append_to_user_section(user_message)
         builder.finalize_user_section()
         messages = builder.build()
 
-        # reset history to the current chain
-        self.set_message_history(messages, files_sent)
+        # update history on thread
+        msg_thread.add_embedded_files(files_sent)
+        msg_thread.messages = messages
 
         model_name = self.state.model
-        terminal_print(f"\n{model_name} is processing request...", PrintType.PROCESSING)
+        terminal_print(f"\n{model_name} is processing request in message thread: {msg_thread.thread_id}...", PrintType.PROCESSING)
 
         try:
-            # Pass the print_stream parameter to control whether to print the model's response
-            response_text = await stream_request(self, self.state.model, messages, print_stream)
-            self.logger.info("Successfully received response from model")
+            # Send the message to the LLM
+            response_text = await stream_request(self, self.state.model, messages, print_stream=print_stream)
+            self.logger.info(f"Successfully received response from model in thread {msg_thread.thread_id}")
 
             # Add response to messages
-            self.add_message_history(response_text, is_assistant=True)
+            msg_thread.add_response(response_text)
 
             if writepath is None:
                 return response_text
@@ -325,16 +328,6 @@ class Application:
                 self.logger.error(f"Error in model update task: {e}")
                 # Wait a bit before retrying on error
                 await asyncio.sleep(60)
-    
-    def is_inside_think_tag(self, text):
-        """Determine if the current position is inside a <think> tag."""
-        think_open = text.count("<think>")
-        think_close = text.count("</think>")
-        return think_open > think_close
-
-    def filter_think_tags(self, text):
-        """Remove content within <think></think> tags."""
-        return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
 
     def _check_gitignore(self):
         """
@@ -402,7 +395,8 @@ class Application:
                 self.logger.info("Exit command received, forcing running state to False")
                 self.state.running = False
         else:
-            await self.send_message(user_input, print_stream=True)
+            msg_thread = self.state.get_current_thread()
+            await self.send_message(msg_thread, user_input, print_stream=True)
     
     def _handle_keyboard_interrupt(self):
         """Handle keyboard interrupt."""
@@ -787,6 +781,7 @@ class Application:
         terminal_print("Type a message to chat with the model", PrintType.INFO)
         terminal_print("Type /help for available commands", PrintType.INFO)
         terminal_print("Type /exit to quit", PrintType.INFO)
+        terminal_print("Use /thread to manage conversation threads", PrintType.INFO)
 
     # Additional methods would be ported from JrDevTerminal with similar refactoring
 

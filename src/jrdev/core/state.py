@@ -1,24 +1,29 @@
-import os
 import asyncio
+import uuid
 from typing import Any, Dict, List, Set, Optional
 
 from jrdev.file_utils import JRDEV_DIR
+from jrdev.messages.thread import MessageThread
+from jrdev.model_profiles import ModelProfileManager
 
 
 class AppState:
     """Central class for managing application state"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Model configuration
         self.model: str = "deepseek-r1-671b"
         self.model_list: Any = None  # Will be initialized with ModelList
+        self.model_profile_manager = ModelProfileManager()
 
         # API clients
         self.clients: Any = None  # Will be initialized with APIClients
 
-        # Message history
-        self.messages: List[Dict[str, str]] = []
-        self.files_in_history: Set[str] = set()
+        # Thread management
+        self.active_thread: str = "main"
+        self.threads: Dict[str, MessageThread] = {
+            "main": MessageThread("main")
+        }
 
         # Context management
         self.context: List[str] = []
@@ -26,42 +31,38 @@ class AppState:
         self.project_files: Dict[str, str] = {
             "filetree": f"{JRDEV_DIR}jrdev_filetree.txt",
             "overview": f"{JRDEV_DIR}jrdev_overview.md",
-            "conventions": f"{JRDEV_DIR}jrdev_conventions.md"
+            "conventions": f"{JRDEV_DIR}jrdev_conventions.md",
         }
 
         # Task management
         self.active_tasks: Dict[str, Dict[str, Any]] = {}
-        self.task_monitor: Optional[asyncio.Task] = None
+        self.task_monitor: Optional[asyncio.Task[None]] = None
 
         # Runtime state
         self.running: bool = True
         self.need_first_time_setup: bool = False
 
-    # Message history management
-    def set_message_history(self, messages: List[Dict[str, str]], files: Set[str]) -> None:
-        """Set the current message history and associated files"""
-        self.messages = messages
-        self.files_in_history = files
+    # Message thread management
+    def get_current_thread(self) -> MessageThread:
+        """Get the currently active message thread"""
+        return self.threads[self.active_thread]
 
-    def add_message_history(self, text: str, is_assistant: bool = False) -> None:
-        """Add a message to the history"""
-        role = "assistant" if is_assistant else "user"
-        self.messages.append({"role": role, "content": text})
+    # Thread management
+    def create_thread(self, thread_id: str="") -> str:
+        """Create a new message thread"""
+        if thread_id == "":
+            thread_id = f"thread_{uuid.uuid4().hex[:8]}"
+        if thread_id not in self.threads:
+            self.threads[thread_id] = MessageThread(thread_id)
 
-    def clear_messages(self) -> None:
-        """Clear all message history"""
-        self.messages.clear()
-        self.files_in_history.clear()
+        return thread_id
 
-    # Context management
-    def add_context_file(self, file_path: str) -> None:
-        """Add a file to the context list"""
-        if file_path not in self.context:
-            self.context.append(file_path)
-
-    def clear_context(self) -> None:
-        """Clear all context files"""
-        self.context.clear()
+    def switch_thread(self, thread_id: str) -> bool:
+        """Switch to a different thread"""
+        if thread_id in self.threads:
+            self.active_thread = thread_id
+            return True
+        return False
 
     # Task management
     def add_task(self, task_id: str, task_info: Dict[str, Any]) -> None:
@@ -76,17 +77,22 @@ class AppState:
     # State validation
     def validate(self) -> bool:
         """Check if critical state elements are initialized"""
-        return all([
-            self.model,
-            self.project_files,
-            self.model_list is not None,
-            self.clients is not None
-        ])
+        return all(
+            [
+                self.model,
+                self.project_files,
+                self.model_list is not None,
+                self.clients is not None,
+            ]
+        )
 
     def __repr__(self) -> str:
+        thread = self.get_current_thread()
         return f"""<AppState:
 Model: {self.model}
-Messages: {len(self.messages)}
+Active thread: {self.active_thread}
+Thread count: {len(self.threads)}
+Messages in thread: {len(thread.messages)}
 Context files: {len(self.context)}
 Active tasks: {len(self.active_tasks)}
 Clients initialized: {self.clients.is_initialized() if self.clients else False}

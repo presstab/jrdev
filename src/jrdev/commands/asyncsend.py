@@ -7,8 +7,9 @@ without waiting for the response to be returned to the terminal.
 """
 
 import os
+import asyncio
+import uuid
 from typing import Any, List
-
 from jrdev.ui.ui import terminal_print, PrintType
 
 
@@ -21,8 +22,6 @@ async def handle_asyncsend(app: Any, args: List[str]) -> None:
         app: The Application instance
         args: Command arguments [filepath] [prompt...]
     """
-    import asyncio
-    import uuid
 
     if len(args) < 2:
         terminal_print("Usage: /asyncsend [filepath] <prompt>", print_type=PrintType.ERROR)
@@ -49,9 +48,12 @@ async def handle_asyncsend(app: Any, args: List[str]) -> None:
 
         # Create a task to process the request in the background
         async def background_task():
+            # Use the currently active message thread
+            msg_thread = app.get_current_thread()
+
             try:
-                app.logger.info(f"Background task #{job_id} sending message to model")
-                response = await app.send_message(prompt, writepath=filepath, print_stream=False)
+                app.logger.info(f"Background task #{job_id} sending message to model on message thread: {msg_thread.thread_id}")
+                response = await app.send_message(msg_thread, prompt, writepath=filepath, print_stream=False)
                 if response:
                     app.logger.info(f"Background task #{job_id} completed successfully")
                 else:
@@ -60,7 +62,7 @@ async def handle_asyncsend(app: Any, args: List[str]) -> None:
                 # Task monitor will handle cleanup of completed tasks
             except Exception as e:
                 error_msg = str(e)
-                app.logger.error(f"Background task #{job_id} failed with error: {error_msg}")
+                app.logger.error(f"Background task #{job_id} failed with error: {error_msg} on message thread: {msg_thread.thread_id}")
                 # Task monitor will handle cleanup of failed tasks
 
         # Schedule the task but don't wait for it
@@ -80,9 +82,12 @@ async def handle_asyncsend(app: Any, args: List[str]) -> None:
 
         # Create a task to process the request in the background
         async def background_task():
+            # Use the currently active message thread
+            msg_thread = app.get_current_thread()
+
             try:
-                app.logger.info(f"Background task #{job_id} sending message to model")
-                response = await app.send_message(prompt)
+                app.logger.info(f"Background task #{job_id} sending message to model on message thread: {msg_thread.thread_id}")
+                response = await app.send_message(msg_thread, prompt)
                 if response:
                     app.logger.info(f"Background task #{job_id} completed successfully")
                 else:

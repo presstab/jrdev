@@ -13,6 +13,7 @@ class MessageBuilder:
     def __init__(self, app: Optional[Any] = None):
         self.messages: List[Dict[str, str]] = []
         self.files: Set[str] = set()
+        self.project_files: Set[str] = set()
         self.file_aliases: Dict[str, str] = {}
         self.embedded_files: Set[str] = set()
         self.context: List[Dict[str, str]] = []
@@ -47,7 +48,7 @@ class MessageBuilder:
     def add_index_file(self, file_path: str, alias_path: str):
         """Add index files that will be added as 'Index of file alias_path' """
         self.file_aliases[file_path] = alias_path
-        self.files.add(file_path)
+        self.project_files.add(file_path)
 
     def set_embedded_files(self, files: Set[str]) -> None:
         """Set files that are already embedded within historical message thread as text. This prevents multiple files
@@ -72,7 +73,7 @@ class MessageBuilder:
                     if current_size + file_size > total_size_limit:
                         continue
                     current_size += file_size
-                self.add_file(file_path)
+                    self.project_files.add(file_path)
                 
             # Add context files
             if hasattr(self.app, "state") and hasattr(self.app.state, "context_manager"):
@@ -112,7 +113,8 @@ class MessageBuilder:
     def _build_file_content(self) -> str:
         """Generate formatted file content section"""
         content = []
-        for file_path in self.files:
+        # Add project files first
+        for file_path in self.project_files:
             try:
                 # mark indexes differently
                 if file_path in self.file_aliases:
@@ -123,9 +125,15 @@ class MessageBuilder:
                     file_content = get_file_contents([file_path])
                     content.append(file_content)
             except Exception as e:
-                terminal_print(
-                    f"Error reading {file_path}: {str(e)}", PrintType.WARNING
-                )
+                terminal_print(f"_build_file_content: Error reading {file_path}: {str(e)}", PrintType.ERROR)
+
+        for file_path in self.files:
+            try:
+                # mark indexes differently
+                file_content = get_file_contents([file_path])
+                content.append(file_content)
+            except Exception as e:
+                terminal_print(f"_build_file_content: Error reading {file_path}: {str(e)}", PrintType.ERROR)
         return "".join(content)
 
 
