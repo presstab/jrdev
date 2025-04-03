@@ -3,7 +3,6 @@ import re
 
 from jrdev.file_operations.find_function import find_function
 from jrdev.string_utils import find_code_snippet
-from jrdev.ui.ui import terminal_print, PrintType
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -48,7 +47,6 @@ def process_replace_operation(lines, change, filepath):
             return replace_code_block(lines, change, filepath)
 
     message = f"Warning: REPLACE operation error: {error_detail}\n {change}"
-    terminal_print(message, PrintType.WARNING)
     logger.warning(message)
 
     return lines
@@ -72,7 +70,6 @@ def replace_code_snippet(lines, change, filepath):
 
     if not code_snippet:
         message = f"Warning: Missing code_snippet in target_reference: {change}"
-        terminal_print(message, PrintType.WARNING)
         logger.warning(message)
         return lines
 
@@ -81,7 +78,6 @@ def replace_code_snippet(lines, change, filepath):
 
     if start_idx == -1 or end_idx == -1:
         message = f"Warning: Could not find code snippet in {filepath}"
-        terminal_print(message, PrintType.WARNING)
         logger.warning(message)
         return lines
 
@@ -114,7 +110,6 @@ def replace_code_snippet(lines, change, filepath):
     lines = lines[:start_idx] + new_lines + lines[end_idx:]
 
     message = f"Replaced code snippet in {filepath}"
-    terminal_print(message, PrintType.INFO)
     logger.info(message)
 
     return lines
@@ -151,11 +146,9 @@ def replace_function_signature(lines, change, filepath):
         lines[line_idx] = new_content + "\n" if not new_content.endswith("\n") else new_content
 
         message = f"Replaced signature for function '{function_name}' in {filepath}"
-        terminal_print(message, PrintType.INFO)
         logger.info(message)
     else:
         message = f"Warning: Could not find signature for function '{function_name}' in {filepath}"
-        terminal_print(message, PrintType.WARNING)
         logger.warning(message)
 
     return lines
@@ -227,7 +220,6 @@ def replace_function_implementation(lines, change, filepath):
     lines = lines[:start_idx] + new_lines + lines[end_idx:]
 
     message = f"Replaced function '{function_name}' in {filepath}"
-    terminal_print(message, PrintType.INFO)
     logger.info(message)
 
     return lines
@@ -276,7 +268,6 @@ def replace_code_block(lines, change, filepath):
 
     if block_start is None or block_end is None:
         message = f"Warning: Could not find block in function '{function_name}' in {filepath}"
-        terminal_print(message, PrintType.WARNING)
         logger.warning(message)
         return lines
 
@@ -303,7 +294,6 @@ def replace_code_block(lines, change, filepath):
     lines = lines[:block_start] + new_lines + lines[block_end:]
 
     message = f"Replaced block in function '{function_name}' in {filepath}"
-    terminal_print(message, PrintType.INFO)
     logger.info(message)
 
     return lines

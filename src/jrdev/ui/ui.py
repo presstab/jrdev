@@ -98,29 +98,29 @@ def terminal_print(
         flush: Whether to flush the output (useful for streaming outputs)
     """
     # Check if we're in the main thread
-    if threading.current_thread() is not threading.main_thread():
-        # Not in main thread, log the message instead
-        logger = logging.getLogger("jrdev")
-
-        # Determine log level based on print_type
-        if print_type == PrintType.ERROR:
-            logger.error(message)
-        elif print_type == PrintType.WARNING:
-            logger.warning(message)
-        elif print_type == PrintType.SUCCESS:
-            logger.info(f"SUCCESS: {message}")
-        else:
-            logger.info(message)
-        return
+    # if threading.current_thread() is not threading.main_thread():
+    #     # Not in main thread, log the message instead
+    #     logger = logging.getLogger("jrdev")
+    #
+    #     # Determine log level based on print_type
+    #     if print_type == PrintType.ERROR:
+    #         logger.error(message)
+    #     elif print_type == PrintType.WARNING:
+    #         logger.warning(message)
+    #     elif print_type == PrintType.SUCCESS:
+    #         logger.info(f"SUCCESS: {message}")
+    #     else:
+    #         logger.info(message)
+    #     return
     # In main thread, print to terminal as usual
     format_code = FORMAT_MAP.get(print_type, COLORS["RESET"])
     formatted_prefix = f"{format_code}{prefix} " if prefix else format_code
 
-    print(f"{formatted_prefix}{message}{COLORS['RESET']}",
-          end=end, flush=flush)
+    print_str = f"{formatted_prefix}{message}{COLORS['RESET']}"
+    print(print_str, end=end, flush=flush)
 
 
-def display_diff(diff_lines: List[str]) -> None:
+def display_diff(app: Any, diff_lines: List[str]) -> None:
     """
     Display a unified diff to the terminal with color-coded additions and deletions.
 
@@ -128,17 +128,17 @@ def display_diff(diff_lines: List[str]) -> None:
         diff_lines: List of lines from a unified diff
     """
     if not diff_lines:
-        terminal_print("No changes detected in file content.", PrintType.WARNING)
+        app.ui.print_text("No changes detected in file content.", PrintType.WARNING)
         return
 
-    terminal_print("File changes diff:", PrintType.HEADER)
+    app.ui.print_text("File changes diff:", PrintType.HEADER)
     for line in diff_lines:
         if line.startswith('+'):
-            terminal_print(line.rstrip(), PrintType.SUCCESS)
+            app.ui.print_text(line.rstrip(), PrintType.SUCCESS)
         elif line.startswith('-'):
-            terminal_print(line.rstrip(), PrintType.ERROR)
+            app.ui.print_text(line.rstrip(), PrintType.ERROR)
         else:
-            terminal_print(line.rstrip())
+            app.ui.print_text(line.rstrip())
 
 
 def print_steps(app: Any, steps: Dict[str, Any], completed_steps: Optional[List[int]] = None, current_step: Optional[int] = None) -> None:
@@ -163,13 +163,13 @@ def print_steps(app: Any, steps: Dict[str, Any], completed_steps: Optional[List[
     }
     
     if "steps" not in steps or not steps["steps"]:
-        terminal_print("No steps to display", PrintType.WARNING)
+        app.ui.print_text("No steps to display", PrintType.WARNING)
         return
     
     if completed_steps is None:
         completed_steps = []
     
-    terminal_print("\n📋 TODO List:", PrintType.HEADER)
+    app.ui.print_text("\n📋 TODO List:", PrintType.HEADER)
     
     for i, step in enumerate(steps["steps"], 1):
         # Get step details with fallbacks
@@ -207,7 +207,7 @@ def print_steps(app: Any, steps: Dict[str, Any], completed_steps: Optional[List[
         step_prefix = f"{status_prefix}{checkbox} {i}. "
         operation_formatted = f"{op_color}{operation}{COLORS['RESET']}"
         
-        terminal_print(
+        app.ui.print_text(
             f"{status_color}{step_prefix}{COLORS['RESET']}{operation_formatted}: "
             f"{COLORS['BOLD']}{filename}{COLORS['RESET']} - {description}{status_suffix}",
             PrintType.INFO
@@ -218,12 +218,12 @@ def print_steps(app: Any, steps: Dict[str, Any], completed_steps: Optional[List[
         if step_idx == current_step:
             location_indent = "   ┃ "
             
-        terminal_print(
+        app.ui.print_text(
             f"{location_indent}{COLORS['DIM']}Location: {target}{COLORS['RESET']}",
             PrintType.INFO
         )
     
-    terminal_print("", PrintType.INFO)  # Add an empty line after the list
+    app.ui.print_text("", PrintType.INFO)  # Add an empty line after the list
 
 
 def prompt_for_confirmation(prompt_text: str = "Apply these changes?") -> Tuple[str, Optional[str]]:
@@ -247,14 +247,14 @@ def prompt_for_confirmation(prompt_text: str = "Apply these changes?") -> Tuple[
         elif response in ('n', 'no'):
             return 'no', None
         elif response in ('r', 'request', 'request_change'):
-            terminal_print("Please enter your requested changes:", PrintType.INFO)
+            app.ui.print_text("Please enter your requested changes:", PrintType.INFO)
             message = input("> ")
             return 'request_change', message
         elif response in ('e', 'edit'):
-            terminal_print("Opening editor... (Ctrl+S/Alt+W to save, Ctrl+Q/Alt+Q/ESC to quit)", PrintType.INFO)
+            app.ui.print_text("Opening editor... (Ctrl+S/Alt+W to save, Ctrl+Q/Alt+Q/ESC to quit)", PrintType.INFO)
             return 'edit', None
         else:
-            terminal_print("Please enter 'y', 'n', 'r', or 'e'", PrintType.ERROR)
+            app.ui.print_text("Please enter 'y', 'n', 'r', or 'e'", PrintType.ERROR)
 
 
 def show_conversation(app: Any, max_messages: int = 10) -> None:
@@ -270,14 +270,14 @@ def show_conversation(app: Any, max_messages: int = 10) -> None:
     thread_id = app.state.active_thread
     
     # Show thread header with ID
-    terminal_print(f"\n💬 Thread: {thread_id}", PrintType.HEADER)
+    app.ui.print_text(f"\n💬 Thread: {thread_id}", PrintType.HEADER)
     
     # Get messages from the thread
     messages = current_thread.messages
     
     # If no messages, show empty message
     if not messages:
-        terminal_print("No messages in this thread yet.", PrintType.INFO)
+        app.ui.print_text("No messages in this thread yet.", PrintType.INFO)
         return
     
     # Get the last N messages
@@ -285,10 +285,10 @@ def show_conversation(app: Any, max_messages: int = 10) -> None:
     
     # Show message count
     if len(messages) > max_messages:
-        terminal_print(f"Showing last {max_messages} of {len(messages)} messages", PrintType.INFO)
+        app.ui.print_text(f"Showing last {max_messages} of {len(messages)} messages", PrintType.INFO)
     
     # Display message divider
-    terminal_print("───────────────────────────────────────────", PrintType.INFO)
+    app.ui.print_text("───────────────────────────────────────────", PrintType.INFO)
     
     # Display each message
     for idx, msg in enumerate(recent_messages):
@@ -303,18 +303,18 @@ def show_conversation(app: Any, max_messages: int = 10) -> None:
         
         # Format based on role
         if role == "system":
-            terminal_print(f"🔧 System:", PrintType.SUBHEADER)
-            terminal_print(f"   {preview}", PrintType.INFO)
+            app.ui.print_text(f"🔧 System:", PrintType.SUBHEADER)
+            app.ui.print_text(f"   {preview}", PrintType.INFO)
         elif role == "user":
-            terminal_print(f"👤 You:", PrintType.SUBHEADER)
-            terminal_print(f"   {preview}", PrintType.USER)
+            app.ui.print_text(f"👤 You:", PrintType.SUBHEADER)
+            app.ui.print_text(f"   {preview}", PrintType.USER)
         elif role == "assistant":
-            terminal_print(f"🤖 Assistant:", PrintType.SUBHEADER)
-            terminal_print(f"   {preview}", PrintType.LLM)
+            app.ui.print_text(f"🤖 Assistant:", PrintType.SUBHEADER)
+            app.ui.print_text(f"   {preview}", PrintType.LLM)
         else:
-            terminal_print(f"[{role}]:", PrintType.SUBHEADER)
-            terminal_print(f"   {preview}", PrintType.INFO)
+            app.ui.print_text(f"[{role}]:", PrintType.SUBHEADER)
+            app.ui.print_text(f"   {preview}", PrintType.INFO)
         
         # Add separator between messages except for the last one
         if idx < len(recent_messages) - 1:
-            terminal_print("   · · ·", PrintType.INFO)
+            app.ui.print_text("   · · ·", PrintType.INFO)

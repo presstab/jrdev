@@ -7,7 +7,7 @@ Cancels active background tasks.
 
 from typing import Any, List
 
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 
 
 async def handle_cancel(app: Any, args: List[str]) -> None:
@@ -20,15 +20,15 @@ async def handle_cancel(app: Any, args: List[str]) -> None:
     """
     # Check if there are any active tasks
     if not app.state.active_tasks:
-        terminal_print("No active background tasks to cancel.", print_type=PrintType.INFO)
+        app.ui.print_text("No active background tasks to cancel.", print_type=PrintType.INFO)
         return
 
     # Parse arguments
     if len(args) < 2:
-        terminal_print("Usage: /cancel <task_id>|all", print_type=PrintType.ERROR)
-        terminal_print("Example: /cancel abc123", print_type=PrintType.INFO)
-        terminal_print("Example: /cancel all", print_type=PrintType.INFO)
-        terminal_print("Use /tasks to see active tasks and their IDs.", print_type=PrintType.INFO)
+        app.ui.print_text("Usage: /cancel <task_id>|all", print_type=PrintType.ERROR)
+        app.ui.print_text("Example: /cancel abc123", print_type=PrintType.INFO)
+        app.ui.print_text("Example: /cancel all", print_type=PrintType.INFO)
+        app.ui.print_text("Use /tasks to see active tasks and their IDs.", print_type=PrintType.INFO)
         return
 
     task_id = args[1].lower()
@@ -43,7 +43,7 @@ async def handle_cancel(app: Any, args: List[str]) -> None:
             if tid in app.state.active_tasks:
                 del app.state.active_tasks[tid]
 
-        terminal_print(f"Cancelled {task_count} background task(s).", print_type=PrintType.SUCCESS)
+        app.ui.print_text(f"Cancelled {task_count} background task(s).", print_type=PrintType.SUCCESS)
         return
 
     # Cancel a specific task
@@ -52,7 +52,7 @@ async def handle_cancel(app: Any, args: List[str]) -> None:
         task_info["task"].cancel()
         del app.state.active_tasks[task_id]
 
-        terminal_print(f"Cancelled task #{task_id}.", print_type=PrintType.SUCCESS)
+        app.ui.print_text(f"Cancelled task #{task_id}.", print_type=PrintType.SUCCESS)
     else:
-        terminal_print(f"No task found with ID {task_id}.", print_type=PrintType.ERROR)
-        terminal_print("Use /tasks to see active tasks and their IDs.", print_type=PrintType.INFO)
+        app.ui.print_text(f"No task found with ID {task_id}.", print_type=PrintType.ERROR)
+        app.ui.print_text("Use /tasks to see active tasks and their IDs.", print_type=PrintType.INFO)

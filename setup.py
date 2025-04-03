@@ -14,11 +14,13 @@ setup(
         "openai>=1.0.0",
         "python-dotenv",
         "pyreadline3; platform_system=='Windows'",
-        "pydantic>=2.0.0"
+        "pydantic>=2.0.0",
+        "textual>=0.40.0"
     ],
     entry_points={
         "console_scripts": [
-            "jrdev=jrdev.__main__:run_cli",
+            "jrdev=jrdev.ui.textual_ui:run_textual_ui",
+            "jrdev-cli=jrdev.__main__:run_cli",
         ],
     },
     classifiers=[

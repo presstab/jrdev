@@ -1,9 +1,12 @@
-import os
 import sys
+import logging
 from typing import Optional, Dict, Any
 from openai import AsyncOpenAI
 import anthropic
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
+
+# Get the global logger instance
+logger = logging.getLogger("jrdev")
 
 
 class APIClients:
@@ -32,7 +35,7 @@ class APIClients:
     async def _init_venice(self, api_key: Optional[str]) -> None:
         """Initialize Venice client (required)"""
         if not api_key:
-            terminal_print("Error: VENICE_API_KEY not found", PrintType.ERROR)
+            logger.error("Error: VENICE_API_KEY not found")
             sys.exit(1)
 
         self._clients["venice"] = AsyncOpenAI(

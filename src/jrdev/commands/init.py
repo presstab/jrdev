@@ -20,7 +20,7 @@ from jrdev.languages.utils import detect_language, is_headers_language
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.treechart import generate_compact_tree
 from jrdev.string_utils import contains_chinese
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 from jrdev.message_builder import MessageBuilder
 from jrdev.model_profiles import ModelProfileManager
 
@@ -59,7 +59,7 @@ async def get_file_summary(
         for file in files:
             full_path = os.path.join(current_dir, file)
             if not os.path.exists(full_path):
-                terminal_print(f"\nFile not found: {file}", PrintType.ERROR)
+                app.ui.print_text(f"\nFile not found: {file}", PrintType.ERROR)
                 return None
 
         # Use the context manager to generate the context
@@ -73,7 +73,7 @@ async def get_file_summary(
         return None
 
     except Exception as e:
-        terminal_print(f"Error analyzing file {file_path}: {str(e)}", PrintType.ERROR)
+        app.ui.print_text(f"Error analyzing file {file_path}: {str(e)}", PrintType.ERROR)
         return None
 
 
@@ -103,7 +103,7 @@ async def handle_init(app: Any, args: List[str]) -> None:
             current_dir, output_file, use_gitignore=True
         )
 
-        terminal_print(
+        app.ui.print_text(
             f"File tree generated and saved to {output_file}", PrintType.SUCCESS
         )
 
@@ -116,10 +116,10 @@ async def handle_init(app: Any, args: List[str]) -> None:
 
         # Switch the model to the advanced reasoning profile
         app.state.model = profile_manager.get_model("advanced_reasoning")
-        terminal_print(f"Model changed to: {app.state.model} (advanced_reasoning profile)", PrintType.INFO)
+        app.ui.print_text(f"Model changed to: {app.state.model} (advanced_reasoning profile)", PrintType.INFO)
 
         # Send the file tree to the LLM with a request for file recommendations
-        terminal_print(
+        app.ui.print_text(
             "Waiting for LLM analysis of project tree...", PrintType.PROCESSING
         )
 
@@ -162,7 +162,7 @@ async def handle_init(app: Any, args: List[str]) -> None:
                         if similar_file:
                             cleaned_file_list.append(similar_file)
                         else:
-                            terminal_print(
+                            app.ui.print_text(
                                 f"Failed to find file {file_path}", PrintType.ERROR
                             )
 
@@ -174,22 +174,22 @@ async def handle_init(app: Any, args: List[str]) -> None:
                     cleaned_file_list = pair_header_source_files(cleaned_file_list)
 
                 # Print the LLM's response
-                terminal_print("\nLLM File Recommendations:", PrintType.HEADER)
-                terminal_print(cleaned_file_list, PrintType.INFO)
+                app.ui.print_text("\nLLM File Recommendations:", PrintType.HEADER)
+                app.ui.print_text(cleaned_file_list, PrintType.INFO)
 
-                terminal_print(
+                app.ui.print_text(
                     f"requesting {len(recommended_files)} files", PrintType.PROCESSING
                 )
 
                 # Now switch to a different model for file analysis
                 app.state.model = profile_manager.get_model("intermediate_reasoning")
-                terminal_print(
+                app.ui.print_text(
                     f"\nSwitching model to: {app.state.model} (intermediate_reasoning profile) for analysis",
                     PrintType.INFO,
                 )
 
                 # Process all recommended files concurrently
-                terminal_print(
+                app.ui.print_text(
                     f"\nAnalyzing {len(cleaned_file_list)} files concurrently...",
                     PrintType.PROCESSING,
                 )
@@ -200,13 +200,13 @@ async def handle_init(app: Any, args: List[str]) -> None:
                     if index > 0 and index % 5 == 0:
                         await asyncio.sleep(2)  # Sleep for 1.5 second
 
-                    terminal_print(
+                    app.ui.print_text(
                         f"Starting analysis for file {index + 1}/"
                         f"{len(cleaned_file_list)}: {file_path}",
                         PrintType.PROCESSING,
                     )
                     result = await get_file_summary(app, file_path)
-                    terminal_print(
+                    app.ui.print_text(
                         f"Completed analysis for file {index + 1}/"
                         f"{len(cleaned_file_list)}: {file_path}",
                         PrintType.SUCCESS,
@@ -216,7 +216,7 @@ async def handle_init(app: Any, args: List[str]) -> None:
                 # Parallel task to generate conventions using the same files
                 async def generate_conventions() -> Optional[str]:
                     """Generate project conventions in parallel with file analysis."""
-                    terminal_print(
+                    app.ui.print_text(
                         f"\nAnalyzing project conventions...", PrintType.PROCESSING
                     )
 
@@ -246,9 +246,9 @@ async def handle_init(app: Any, args: List[str]) -> None:
                                         size_mb = len(content) / (1024 * 1024)
                                         error_msg = f"File {file_path} is too large ({size_mb:.2f} MB) for analysis (max: 2MB)"
                                         app.logger.error(error_msg)
-                                        terminal_print(error_msg, PrintType.ERROR)
+                                        app.ui.print_text(error_msg, PrintType.ERROR)
                         except Exception as e:
-                            terminal_print(
+                            app.ui.print_text(
                                 f"Error reading file {file_path}: {str(e)}",
                                 PrintType.ERROR,
                             )
@@ -275,7 +275,7 @@ async def handle_init(app: Any, args: List[str]) -> None:
 
                         return conventions_result
                     except Exception as e:
-                        terminal_print(
+                        app.ui.print_text(
                             f"Error generating project conventions: {str(e)}",
                             PrintType.ERROR,
                         )
@@ -303,7 +303,7 @@ async def handle_init(app: Any, args: List[str]) -> None:
                     if result is not None and not contains_chinese(result):
                         returned_analysis.append(result)
 
-                terminal_print(
+                app.ui.print_text(
                     f"\nCompleted analysis of all {len(returned_analysis)} files",
                     PrintType.SUCCESS,
                 )
@@ -311,31 +311,31 @@ async def handle_init(app: Any, args: List[str]) -> None:
                 # Check if conventions were generated successfully
                 conventions_file_path = f"{JRDEV_DIR}jrdev_conventions.md"
                 if conventions_result is None or not os.path.exists(conventions_file_path):
-                    terminal_print(
+                    app.ui.print_text(
                         "\nError: Project conventions generation failed. Please try running /init again.",
                         PrintType.ERROR
                     )
                     # Calculate elapsed time before exiting
                     elapsed_time = time.time() - start_time
                     minutes, seconds = divmod(elapsed_time, 60)
-                    terminal_print(
+                    app.ui.print_text(
                         f"\nProject initialization failed (took {int(minutes)}m {int(seconds)}s)",
                         PrintType.ERROR,
                     )
                     return
 
                 # Print conventions
-                terminal_print("\nProject Conventions Analysis:", PrintType.HEADER)
-                terminal_print(conventions_result, PrintType.INFO)
+                app.ui.print_text("\nProject Conventions Analysis:", PrintType.HEADER)
+                app.ui.print_text(conventions_result, PrintType.INFO)
 
-                terminal_print(
+                app.ui.print_text(
                     f"\nProject conventions generated and saved to "
                     f"{conventions_file_path}",
                     PrintType.SUCCESS,
                 )
 
                 # Start project overview
-                terminal_print("\nGenerating project overview...", PrintType.PROCESSING)
+                app.ui.print_text("\nGenerating project overview...", PrintType.PROCESSING)
                 app.state.model = profile_manager.get_model("advanced_reasoning")
 
                 # Read the file tree
@@ -372,13 +372,13 @@ async def handle_init(app: Any, args: List[str]) -> None:
                     with open(overview_file_path, "w") as f:
                         f.write(full_overview)
 
-                    terminal_print(
+                    app.ui.print_text(
                         f"\nProject overview generated and saved to "
                         f"{overview_file_path}",
                         PrintType.SUCCESS,
                     )
                 except Exception as e:
-                    terminal_print(
+                    app.ui.print_text(
                         f"Error generating project overview: {str(e)}", PrintType.ERROR
                     )
 
@@ -386,17 +386,17 @@ async def handle_init(app: Any, args: List[str]) -> None:
                 elapsed_time = time.time() - start_time
                 minutes, seconds = divmod(elapsed_time, 60)
 
-                terminal_print(
+                app.ui.print_text(
                     f"\nProject initialization finished (took {int(minutes)}m {int(seconds)}s)",
                     PrintType.SUCCESS,
                 )
             except Exception as e:
-                terminal_print(
+                app.ui.print_text(
                     f"Error processing file recommendations: {str(e)}", PrintType.ERROR
                 )
         except Exception as e:
-            terminal_print(
+            app.ui.print_text(
                 f"Error getting LLM recommendations: {str(e)}", PrintType.ERROR
             )
     except Exception as e:
-        terminal_print(f"Error generating file tree: {str(e)}", PrintType.ERROR)
+        app.ui.print_text(f"Error generating file tree: {str(e)}", PrintType.ERROR)

@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from functools import partial
 
 from jrdev.file_utils import add_to_gitignore, get_env_path
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 
 
 async def async_input(prompt: str = "") -> str:
@@ -49,8 +49,8 @@ async def handle_keys(app: Any, args: list[str]) -> None:
     4. Cancel/Exit
     """
     
-    terminal_print("API Key Management", PrintType.HEADER)
-    terminal_print(choices, PrintType.INFO)
+    app.ui.print_text("API Key Management", PrintType.HEADER)
+    app.ui.print_text(choices, PrintType.INFO)
     
     choice = await async_input("Enter your choice (1-4): ")
     
@@ -61,10 +61,10 @@ async def handle_keys(app: Any, args: list[str]) -> None:
     elif choice == "3":
         await _remove_key(app)
     elif choice == "4" or choice.lower() in ["cancel", "exit", "q", "quit"]:
-        terminal_print("Cancelled API key management.", PrintType.INFO)
+        app.ui.print_text("Cancelled API key management.", PrintType.INFO)
         return
     else:
-        terminal_print("Invalid choice. Please try again.", PrintType.ERROR)
+        app.ui.print_text("Invalid choice. Please try again.", PrintType.ERROR)
 
 
 async def _view_keys(app: Any) -> None:
@@ -76,7 +76,7 @@ async def _view_keys(app: Any) -> None:
         "DEEPSEEK_API_KEY": os.getenv("DEEPSEEK_API_KEY")
     }
     
-    terminal_print("Configured API Keys:", PrintType.INFO)
+    app.ui.print_text("Configured API Keys:", PrintType.INFO)
     for name, value in keys.items():
         if value:
             # Mask the key for security, showing only first 4 and last 4 chars
@@ -84,13 +84,13 @@ async def _view_keys(app: Any) -> None:
                 masked = value[:4] + "*" * (len(value) - 8) + value[-4:]
             else:
                 masked = "*" * len(value)
-            terminal_print(f"{name}: {masked} (configured)", PrintType.SUCCESS)
+            app.ui.print_text(f"{name}: {masked} (configured)", PrintType.SUCCESS)
         else:
-            terminal_print(f"{name}: Not configured", PrintType.WARNING)
+            app.ui.print_text(f"{name}: Not configured", PrintType.WARNING)
             
     # Wait for user acknowledgment before returning to the main menu
     await async_input("\nPress Enter to continue...")
-    terminal_print("Returning to main menu.", PrintType.INFO)
+    app.ui.print_text("Returning to main menu.", PrintType.INFO)
 
 
 async def _add_update_key(app: Any) -> None:
@@ -103,24 +103,24 @@ async def _add_update_key(app: Any) -> None:
         "5": ("", "Cancel/Back")
     }
     
-    terminal_print("Select service to add/update key for:", PrintType.INFO)
+    app.ui.print_text("Select service to add/update key for:", PrintType.INFO)
     for num, (_, name) in services.items():
-        terminal_print(f"{num}. {name}", PrintType.INFO)
+        app.ui.print_text(f"{num}. {name}", PrintType.INFO)
     
     service_choice = await async_input("Enter your choice (1-5): ")
     
     if service_choice == "5" or service_choice.lower() in ["cancel", "back", "q", "quit", "exit"]:
-        terminal_print("Cancelled key update.", PrintType.INFO)
+        app.ui.print_text("Cancelled key update.", PrintType.INFO)
         return
         
     if service_choice not in services:
-        terminal_print("Invalid choice.", PrintType.ERROR)
+        app.ui.print_text("Invalid choice.", PrintType.ERROR)
         return
     
     key_name, service_name = services[service_choice]
     is_required = key_name == "VENICE_API_KEY"
     
-    terminal_print(f"Enter API key for {service_name} (or press Ctrl+C to cancel):", PrintType.INFO)
+    app.ui.print_text(f"Enter API key for {service_name} (or press Ctrl+C to cancel):", PrintType.INFO)
     try:
         new_key = await _prompt_key(service_name, required=is_required)
         if new_key:
@@ -130,10 +130,10 @@ async def _add_update_key(app: Any) -> None:
             
             # Reload environment variables
             load_dotenv()
-            terminal_print(f"{service_name} API key updated successfully!", PrintType.SUCCESS)
+            app.ui.print_text(f"{service_name} API key updated successfully!", PrintType.SUCCESS)
     except KeyboardInterrupt:
         print()  # Add a newline after ^C
-        terminal_print("Cancelled key update.", PrintType.INFO)
+        app.ui.print_text("Cancelled key update.", PrintType.INFO)
 
 
 async def _remove_key(app: Any) -> None:
@@ -145,18 +145,18 @@ async def _remove_key(app: Any) -> None:
         "4": ("", "Cancel/Back")
     }
     
-    terminal_print("Select key to remove:", PrintType.INFO)
+    app.ui.print_text("Select key to remove:", PrintType.INFO)
     for num, (_, name) in services.items():
-        terminal_print(f"{num}. {name}", PrintType.INFO)
+        app.ui.print_text(f"{num}. {name}", PrintType.INFO)
     
     service_choice = await async_input("Enter your choice (1-4): ")
     
     if service_choice == "4" or service_choice.lower() in ["cancel", "back", "q", "quit", "exit"]:
-        terminal_print("Cancelled key removal.", PrintType.INFO)
+        app.ui.print_text("Cancelled key removal.", PrintType.INFO)
         return
         
     if service_choice not in services:
-        terminal_print("Invalid choice.", PrintType.ERROR)
+        app.ui.print_text("Invalid choice.", PrintType.ERROR)
         return
     
     key_name, service_name = services[service_choice]
@@ -164,7 +164,7 @@ async def _remove_key(app: Any) -> None:
     # Confirm removal
     confirm = await async_input(f"Are you sure you want to remove the {service_name} API key? (y/n): ")
     if confirm.lower() not in ["y", "yes"]:
-        terminal_print("Key removal cancelled.", PrintType.INFO)
+        app.ui.print_text("Key removal cancelled.", PrintType.INFO)
         return
     
     # Cannot remove Venice API key as it's required
@@ -175,9 +175,9 @@ async def _remove_key(app: Any) -> None:
         
         # Reload environment variables
         load_dotenv()
-        terminal_print(f"{service_name} API key removed successfully!", PrintType.SUCCESS)
+        app.ui.print_text(f"{service_name} API key removed successfully!", PrintType.SUCCESS)
     else:
-        terminal_print(f"{service_name} API key not found.", PrintType.WARNING)
+        app.ui.print_text(f"{service_name} API key not found.", PrintType.WARNING)
 
 
 async def _prompt_key(service: str, required: bool = False) -> str:
@@ -206,7 +206,7 @@ async def _prompt_key(service: str, required: bool = False) -> str:
             value = await async_getpass(prompt)
             if value or not required:
                 return value
-            terminal_print("This key is required!", PrintType.ERROR)
+            app.ui.print_text("This key is required!", PrintType.ERROR)
         except KeyboardInterrupt:
             raise  # Re-raise to allow handling by caller
 
@@ -283,7 +283,7 @@ def check_existing_keys() -> bool:
     return all(key in keys and keys[key] for key in required)
 
 
-async def run_first_time_setup() -> bool:
+async def run_first_time_setup(app: Any) -> bool:
     """
     Run first-time setup to configure API keys.
     
@@ -292,25 +292,25 @@ async def run_first_time_setup() -> bool:
     """
     try:
         # Welcome message
-        terminal_print("Welcome to JrDev!", PrintType.HEADER)
+        app.ui.print_text("Welcome to JrDev!", PrintType.HEADER)
         
-        terminal_print("This appears to be your first time running JrDev.", PrintType.INFO)
-        terminal_print("Let's set up your API keys to get started.", PrintType.INFO)
+        app.ui.print_text("This appears to be your first time running JrDev.", PrintType.INFO)
+        app.ui.print_text("Let's set up your API keys to get started.", PrintType.INFO)
         
-        terminal_print("API Key Requirements:", PrintType.SUBHEADER)
-        terminal_print("- Venice AI API key is required", PrintType.WARNING)
-        terminal_print("- OpenAI, Anthropic, and DeepSeek keys are optional", PrintType.INFO)
+        app.ui.print_text("API Key Requirements:", PrintType.SUBHEADER)
+        app.ui.print_text("- Venice AI API key is required", PrintType.WARNING)
+        app.ui.print_text("- OpenAI, Anthropic, and DeepSeek keys are optional", PrintType.INFO)
         
         # Instructions
-        terminal_print("Security Information:", PrintType.SUBHEADER)
-        terminal_print("- API keys will be stored in a local .env file", PrintType.INFO)
-        terminal_print("- Restricted file permissions (600) for security", PrintType.INFO)
-        terminal_print("- Automatically added to .gitignore", PrintType.INFO)
+        app.ui.print_text("Security Information:", PrintType.SUBHEADER)
+        app.ui.print_text("- API keys will be stored in a local .env file", PrintType.INFO)
+        app.ui.print_text("- Restricted file permissions (600) for security", PrintType.INFO)
+        app.ui.print_text("- Automatically added to .gitignore", PrintType.INFO)
         
         await async_input("Press Enter to continue with setup...")
         
         # Get the keys
-        terminal_print("API Key Configuration", PrintType.HEADER)
+        app.ui.print_text("API Key Configuration", PrintType.HEADER)
         keys = {
             "VENICE_API_KEY": await _prompt_key("Venice AI", required=True),
             "OPENAI_API_KEY": await _prompt_key("OpenAI (optional)"),
@@ -324,16 +324,16 @@ async def run_first_time_setup() -> bool:
         load_dotenv()
         
         # Success message
-        terminal_print("Setup complete!", PrintType.SUCCESS)
-        terminal_print("Your API keys have been saved securely.", PrintType.INFO)
-        terminal_print("You can manage your keys anytime with the /keys command.", PrintType.INFO)
+        app.ui.print_text("Setup complete!", PrintType.SUCCESS)
+        app.ui.print_text("Your API keys have been saved securely.", PrintType.INFO)
+        app.ui.print_text("You can manage your keys anytime with the /keys command.", PrintType.INFO)
         
         return True
     except KeyboardInterrupt:
-        terminal_print("Setup cancelled.", PrintType.WARNING)
-        terminal_print("You can run setup again with the /keys command.", PrintType.INFO)
+        app.ui.print_text("Setup cancelled.", PrintType.WARNING)
+        app.ui.print_text("You can run setup again with the /keys command.", PrintType.INFO)
         return False
     except Exception as e:
-        terminal_print(f"Error during setup: {str(e)}", PrintType.ERROR)
-        terminal_print("You can try again with the /keys command.", PrintType.INFO)
+        app.ui.print_text(f"Error during setup: {str(e)}", PrintType.ERROR)
+        app.ui.print_text("You can try again with the /keys command.", PrintType.INFO)
         return False

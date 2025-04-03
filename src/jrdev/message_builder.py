@@ -2,7 +2,7 @@ import os
 from typing import Dict, List, Set, Optional, Any
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.file_utils import get_file_contents
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 
 import logging
 # Get the global logger instance
@@ -43,7 +43,7 @@ class MessageBuilder:
             if file_path not in self.embedded_files:
                 self.files.add(file_path)
         else:
-            terminal_print(f"File not found: {file_path}", PrintType.WARNING)
+            logger.warning(f"File not found: {file_path}")
 
     def add_index_file(self, file_path: str, alias_path: str):
         """Add index files that will be added as 'Index of file alias_path' """
@@ -125,7 +125,7 @@ class MessageBuilder:
                     file_content = get_file_contents([file_path])
                     content.append(file_content)
             except Exception as e:
-                terminal_print(f"_build_file_content: Error reading {file_path}: {str(e)}", PrintType.ERROR)
+                logger.error(f"_build_file_content: Error reading {file_path}: {str(e)}")
 
         for file_path in self.files:
             try:
@@ -133,7 +133,7 @@ class MessageBuilder:
                 file_content = get_file_contents([file_path])
                 content.append(file_content)
             except Exception as e:
-                terminal_print(f"_build_file_content: Error reading {file_path}: {str(e)}", PrintType.ERROR)
+                logger.error(f"_build_file_content: Error reading {file_path}: {str(e)}")
         return "".join(content)
 
 

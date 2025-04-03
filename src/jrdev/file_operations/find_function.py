@@ -2,7 +2,7 @@ import logging
 
 from jrdev.languages import get_language_for_file
 from jrdev.languages.utils import detect_language
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -52,7 +52,6 @@ def find_function(function_name, filepath):
 
     if matched_function is None:
         message = f"Warning: Could not find function: '{requested_function}' class: {requested_class} in {filepath}\n  Available Functions: {file_functions}"
-        terminal_print(message, PrintType.WARNING)
         logger.warning(message)
         return None
 

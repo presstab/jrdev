@@ -13,7 +13,7 @@ except ImportError:
     curses = None
     CURSES_AVAILABLE = False
 
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 from jrdev.ui.model_selector import interactive_model_selector, text_based_model_selector
 from pydantic import parse_obj_as
 
@@ -48,7 +48,10 @@ async def handle_models(app: Any, args: List[str]) -> None:
     )
 
     # Use curses-based interactive selector if available, otherwise use text-based selector
-    if CURSES_AVAILABLE and not (len(args) > 1 and args[1] == "--no-curses"):
+    use_curses = CURSES_AVAILABLE and not (len(args) > 1 and args[1] == "--no-curses")
+    if app.ui.ui_name == "textual":
+        use_curses = False
+    if use_curses:
         try:
             selected_model = curses.wrapper(
                 interactive_model_selector,
@@ -59,12 +62,12 @@ async def handle_models(app: Any, args: List[str]) -> None:
             if selected_model:
                 # User selected a model
                 app.state.model = selected_model
-                terminal_print(f"Model changed to: {app.state.model}", print_type=PrintType.SUCCESS)
+                app.ui.print_text(f"Model changed to: {app.state.model}", print_type=PrintType.SUCCESS)
         except Exception as e:
             # Handle any curses errors gracefully
-            terminal_print(f"Error in model selection: {str(e)}", print_type=PrintType.ERROR)
+            app.ui.print_text(f"Error in model selection: {str(e)}", print_type=PrintType.ERROR)
             # Fall back to text-based selector
-            terminal_print("Falling back to text-based model selection", print_type=PrintType.INFO)
+            app.ui.print_text("Falling back to text-based model selection", print_type=PrintType.INFO)
             await text_based_model_selector(app, sorted_models)
     else:
         # Use text-based selector

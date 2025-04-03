@@ -7,7 +7,7 @@ Project context command implementation for the JrDev terminal.
 import os
 from typing import Any, Dict, List
 
-from jrdev.ui.ui import PrintType, terminal_print
+from jrdev.ui.ui import PrintType
 
 
 async def handle_projectcontext(app: Any, args: List[str]) -> None:
@@ -30,24 +30,24 @@ async def handle_projectcontext(app: Any, args: List[str]) -> None:
         args: Command arguments
     """
     if len(args) < 2:
-        _show_usage()
+        _show_usage(app)
         return
 
     command = args[1].lower()
 
     if command == "about":
-        _show_about_info()
+        _show_about_info(app)
 
     elif command == "help":
-        _show_usage()
+        _show_usage(app)
 
     elif command == "on":
         app.state.use_project_context = True
-        terminal_print("Project context is now ON", PrintType.SUCCESS)
+        app.ui.print_text("Project context is now ON", PrintType.SUCCESS)
 
     elif command == "off":
         app.state.use_project_context = False
-        terminal_print("Project context is now OFF", PrintType.SUCCESS)
+        app.ui.print_text("Project context is now OFF", PrintType.SUCCESS)
 
     elif command == "status":
         await _show_status(app)
@@ -68,97 +68,97 @@ async def handle_projectcontext(app: Any, args: List[str]) -> None:
         await _remove_file_from_context(app, args[2])
 
     else:
-        _show_usage()
+        _show_usage(app)
 
 
-def _show_about_info() -> None:
+def _show_about_info(app: Any) -> None:
     """
     Display information about what project context is and how to use it.
     """
-    terminal_print("About Project Context", PrintType.HEADER)
-    terminal_print(
+    app.ui.print_text("About Project Context", PrintType.HEADER)
+    app.ui.print_text(
         "Project contexts are token-efficient compacted summaries of key files in your project.",
         PrintType.INFO,
     )
-    terminal_print(
+    app.ui.print_text(
         "These summaries are included in most communications with AI models and allow the AI",
         PrintType.INFO,
     )
-    terminal_print(
+    app.ui.print_text(
         "to quickly and cost-efficiently become familiar with your project structure and conventions.",
         PrintType.INFO,
     )
-    terminal_print("", PrintType.INFO)
-    terminal_print("Best Practices:", PrintType.HEADER)
-    terminal_print(
+    app.ui.print_text("", PrintType.INFO)
+    app.ui.print_text("Best Practices:", PrintType.HEADER)
+    app.ui.print_text(
         "- Include the most important/central files in your project",
         PrintType.INFO,
     )
-    terminal_print(
+    app.ui.print_text(
         "- Add files that define core abstractions, APIs, or project conventions",
         PrintType.INFO,
     )
-    terminal_print(
+    app.ui.print_text(
         "- Some AI communications include all project context files, so the list should be efficient",
         PrintType.INFO,
     )
-    terminal_print(
+    app.ui.print_text(
         "- Use '/projectcontext add <filepath>' to add files you feel are missing",
         PrintType.INFO,
     )
-    terminal_print(
+    app.ui.print_text(
         "- Use '/projectcontext remove <filepath>' to remove files that aren't mission-critical",
         PrintType.INFO,
     )
-    terminal_print("", PrintType.INFO)
-    terminal_print("Management:", PrintType.HEADER)
-    terminal_print(
+    app.ui.print_text("", PrintType.INFO)
+    app.ui.print_text("Management:", PrintType.HEADER)
+    app.ui.print_text(
         "- Toggle project context on/off with '/projectcontext on' or '/projectcontext off'",
         PrintType.INFO,
     )
-    terminal_print(
+    app.ui.print_text(
         "- Check status with '/projectcontext status' or list files with '/projectcontext list'",
         PrintType.INFO,
     )
 
 
-def _show_usage() -> None:
+def _show_usage(app: Any) -> None:
     """
     Show usage information for the projectcontext command.
     """
-    terminal_print("Project Context Command Usage:", PrintType.HEADER)
-    terminal_print(
+    app.ui.print_text("Project Context Command Usage:", PrintType.HEADER)
+    app.ui.print_text(
         "/projectcontext about - Display information about project context",
         PrintType.INFO,
     )
-    terminal_print(
+    app.ui.print_text(
         "/projectcontext on|off - Toggle using project context in requests",
         PrintType.INFO,
     )
-    terminal_print(
+    app.ui.print_text(
         "/projectcontext status - Show current status of project context",
         PrintType.INFO,
     )
-    terminal_print(
+    app.ui.print_text(
         "/projectcontext list - List all tracked files in project context", PrintType.INFO
     )
-    terminal_print(
+    app.ui.print_text(
         "/projectcontext view <filepath> - View context for a specific file",
         PrintType.INFO,
     )
-    terminal_print(
+    app.ui.print_text(
         "/projectcontext refresh <filepath> - Refresh context for a specific file",
         PrintType.INFO,
     )
-    terminal_print(
+    app.ui.print_text(
         "/projectcontext add <filepath> - Add and index a file to the project context",
         PrintType.INFO,
     )
-    terminal_print(
+    app.ui.print_text(
         "/projectcontext remove <filepath> - Remove a file from the project context",
         PrintType.INFO,
     )
-    terminal_print(
+    app.ui.print_text(
         "/projectcontext help - Show this usage information",
         PrintType.INFO,
     )
@@ -175,18 +175,18 @@ async def _show_status(app: Any) -> None:
     file_count = len(context_manager.index.get("files", {}))
     outdated_files = context_manager.get_outdated_files()
 
-    terminal_print("Project Context Status:", PrintType.HEADER)
-    terminal_print(f"Context enabled: {app.state.use_project_context}", PrintType.INFO)
-    terminal_print(f"Files tracked: {file_count}", PrintType.INFO)
-    terminal_print(f"Outdated files: {len(outdated_files)}", PrintType.INFO)
+    app.ui.print_text("Project Context Status:", PrintType.HEADER)
+    app.ui.print_text(f"Context enabled: {app.state.use_project_context}", PrintType.INFO)
+    app.ui.print_text(f"Files tracked: {file_count}", PrintType.INFO)
+    app.ui.print_text(f"Outdated files: {len(outdated_files)}", PrintType.INFO)
 
     if outdated_files:
-        terminal_print("\nOutdated files that need refreshing:", PrintType.WARNING)
+        app.ui.print_text("\nOutdated files that need refreshing:", PrintType.WARNING)
         for file in outdated_files[:10]:  # Show at most 10 files
-            terminal_print(f"- {file}", PrintType.INFO)
+            app.ui.print_text(f"- {file}", PrintType.INFO)
 
         if len(outdated_files) > 10:
-            terminal_print(f"... and {len(outdated_files) - 10} more", PrintType.INFO)
+            app.ui.print_text(f"... and {len(outdated_files) - 10} more", PrintType.INFO)
 
 
 async def _list_context_files(app: Any) -> None:
@@ -200,10 +200,10 @@ async def _list_context_files(app: Any) -> None:
     files = list(context_manager.index.get("files", {}).keys())
 
     if not files:
-        terminal_print("No files in project context", PrintType.WARNING)
+        app.ui.print_text("No files in project context", PrintType.WARNING)
         return
 
-    terminal_print(f"Tracked Files ({len(files)}):", PrintType.HEADER)
+    app.ui.print_text(f"Tracked Files ({len(files)}):", PrintType.HEADER)
 
     # Group files by directory for better organization
     dir_to_files: Dict[str, List[str]] = {}
@@ -215,9 +215,9 @@ async def _list_context_files(app: Any) -> None:
 
     # Print files grouped by directory
     for directory, filenames in sorted(dir_to_files.items()):
-        terminal_print(f"\n{directory}/", PrintType.INFO)
+        app.ui.print_text(f"\n{directory}/", PrintType.INFO)
         for filename in sorted(filenames):
-            terminal_print(f"  - {filename}", PrintType.INFO)
+            app.ui.print_text(f"  - {filename}", PrintType.INFO)
 
 
 async def _view_file_context(app: Any, file_path: str) -> None:
@@ -232,11 +232,11 @@ async def _view_file_context(app: Any, file_path: str) -> None:
     context = context_manager._read_context_file(file_path)
 
     if not context:
-        terminal_print(f"No context found for {file_path}", PrintType.WARNING)
+        app.ui.print_text(f"No context found for {file_path}", PrintType.WARNING)
         return
 
-    terminal_print(f"Context for {file_path}:", PrintType.HEADER)
-    terminal_print(context, PrintType.INFO)
+    app.ui.print_text(f"Context for {file_path}:", PrintType.HEADER)
+    app.ui.print_text(context, PrintType.INFO)
 
 
 async def _refresh_file_context(app: Any, file_path: str) -> None:
@@ -248,20 +248,20 @@ async def _refresh_file_context(app: Any, file_path: str) -> None:
         file_path: Path to the file to refresh context for
     """
     if not os.path.exists(file_path):
-        terminal_print(f"File not found: {file_path}", PrintType.ERROR)
+        app.ui.print_text(f"File not found: {file_path}", PrintType.ERROR)
         return
 
-    terminal_print(f"Refreshing context for {file_path}...", PrintType.PROCESSING)
+    app.ui.print_text(f"Refreshing context for {file_path}...", PrintType.PROCESSING)
 
     # Use the context manager to regenerate the context
     analysis = await app.state.context_manager.generate_context(file_path, app)
 
     if analysis:
-        terminal_print(
+        app.ui.print_text(
             f"Successfully refreshed context for {file_path}", PrintType.SUCCESS
         )
     else:
-        terminal_print(f"Failed to refresh context for {file_path}", PrintType.ERROR)
+        app.ui.print_text(f"Failed to refresh context for {file_path}", PrintType.ERROR)
 
 
 async def _add_file_to_context(app: Any, file_path: str) -> None:
@@ -273,19 +273,19 @@ async def _add_file_to_context(app: Any, file_path: str) -> None:
         file_path: Path to the file to add to the context
     """
     if not os.path.exists(file_path):
-        terminal_print(f"File not found: {file_path}", PrintType.ERROR)
+        app.ui.print_text(f"File not found: {file_path}", PrintType.ERROR)
         return
 
     context_manager = app.state.context_manager
 
     # Check if file is already in the index
     if file_path in context_manager.index.get("files", {}):
-        terminal_print(f"File already tracked: {file_path}", PrintType.WARNING)
-        terminal_print("Refreshing context instead...", PrintType.INFO)
+        app.ui.print_text(f"File already tracked: {file_path}", PrintType.WARNING)
+        app.ui.print_text("Refreshing context instead...", PrintType.INFO)
         await _refresh_file_context(app, file_path)
         return
 
-    terminal_print(
+    app.ui.print_text(
         f"Adding {file_path} to project context and generating analysis...",
         PrintType.PROCESSING,
     )
@@ -294,9 +294,9 @@ async def _add_file_to_context(app: Any, file_path: str) -> None:
     analysis = await context_manager.generate_context(file_path, app)
 
     if analysis:
-        terminal_print(f"Successfully added {file_path} to project context", PrintType.SUCCESS)
+        app.ui.print_text(f"Successfully added {file_path} to project context", PrintType.SUCCESS)
     else:
-        terminal_print(f"Failed to add {file_path} to project context", PrintType.ERROR)
+        app.ui.print_text(f"Failed to add {file_path} to project context", PrintType.ERROR)
 
 
 async def _remove_file_from_context(app: Any, file_path: str) -> None:
@@ -311,7 +311,7 @@ async def _remove_file_from_context(app: Any, file_path: str) -> None:
 
     # Check if file is in the index
     if file_path not in context_manager.index.get("files", {}):
-        terminal_print(f"File not found in project context: {file_path}", PrintType.ERROR)
+        app.ui.print_text(f"File not found in project context: {file_path}", PrintType.ERROR)
         return
 
     try:
@@ -330,10 +330,10 @@ async def _remove_file_from_context(app: Any, file_path: str) -> None:
         if os.path.exists(context_file_path):
             os.remove(context_file_path)
 
-        terminal_print(
+        app.ui.print_text(
             f"Successfully removed {file_path} from project context", PrintType.SUCCESS
         )
     except Exception as e:
-        terminal_print(
+        app.ui.print_text(
             f"Error removing {file_path} from project context: {str(e)}", PrintType.ERROR
         )

@@ -7,7 +7,7 @@ import glob
 import os
 from typing import Any, List
 
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 
 
 async def handle_addcontext(app: Any, args: List[str]) -> None:
@@ -19,8 +19,8 @@ async def handle_addcontext(app: Any, args: List[str]) -> None:
         args: Command arguments (file path or glob pattern)
     """
     if len(args) < 2:
-        terminal_print("Error: File path required. Usage: /addcontext <file_path or pattern>", PrintType.ERROR)
-        terminal_print("Examples: /addcontext src/file.py, /addcontext src/*.py", PrintType.INFO)
+        app.ui.print_text("Error: File path required. Usage: /addcontext <file_path or pattern>", PrintType.ERROR)
+        app.ui.print_text("Examples: /addcontext src/file.py, /addcontext src/*.py", PrintType.INFO)
         return
 
     file_pattern = args[1]
@@ -37,14 +37,14 @@ async def handle_addcontext(app: Any, args: List[str]) -> None:
 
     # Check if we found any files
     if not matching_files:
-        terminal_print(f"Error: No files found matching pattern: {file_pattern}", PrintType.ERROR)
+        app.ui.print_text(f"Error: No files found matching pattern: {file_pattern}", PrintType.ERROR)
         return
 
     # Filter to regular files only (not directories)
     matching_files = [f for f in matching_files if os.path.isfile(f)]
 
     if not matching_files:
-        terminal_print(f"Error: No files (non-directories) found matching pattern: {file_pattern}", PrintType.ERROR)
+        app.ui.print_text(f"Error: No files (non-directories) found matching pattern: {file_pattern}", PrintType.ERROR)
         return
 
     # Process each matching file
@@ -66,7 +66,7 @@ async def handle_addcontext(app: Any, args: List[str]) -> None:
             except Exception as e:
                 error_msg = f"Skipping {rel_path}: Cannot read file: {str(e)}"
                 app.logger.error(error_msg)
-                terminal_print(error_msg, PrintType.ERROR)
+                app.ui.print_text(error_msg, PrintType.ERROR)
                 files_skipped += 1
                 continue
 
@@ -74,17 +74,17 @@ async def handle_addcontext(app: Any, args: List[str]) -> None:
             msg_thread = app.get_current_thread()
             msg_thread.add_new_context(rel_path)
 
-            terminal_print(f"Added: {rel_path}", PrintType.SUCCESS)
+            app.ui.print_text(f"Added: {rel_path}", PrintType.SUCCESS)
             files_added += 1
 
         except Exception as e:
-            terminal_print(f"Error adding file {full_path}: {str(e)}", PrintType.ERROR)
+            app.ui.print_text(f"Error adding file {full_path}: {str(e)}", PrintType.ERROR)
             files_skipped += 1
 
     if files_added > 0:
-        terminal_print(f"Added {files_added} file(s) to context", PrintType.SUCCESS)
+        app.ui.print_text(f"Added {files_added} file(s) to context", PrintType.SUCCESS)
         if files_skipped > 0:
-            terminal_print(f"Skipped {files_skipped} file(s)", PrintType.WARNING)
-        terminal_print(f"Total files in context: {len(app.get_current_thread().context)}", PrintType.INFO)
+            app.ui.print_text(f"Skipped {files_skipped} file(s)", PrintType.WARNING)
+        app.ui.print_text(f"Total files in context: {len(app.get_current_thread().context)}", PrintType.INFO)
     else:
-        terminal_print("No files were added to context", PrintType.ERROR)
+        app.ui.print_text("No files were added to context", PrintType.ERROR)

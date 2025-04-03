@@ -5,7 +5,7 @@ import re
 from difflib import SequenceMatcher
 
 from jrdev.languages.utils import detect_language, is_headers_language
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 
 # Base directory for jrdev files
 JRDEV_DIR = "jrdev/"
@@ -28,7 +28,7 @@ def requested_files(text):
         try:
             file_list = eval(file_list_str)
         except Exception as e:
-            terminal_print(f"Error parsing file list: {str(e)}", PrintType.ERROR)
+            logger.error(f"Error parsing file list: {str(e)}")
             file_list = []
 
     if file_list == []:
@@ -156,13 +156,13 @@ def get_file_contents(file_list, file_alias=None):
             else:
                 similar_file = find_similar_file(file_path)
                 if similar_file:
-                    terminal_print(f"\nFound similar file: {similar_file} instead of {file_path}", PrintType.WARNING)
+                    logger.warning(f"\nFound similar file: {similar_file} instead of {file_path}")
                     with open(similar_file, "r") as f:
                         file_contents[file_path] = f.read()
                 else:
-                    terminal_print(f"Error reading file {file_path}: File not found", PrintType.ERROR)
+                    logger.error(f"Error reading file {file_path}: File not found")
         except Exception as e:
-            terminal_print(f"Error reading file {file_path}: {str(e)}", PrintType.ERROR)
+            logger.error(f"Error reading file {file_path}: {str(e)}")
 
     formatted_content = ""
     for path, content in file_contents.items():
@@ -212,7 +212,7 @@ def write_string_to_file(filename: str, content: str):
     """
     content = content.replace("\\n", "\n").replace("\\\"", "\"")
     with open(filename, 'w', encoding='utf-8') as file:
-        terminal_print(f"Writing {filename}", PrintType.WARNING)
+        logger.info(f"Writing {filename}")
         file.write(content)
 
 
@@ -259,18 +259,17 @@ def add_to_gitignore(gitignore_path: str, ignore_str: str, create_if_dne: bool =
                     f.write("\n")
                 f.write(f"{ignore_pattern}\n")
 
-            terminal_print(f"Added '{ignore_pattern}' to {gitignore_path}", PrintType.SUCCESS)
+            logger.info(f"Added '{ignore_pattern}' to {gitignore_path}")
         elif create_if_dne:
             # File doesn't exist, create it with the pattern
             with open(gitignore_path, 'w') as f:
                 f.write(f"{ignore_pattern}\n")
 
-            terminal_print(f"Created {gitignore_path} with pattern '{ignore_pattern}'", PrintType.SUCCESS)
+            logger.info(f"Created {gitignore_path} with pattern '{ignore_pattern}'")
 
         return True
 
     except Exception as e:
-        terminal_print(f"Error adding to gitignore: {str(e)}", PrintType.ERROR)
         logger.error(f"Error adding to gitignore: {str(e)}")
         return False
 

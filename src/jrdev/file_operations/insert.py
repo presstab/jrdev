@@ -3,7 +3,7 @@ import re
 
 from jrdev.file_operations.find_function import find_function
 from jrdev.languages.utils import detect_language
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -45,8 +45,7 @@ def process_insert_after_changes(lines, change, filepath):
     # Handle the case for after_line (corrected to use after_marker instead)
     elif "after_line" in location:
         # Copy the change and create a new insert_location with after_marker
-        terminal_print(f"Warning: SKIPPED CHANGED: 'after_line' is deprecated, use 'after_marker' instead",
-                       PrintType.WARNING)
+        logger.warning(f"process_insert_after_changes: SKIPPED CHANGED: 'after_line' is deprecated, use 'after_marker' instead")
     else:
         raise Exception(f"Invalid insert_location, missing a valid location type: {change}")
 
@@ -125,7 +124,6 @@ def insert_after_function(change, lines, filepath):
                 lines.insert(func_end_idx + 1, "\n")
 
         message = f"Inserting {newline_count} blank line(s) after function '{function_name}' in {filepath}"
-        terminal_print(message, PrintType.INFO)
         logger.info(message)
         return
 
@@ -181,7 +179,6 @@ def insert_after_function(change, lines, filepath):
     lines[func_end_idx + 1:func_end_idx + 1] = new_content_lines
 
     message = f"Inserting content after function '{function_name}' in {filepath} with indent |{indent}|"
-    terminal_print(message, PrintType.INFO)
     logger.info(message)
 
 def insert_after_line(change, lines, filepath):
@@ -215,7 +212,6 @@ def insert_after_line(change, lines, filepath):
             lines = lines[:i + 1] + new_lines + lines[i + 1:]
 
             message = f"Inserting content after line containing '{insert_after_text}' in {filepath}"
-            terminal_print(message, PrintType.INFO)
             logger.info(message)
 
             found = True
@@ -223,7 +219,6 @@ def insert_after_line(change, lines, filepath):
 
     if not found:
         message = f"Warning: Could not find line '{insert_after_text}' in {filepath}"
-        terminal_print(message, PrintType.WARNING)
         logger.warning(message)
 
 
@@ -410,7 +405,6 @@ def insert_within_function(change, lines, filepath):
     lines[insert_idx:insert_idx] = new_content_lines
 
     message = f"Inserting content within function '{function_name}' at {position_marker} in {filepath}"
-    terminal_print(message, PrintType.INFO)
     logger.info(message)
 
 
@@ -472,7 +466,6 @@ def insert_after_marker(change, lines, filepath):
             lines[i + 1:i + 1] = new_content_lines
 
             message = f"Inserting content after marker '{marker}' in {filepath}"
-            terminal_print(message, PrintType.INFO)
             logger.info(message)
 
             found = True
@@ -480,7 +473,6 @@ def insert_after_marker(change, lines, filepath):
 
     if not found:
         message = f"Warning: Could not find marker '{marker}' in {filepath}"
-        terminal_print(message, PrintType.WARNING)
         logger.warning(message)
 
 
@@ -552,7 +544,6 @@ def insert_global(change, lines, filepath):
         lines[insert_idx:insert_idx] = new_content_lines
 
         message = f"Inserting content at global scope (start) in {filepath}"
-        terminal_print(message, PrintType.INFO)
         logger.info(message)
 
     else:  # "end" or any other value
@@ -574,7 +565,6 @@ def insert_global(change, lines, filepath):
             lines.append('\n')
 
         message = f"Inserting content at global scope (end) in {filepath}"
-        terminal_print(message, PrintType.INFO)
         logger.info(message)
 
 

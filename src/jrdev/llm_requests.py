@@ -2,7 +2,7 @@ import re
 import time
 
 from jrdev.model_utils import is_think_model
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 from jrdev.usage import get_instance
 
 
@@ -92,7 +92,7 @@ async def stream_openai_format(app, model, messages, print_stream=True, json_out
             # Update status message when first chunk arrives
             stream_start_time = time.time()  # Start timing from first chunk
             if print_stream:
-                terminal_print(f"Receiving response from {model}...", PrintType.PROCESSING)
+                app.ui.print_text(f"Receiving response from {model}...", PrintType.PROCESSING)
             app.logger.info(f"Started receiving response from {model}")
             first_chunk = False
         
@@ -120,22 +120,17 @@ async def stream_openai_format(app, model, messages, print_stream=True, json_out
                     # Print only new content since last filtered output
                     if len(filtered_text) > 0:
                         if print_stream:
-                            terminal_print(
-                                filtered_text[-len(chunk_text):],
-                                PrintType.LLM,
-                                end="",
-                                flush=True
-                            )
+                            app.ui.print_stream(filtered_text[-len(chunk_text):])
                 else:
                     # For chunks without </think>, we check if we're currently inside a tag
                     in_think_tag = is_inside_think_tag(response_text)
                     if not in_think_tag and chunk_text:
                         if print_stream:
-                            terminal_print(chunk_text, PrintType.LLM, end="", flush=True)
+                            app.ui.print_stream(chunk_text)
             else:
                 # For non-think models, print all chunks
                 if print_stream:
-                    terminal_print(chunk_text, PrintType.LLM, end="", flush=True)
+                    app.ui.print_stream(chunk_text)
 
     # Handle token usage statistics for final chunk
     if "completion_tokens" in str(chunk):
@@ -153,7 +148,7 @@ async def stream_openai_format(app, model, messages, print_stream=True, json_out
         chunks_per_second = round(chunk_count / stream_elapsed, 2) if stream_elapsed > 0 else 0
 
         if print_stream:
-            terminal_print(
+            app.ui.print_text(
                 f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens} | "
                 f"Response Time: {elapsed_seconds}s | Avg: {chunks_per_second} chunks/sec",
                 PrintType.WARNING
@@ -245,7 +240,7 @@ async def stream_messages_format(app, model, messages, print_stream=True):
         
         # Start the streaming session with the context manager
         if print_stream:
-            terminal_print(f"Receiving response from {model}...", PrintType.PROCESSING)
+            app.ui.print_text(f"Receiving response from {model}...", PrintType.PROCESSING)
         app.logger.info(f"Started receiving response from {model}")
         stream_start_time = time.time()
         
@@ -257,7 +252,7 @@ async def stream_messages_format(app, model, messages, print_stream=True):
                         chunk_text = chunk.delta.text
                         response_text += chunk_text
                         if print_stream:
-                            terminal_print(chunk_text, PrintType.LLM, end="", flush=True)
+                            app.ui.print_stream(chunk_text)
                 
                 # Count each chunk for logging
                 chunk_count += 1
@@ -283,7 +278,7 @@ async def stream_messages_format(app, model, messages, print_stream=True):
                 chunks_per_second = round(chunk_count / stream_elapsed, 2) if stream_elapsed > 0 else 0
                 
                 if print_stream:
-                    terminal_print(
+                    app.ui.print_text(
                         f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens} | "
                         f"Response Time: {elapsed_seconds}s | Avg: {chunks_per_second} chunks/sec",
                         PrintType.WARNING

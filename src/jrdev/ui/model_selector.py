@@ -14,7 +14,7 @@ except ImportError:
     CURSES_AVAILABLE = False
 
 from jrdev.model_utils import VCU_Value
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 
 
 async def text_based_model_selector(app: Any, models: List[Dict[str, Any]]) -> None:
@@ -29,9 +29,9 @@ async def text_based_model_selector(app: Any, models: List[Dict[str, Any]]) -> N
     vcu_usd = VCU_Value()
 
     # Print header
-    terminal_print("\nAvailable Models:", print_type=PrintType.HEADER)
-    print(f"{'#':<3} | {'Model':<20} | {'Provider':<10} | {'Type':<10} | {'Input Cost':<12} | {'Output Cost':<12} | {'Context':<10}")
-    print("-" * 90)
+    app.ui.print_text("\nAvailable Models:", print_type=PrintType.HEADER)
+    app.ui.print_text(f"{'#':<3} | {'Model':<20} | {'Provider':<10} | {'Type':<10} | {'Input Cost':<12} | {'Output Cost':<12} | {'Context':<10}")
+    app.ui.print_text("-" * 90)
 
     # Print models with index numbers
     for i, model in enumerate(models):
@@ -59,27 +59,11 @@ async def text_based_model_selector(app: Any, models: List[Dict[str, Any]]) -> N
         if model_name == app.state.model:
             indicator = "* "
 
-        print(f"{i+1:<3} | {indicator}{display_name:<20} | {provider:<10} | {think_status:<10} | {input_cost_str:<12} | {output_cost_str:<12} | {context_str:<10}")
+        app.ui.print_text(f"{i+1:<3} | {indicator}{display_name:<20} | {provider:<10} | {think_status:<10} | {input_cost_str:<12} | {output_cost_str:<12} | {context_str:<10}")
 
     # Prompt for selection
-    print("\nCurrent model: " + app.state.model)
-    print("\nEnter the number of the model to select, or press Enter to cancel:")
-
-    try:
-        choice = input("> ")
-        if choice.strip():
-            choice_num = int(choice.strip())
-            if 1 <= choice_num <= len(models):
-                selected_model = models[choice_num-1]["name"]
-                app.state.model = selected_model
-                terminal_print(f"Model changed to: {app.state.model}", print_type=PrintType.SUCCESS)
-            else:
-                terminal_print(f"Invalid selection: {choice_num}. Please enter a number between 1 and {len(models)}",
-                              print_type=PrintType.ERROR)
-        else:
-            terminal_print("Model selection cancelled", print_type=PrintType.INFO)
-    except ValueError:
-        terminal_print("Invalid input. Please enter a number.", print_type=PrintType.ERROR)
+    app.ui.print_text("\nCurrent model: " + app.state.model)
+    app.ui.print_text("\nSelect a new model using /model <model_name>")
 
 
 def interactive_model_selector(stdscr, app, models):

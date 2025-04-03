@@ -19,7 +19,7 @@ import re
 from typing import Any, List
 
 from jrdev.commands.help import format_command_with_args
-from jrdev.ui.ui import COLORS, terminal_print, PrintType, show_conversation
+from jrdev.ui.ui import COLORS, PrintType, show_conversation
 
 
 async def handle_thread(app: Any, args: List[str]) -> None:
@@ -131,7 +131,7 @@ async def handle_thread(app: Any, args: List[str]) -> None:
             await _handle_list_threads(app)
         elif parsed_args.subcommand == "switch":
             if parsed_args.thread_id is None:
-                terminal_print(f"{COLORS['RED']}Error: must specify a thread_id", PrintType.ERROR)
+                app.ui.print_text(f"{COLORS['RED']}Error: must specify a thread_id", PrintType.ERROR)
                 switch_parser.print_help()  # Show specific help for switch command
                 return
             await _handle_switch_thread(app, parsed_args)
@@ -140,8 +140,8 @@ async def handle_thread(app: Any, args: List[str]) -> None:
         elif parsed_args.subcommand == "view":
             await _handle_view_conversation(app, parsed_args)
         else:
-            terminal_print(f"{COLORS['RED']}Error: Missing subcommand{COLORS['RESET']}", PrintType.ERROR)
-            terminal_print(f"{COLORS['BRIGHT_WHITE']}Available Thread Subcommands:{COLORS['RESET']}", PrintType.HEADER)
+            app.ui.print_text(f"{COLORS['RED']}Error: Missing subcommand{COLORS['RESET']}", PrintType.ERROR)
+            app.ui.print_text(f"{COLORS['BRIGHT_WHITE']}Available Thread Subcommands:{COLORS['RESET']}", PrintType.HEADER)
 
             # Display formatted subcommand help
             subcommands = [
@@ -153,17 +153,17 @@ async def handle_thread(app: Any, args: List[str]) -> None:
             ]
 
             for cmd, args, desc, example in subcommands:
-                terminal_print(
+                app.ui.print_text(
                     f"  {format_command_with_args(f'/thread {cmd}', args)}",
                     PrintType.COMMAND,
                     end=""
                 )
-                terminal_print(f" - {desc}")
-                terminal_print(f"    {COLORS['BRIGHT_BLACK']}Example: {example}{COLORS['RESET']}\n")
+                app.ui.print_text(f" - {desc}")
+                app.ui.print_text(f"    {COLORS['BRIGHT_BLACK']}Example: {example}{COLORS['RESET']}\n")
 
     except Exception as e:
-        terminal_print(f"{COLORS['RED']}Error: {str(e)}{COLORS['RESET']}", PrintType.ERROR)
-        terminal_print(f"{COLORS['BRIGHT_WHITE']}Thread Command Usage:{COLORS['RESET']}", PrintType.HEADER)
+        app.ui.print_text(f"{COLORS['RED']}Error: {str(e)}{COLORS['RESET']}", PrintType.ERROR)
+        app.ui.print_text(f"{COLORS['BRIGHT_WHITE']}Thread Command Usage:{COLORS['RESET']}", PrintType.HEADER)
 
         # Subcommand help sections
         sections = [
@@ -184,9 +184,9 @@ async def handle_thread(app: Any, args: List[str]) -> None:
         ]
 
         for header, cmd, desc in sections:
-            terminal_print(f"{COLORS['BRIGHT_WHITE']}{header}:{COLORS['RESET']}", PrintType.HEADER)
-            terminal_print(f"  {cmd}", PrintType.COMMAND)
-            terminal_print(f"  {COLORS['BRIGHT_BLACK']}{desc}{COLORS['RESET']}\n")
+            app.ui.print_text(f"{COLORS['BRIGHT_WHITE']}{header}:{COLORS['RESET']}", PrintType.HEADER)
+            app.ui.print_text(f"  {cmd}", PrintType.COMMAND)
+            app.ui.print_text(f"  {COLORS['BRIGHT_BLACK']}{desc}{COLORS['RESET']}\n")
 
 async def _handle_new_thread(app: Any, args: argparse.Namespace) -> None:
     """Create a new message thread
@@ -208,7 +208,7 @@ async def _handle_new_thread(app: Any, args: argparse.Namespace) -> None:
     # Switch to the new thread
     app.switch_thread(thread_id)
     
-    terminal_print(f"Created and switched to new thread: {thread_id}", PrintType.SUCCESS)
+    app.ui.print_text(f"Created and switched to new thread: {thread_id}", PrintType.SUCCESS)
 
 
 async def _handle_list_threads(app: Any) -> None:
@@ -220,7 +220,7 @@ async def _handle_list_threads(app: Any) -> None:
     threads = app.state.threads
     active_thread = app.state.active_thread
     
-    terminal_print("Message Threads:", PrintType.HEADER)
+    app.ui.print_text("Message Threads:", PrintType.HEADER)
     
     for thread_id, thread in threads.items():
         message_count = len(thread.messages)
@@ -228,7 +228,7 @@ async def _handle_list_threads(app: Any) -> None:
         active_marker = "* " if thread_id == active_thread else "  "
         
         # Format the thread info
-        terminal_print(
+        app.ui.print_text(
             f"{active_marker}{thread_id} - {message_count} messages, {context_count} context files", 
             PrintType.INFO if thread_id == active_thread else PrintType.INFO
         )
@@ -239,18 +239,18 @@ async def _handle_switch_thread(app: Any, args: argparse.Namespace) -> None:
     """Switch to a different message thread with visual feedback"""
     thread_id = getattr(args, 'thread_id', None)
     if not thread_id:
-        terminal_print(f"{COLORS['RED']}Error: Must specify thread ID{COLORS['RESET']}", PrintType.ERROR)
+        app.ui.print_text(f"{COLORS['RED']}Error: Must specify thread ID{COLORS['RESET']}", PrintType.ERROR)
         return
 
-    terminal_print(f"{COLORS['BRIGHT_WHITE']}Switching Context...{COLORS['RESET']}", PrintType.HEADER)
+    app.ui.print_text(f"{COLORS['BRIGHT_WHITE']}Switching Context...{COLORS['RESET']}", PrintType.HEADER)
 
     # Validate thread existence
     if thread_id not in app.state.threads:
-        terminal_print(
+        app.ui.print_text(
             f"{COLORS['RED']}Thread {COLORS['BRIGHT_WHITE']}{thread_id}{COLORS['RED']} not found{COLORS['RESET']}",
             PrintType.ERROR
         )
-        terminal_print(
+        app.ui.print_text(
             f"Use {COLORS['BRIGHT_WHITE']}/thread list{COLORS['RESET']} to see available threads",
             PrintType.INFO
         )
@@ -262,11 +262,11 @@ async def _handle_switch_thread(app: Any, args: argparse.Namespace) -> None:
         new_thread = app.state.get_current_thread()
 
         # Success message with thread stats
-        terminal_print(
+        app.ui.print_text(
             f"{COLORS['GREEN']}✓ Switched to thread {COLORS['BRIGHT_WHITE']}{thread_id}{COLORS['RESET']}",
             PrintType.SUCCESS
         )
-        terminal_print(
+        app.ui.print_text(
             f"{COLORS['BRIGHT_CYAN']}Thread Stats:{COLORS['RESET']}\n"
             f"  Messages: {len(new_thread.messages)} | "
             f"Context Files: {len(new_thread.context)}\n"
@@ -274,7 +274,7 @@ async def _handle_switch_thread(app: Any, args: argparse.Namespace) -> None:
             PrintType.INFO
         )
     else:
-        terminal_print(
+        app.ui.print_text(
             f"{COLORS['RED']}Failed to switch to thread {COLORS['BRIGHT_WHITE']}{thread_id}{COLORS['RESET']}",
             PrintType.ERROR
         )
@@ -301,19 +301,19 @@ async def _handle_thread_info(app: Any) -> None:
     system_messages = sum(1 for msg in thread.messages if msg.get("role") == "system")
     
     # Show thread information
-    terminal_print(f"Thread ID: {thread_id}", PrintType.HEADER)
-    terminal_print(f"Total messages: {message_count}", PrintType.INFO)
-    terminal_print(f"  User messages: {user_messages}", PrintType.INFO)
-    terminal_print(f"  Assistant messages: {assistant_messages}", PrintType.INFO)
-    terminal_print(f"  System messages: {system_messages}", PrintType.INFO)
-    terminal_print(f"Context files: {context_count}", PrintType.INFO)
-    terminal_print(f"Files referenced: {files_count}", PrintType.INFO)
+    app.ui.print_text(f"Thread ID: {thread_id}", PrintType.HEADER)
+    app.ui.print_text(f"Total messages: {message_count}", PrintType.INFO)
+    app.ui.print_text(f"  User messages: {user_messages}", PrintType.INFO)
+    app.ui.print_text(f"  Assistant messages: {assistant_messages}", PrintType.INFO)
+    app.ui.print_text(f"  System messages: {system_messages}", PrintType.INFO)
+    app.ui.print_text(f"Context files: {context_count}", PrintType.INFO)
+    app.ui.print_text(f"Files referenced: {files_count}", PrintType.INFO)
     
     # Show context files if any
     if context_count > 0:
-        terminal_print("Context files:", PrintType.INFO)
+        app.ui.print_text("Context files:", PrintType.INFO)
         for ctx_file in thread.context:
-            terminal_print(f"  {ctx_file}", PrintType.INFO)
+            app.ui.print_text(f"  {ctx_file}", PrintType.INFO)
             
     # Show conversation preview
     if message_count > 0:

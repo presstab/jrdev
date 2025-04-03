@@ -16,7 +16,7 @@ from jrdev.file_utils import JRDEV_DIR
 from jrdev.llm_requests import stream_request
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.string_utils import contains_chinese
-from jrdev.ui.ui import PrintType, terminal_print
+from jrdev.ui.ui import PrintType
 
 # Create an asyncio lock for safe file access
 context_file_lock = asyncio.Lock()
@@ -51,9 +51,6 @@ class ContextManager:
             logger.info(f"Ensured contexts directory exists at {self.contexts_dir}")
         except Exception as e:
             logger.error(f"Error creating contexts directory: {str(e)}")
-            terminal_print(
-                f"Error creating contexts directory: {str(e)}", PrintType.ERROR
-            )
 
         # Load index if it exists
         if os.path.exists(self.index_path):
@@ -65,9 +62,6 @@ class ContextManager:
                     )
             except Exception as e:
                 logger.error(f"Error loading context index: {str(e)}")
-                terminal_print(
-                    f"Error loading context index: {str(e)}", PrintType.ERROR
-                )
                 self.index = {"files": {}}
         else:
             # Initialize empty index
@@ -85,7 +79,6 @@ class ContextManager:
             )
         except Exception as e:
             logger.error(f"Error saving context index: {str(e)}")
-            terminal_print(f"Error saving context index: {str(e)}", PrintType.ERROR)
 
     def _path_to_filename(self, file_path: str) -> str:
         return file_path.replace("/", "-@-")
@@ -258,7 +251,7 @@ class ContextManager:
             for file in files:
                 # check existence
                 if not os.path.exists(file):
-                    terminal_print(f"\nFile not found: {file}", PrintType.ERROR)
+                    logger.error(f"\nFile not found: {file}")
                     return None
 
                 with open(file, "r") as f:
@@ -269,7 +262,6 @@ class ContextManager:
                     size_mb = len(file_content) / (1024 * 1024)
                     error_msg = f"File {file} is too large ({size_mb:.2f} MB) for context generation (max: 2MB)"
                     logger.error(error_msg)
-                    terminal_print(error_msg, PrintType.ERROR)
                     return None
 
                 full_content += f"{file_content}"
@@ -287,9 +279,7 @@ class ContextManager:
                     {"role": "assistant", "content": str(additional_context)}
                 )
 
-            terminal_print(
-                f"Waiting for LLM analysis of {file_path}...", PrintType.PROCESSING
-            )
+            logger.info(f"Waiting for LLM analysis of {file_path}...", PrintType.PROCESSING)
 
             # Send the request to the LLM
             file_analysis_result: Any = await stream_request(
@@ -297,13 +287,12 @@ class ContextManager:
             )
             file_analysis = str(file_analysis_result)
             if contains_chinese(file_analysis):
-                terminal_print(f"Malformed file analysis for {file_path}: detected Chinese characters", PrintType.ERROR)
                 logger.error(f"Malformed file analysis for {file_path}: detected Chinese characters:\n{file_analysis}")
                 return None
 
             # Print the analysis
-            terminal_print(f"\nFile Analysis for {file_path}:", PrintType.HEADER)
-            terminal_print(file_analysis, PrintType.INFO)
+            logger.info(f"\nFile Analysis for {file_path}:")
+            logger.info(file_analysis, PrintType.INFO)
 
             # Get context file path and create parent directories if needed
             # For multiple files, always use the first file as the primary file for context storage
@@ -330,24 +319,15 @@ class ContextManager:
                         context_file.write(f"{file_analysis}\n\n")
                 logger.info(f"Successfully wrote context to: {context_file_path}")
             except Exception as e:
-                logger.error(
-                    f"Error writing context file {context_file_path}: {str(e)}"
-                )
-                terminal_print(f"Error writing context file: {str(e)}", PrintType.ERROR)
+                logger.error(f"Error writing context file {context_file_path}: {str(e)}")
 
             # Update the index with the new file information - always track the primary file
             self.track_file(primary_file)
 
-            terminal_print(
-                f"\nFile analysis complete. Results saved to {context_file_path}",
-                PrintType.SUCCESS,
-            )
+            logger.info(f"\nFile analysis complete. Results saved to {context_file_path}")
             return str(file_analysis)
 
         except Exception as e:
-            terminal_print(
-                f"Error analyzing file {file_path}: {str(e)}", PrintType.ERROR
-            )
             logger.error(f"Error analyzing file {file_path}: {str(e)}")
             return None
 

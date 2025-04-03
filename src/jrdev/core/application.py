@@ -1,19 +1,15 @@
 import asyncio
 import json
 import os
-import re
 import sys
-from typing import Any, Dict, List, Set
-
+from typing import Any, Dict, List
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
-import anthropic
 
 from jrdev.colors import Colors
 from jrdev.core.clients import APIClients
 from jrdev.core.commands import CommandHandler
 from jrdev.core.state import AppState
-from jrdev.file_utils import add_to_gitignore, JRDEV_DIR, get_env_path, get_file_contents
+from jrdev.file_utils import add_to_gitignore, JRDEV_DIR, get_env_path
 from jrdev.commands.keys import check_existing_keys, run_first_time_setup
 from jrdev.llm_requests import stream_request
 from jrdev.logger import setup_logger
@@ -22,8 +18,9 @@ from jrdev.model_list import ModelList
 from jrdev.model_profiles import ModelProfileManager
 from jrdev.model_utils import load_hardcoded_models
 from jrdev.models import fetch_venice_models
-from jrdev.prompts.prompt_utils import PromptManager
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
+from jrdev.ui.ui_wrapper import UiWrapper
+from jrdev.ui.cli_events import CliEvents
 from jrdev.projectcontext.contextmanager import ContextManager
 
 
@@ -35,6 +32,7 @@ class Application:
         self.state.clients = APIClients()
         self._initialize_commands()
         self._setup_infrastructure()
+        self.ui: UiWrapper = UiWrapper()
 
     def _initialize_commands(self) -> None:
         """Initialize command handlers"""
@@ -60,20 +58,24 @@ class Application:
 
         if not check_existing_keys():
             self.state.need_first_time_setup = True
-            terminal_print("API keys not found. Setup will begin shortly...", PrintType.INFO)
+            self.ui.print_text("API keys not found. Setup will begin shortly...", PrintType.INFO)
 
     async def run(self):
         """Main application entry point"""
-        await self._initialize_services()
+        self.ui = CliEvents()
+        await self.initialize_services()
         await self._start_services()
         await self._main_loop()
 
-    async def _initialize_services(self):
+    async def initialize_services(self):
         """Initialize API clients and services"""
+        self.logger.info("initialize services")
         if hasattr(self.state, 'need_first_time_setup') and self.state.need_first_time_setup:
+            self.logger.info("needs first time setup")
             await self._perform_first_time_setup()
 
         if not self.state.clients.is_initialized():
+            self.logger.info("api clients not initialized")
             await self._initialize_api_clients()
             
         self.logger.info("Application services initialized")
@@ -95,7 +97,7 @@ class Application:
         while self.state.running:
             try:
                 user_input = await self._get_user_input()
-                await self._process_input(user_input)
+                await self.process_input(user_input)
             except KeyboardInterrupt:
                 self._handle_keyboard_interrupt()
             except Exception as e:
@@ -118,12 +120,12 @@ class Application:
             return result
         except Exception as e:
             self.logger.error(f"Error handling command {cmd}: {e}")
-            terminal_print(f"Error: {e}", print_type=PrintType.ERROR)
+            self.ui.print_text(f"Error: {e}", print_type=PrintType.ERROR)
             import traceback
             self.logger.error(traceback.format_exc())
             # Show help message for unknown commands
             if cmd not in self.command_handler.get_commands():
-                terminal_print("Type /help for available commands", print_type=PrintType.INFO)
+                self.ui.print_text("Type /help for available commands", print_type=PrintType.INFO)
         
     def get_current_thread(self):
         """Get the currently active thread"""
@@ -156,7 +158,7 @@ class Application:
         if not isinstance(content, str):
             error_msg = f"Expected string but got {type(content)}"
             self.logger.error(error_msg)
-            terminal_print(f"Error: {error_msg}", PrintType.ERROR)
+            self.ui.print_text(f"Error: {error_msg}", PrintType.ERROR)
             return None
 
         user_additional_modifier = " Here is the user's question or instruction:"
@@ -189,7 +191,7 @@ class Application:
         msg_thread.messages = messages
 
         model_name = self.state.model
-        terminal_print(f"\n{model_name} is processing request in message thread: {msg_thread.thread_id}...", PrintType.PROCESSING)
+        self.ui.print_text(f"\n{model_name} is processing request in message thread: {msg_thread.thread_id}...", PrintType.PROCESSING)
 
         try:
             # Send the message to the LLM
@@ -225,17 +227,17 @@ class Application:
                     f.write(response_text)
 
                 self.logger.info(f"Response saved to file: {writepath}")
-                terminal_print(f"Response saved to {writepath}", print_type=PrintType.SUCCESS)
+                self.ui.print_text(f"Response saved to {writepath}", print_type=PrintType.SUCCESS)
                 return response_text
             except Exception as e:
                 error_msg = f"Error writing to file {writepath}: {str(e)}"
                 self.logger.error(error_msg)
-                terminal_print(error_msg, print_type=PrintType.ERROR)
+                self.ui.print_text(error_msg, print_type=PrintType.ERROR)
                 return response_text
         except Exception as e:
             error_msg = str(e)
             self.logger.error(f"Error in send_message: {error_msg}")
-            terminal_print(f"Error: {error_msg}", PrintType.ERROR)
+            self.ui.print_text(f"Error: {error_msg}", PrintType.ERROR)
             return None
     
     def profile_manager(self):
@@ -381,7 +383,7 @@ class Application:
         await asyncio.sleep(1.0)  # Check every second
         await self.task_monitor_callback()
 
-    async def _process_input(self, user_input):
+    async def process_input(self, user_input):
         """Process user input."""
         await asyncio.sleep(0.01)  # Brief yield to event loop
         
@@ -401,14 +403,14 @@ class Application:
     def _handle_keyboard_interrupt(self):
         """Handle keyboard interrupt."""
         self.logger.info("User initiated terminal exit (KeyboardInterrupt)")
-        terminal_print("\nExiting JrDev terminal...", PrintType.INFO)
+        self.ui.print_text("\nExiting JrDev terminal...", PrintType.INFO)
         self.state.running = False
     
     def _handle_error(self, error):
         """Handle general errors in main loop."""
         error_msg = str(error)
         self.logger.error(f"Error in main loop: {error_msg}")
-        terminal_print(f"Error: {error_msg}", PrintType.ERROR)
+        self.ui.print_text(f"Error: {error_msg}", PrintType.ERROR)
 
     # The following methods need implementation
     # based on READLINE_AVAILABLE functionality 
@@ -456,7 +458,7 @@ class Application:
                 except Exception:
                     readline.set_screen_size(100, 120)
         except Exception as e:
-            terminal_print(f"Error setting up readline: {str(e)}", PrintType.ERROR)
+            self.ui.print_text(f"Error setting up readline: {str(e)}", PrintType.ERROR)
     
     def completer(self, text, state):
         """
@@ -710,10 +712,10 @@ class Application:
         """Handle first-time setup process"""
         self.logger.info("Performing first-time setup")
         if self.state.need_first_time_setup:
-            setup_success = await run_first_time_setup()
+            setup_success = await run_first_time_setup(self)
             
             if not setup_success:
-                terminal_print("Failed to set up required API keys. Exiting...", PrintType.ERROR)
+                self.ui.print_text("Failed to set up required API keys. Exiting...", PrintType.ERROR)
                 sys.exit(1)
                 
             self._load_environment()
@@ -726,6 +728,7 @@ class Application:
     async def _initialize_api_clients(self):
         """Initialize all API clients"""
         # Create a dictionary of environment variables
+        self.logger.info("initializing api clients")
         env = {
             "VENICE_API_KEY": os.getenv("VENICE_API_KEY"),
             "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
@@ -740,8 +743,8 @@ class Application:
         except Exception as e:
             error_msg = f"Failed to initialize API clients: {str(e)}"
             self.logger.error(error_msg)
-            terminal_print(f"Error: {error_msg}", PrintType.ERROR)
-            terminal_print("Please restart the application and provide a valid Venice API key.", PrintType.INFO)
+            self.ui.print_text(f"Error: {error_msg}", PrintType.ERROR)
+            self.ui.print_text("Please restart the application and provide a valid Venice API key.", PrintType.INFO)
             sys.exit(1)
 
     # Client property accessors for backward compatibility
@@ -777,11 +780,11 @@ class Application:
     
     def _print_welcome_message(self):
         """Print startup messages"""
-        terminal_print(f"JrDev Terminal (Model: {self.state.model})", PrintType.HEADER)
-        terminal_print("Type a message to chat with the model", PrintType.INFO)
-        terminal_print("Type /help for available commands", PrintType.INFO)
-        terminal_print("Type /exit to quit", PrintType.INFO)
-        terminal_print("Use /thread to manage conversation threads", PrintType.INFO)
+        self.ui.print_text(f"JrDev Terminal (Model: {self.state.model})", PrintType.HEADER)
+        self.ui.print_text("Type a message to chat with the model", PrintType.INFO)
+        self.ui.print_text("Type /help for available commands", PrintType.INFO)
+        self.ui.print_text("Type /exit to quit", PrintType.INFO)
+        self.ui.print_text("Use /thread to manage conversation threads", PrintType.INFO)
 
     # Additional methods would be ported from JrDevTerminal with similar refactoring
 

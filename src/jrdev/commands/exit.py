@@ -5,7 +5,7 @@ Exit command implementation for the JrDev application.
 """
 
 from typing import Any, List
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 import sys
 
 
@@ -18,7 +18,7 @@ async def handle_exit(app: Any, args: List[str]):
         args: Command arguments (unused)
     """
     app.logger.info("User requested exit via /exit command")
-    terminal_print("Exiting JrDev terminal...", print_type=PrintType.INFO)
+    app.ui.print_text("Exiting JrDev terminal...", print_type=PrintType.INFO)
     
     # Set the running flag to False to signal the main loop to exit
     app.state.running = False

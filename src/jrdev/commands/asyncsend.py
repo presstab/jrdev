@@ -10,7 +10,7 @@ import os
 import asyncio
 import uuid
 from typing import Any, List
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 
 
 async def handle_asyncsend(app: Any, args: List[str]) -> None:
@@ -24,9 +24,9 @@ async def handle_asyncsend(app: Any, args: List[str]) -> None:
     """
 
     if len(args) < 2:
-        terminal_print("Usage: /asyncsend [filepath] <prompt>", print_type=PrintType.ERROR)
-        terminal_print("Example: /asyncsend How can I optimize this code?", print_type=PrintType.INFO)
-        terminal_print("Example with file: /asyncsend docs/design.md Tell me the design patterns in this codebase",
+        app.ui.print_text("Usage: /asyncsend [filepath] <prompt>", print_type=PrintType.ERROR)
+        app.ui.print_text("Example: /asyncsend How can I optimize this code?", print_type=PrintType.INFO)
+        app.ui.print_text("Example with file: /asyncsend docs/design.md Tell me the design patterns in this codebase",
                       print_type=PrintType.INFO)
         return
 
@@ -43,7 +43,7 @@ async def handle_asyncsend(app: Any, args: List[str]) -> None:
             filepath = os.path.join(os.getcwd(), filepath)
 
         app.logger.info(f"Starting async task #{job_id} to save response to {filepath}")
-        terminal_print(f"Task #{job_id} started: Saving response to {filepath}",
+        app.ui.print_text(f"Task #{job_id} started: Saving response to {filepath}",
                       print_type=PrintType.INFO)
 
         # Create a task to process the request in the background
