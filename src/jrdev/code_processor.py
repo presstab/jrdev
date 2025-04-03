@@ -33,7 +33,7 @@ class CodeProcessor:
             await self.process_code_response(initial_response, user_task)
         except Exception as e:
             self.app.logger.error(f"Error in CodeProcessor: {str(e)}")
-            self.app.print_text(f"Error processing code: {str(e)}", PrintType.ERROR)
+            self.app.ui.print_text(f"Error processing code: {str(e)}", PrintType.ERROR)
 
     async def send_initial_request(self, user_task: str) -> str:
         """
@@ -117,7 +117,7 @@ class CodeProcessor:
         file_content = get_file_contents(files_to_send)
         code_response = await self.request_code(step, file_content, retry_message)
         try:
-            result = self.check_and_apply_code_changes(code_response)
+            result = await self.check_and_apply_code_changes(code_response)
             if result.get("success"):
                 return result.get("files_changed", [])
             if "change_requested" in result:
@@ -175,7 +175,7 @@ class CodeProcessor:
         response = await stream_request(self.app, model, messages, print_stream=True, json_output=True)
         return response
 
-    def check_and_apply_code_changes(self, response_text: str) -> Dict:
+    async def check_and_apply_code_changes(self, response_text: str) -> Dict:
         """
         Extract and parse the JSON snippet for code changes from the LLM response,
         then apply the file changes.
@@ -186,7 +186,7 @@ class CodeProcessor:
         except Exception as e:
             raise Exception(f"Parsing failed in code changes: {str(e)}")
         if "changes" in changes:
-            return apply_file_changes(changes)
+            return await apply_file_changes(self.app, changes)
         return {"success": False}
 
     async def send_file_request(self, files_to_send: List[str], user_task: str, initial_response: str) -> str:

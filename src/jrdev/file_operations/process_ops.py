@@ -10,7 +10,7 @@ from jrdev.file_operations.delete import process_delete_operation
 from jrdev.file_operations.replace import process_replace_operation
 from jrdev.file_utils import find_similar_file
 from jrdev.ui.diff_editor import curses_editor
-from jrdev.ui.ui import PrintType, display_diff, prompt_for_confirmation
+from jrdev.ui.ui import PrintType, display_diff
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -81,7 +81,7 @@ def apply_diff_to_content(original_content, diff_lines):
     return '\n'.join(result_lines)
 
 
-def write_with_confirmation(app, filepath, content):
+async def write_with_confirmation(app, filepath, content):
     """
     Writes content to a temporary file, shows diff, and asks for user confirmation
     before writing to the actual file.
@@ -128,11 +128,13 @@ def write_with_confirmation(app, filepath, content):
         ))
 
         # Display diff using the UI function
+        logger.info("*** 131")
         display_diff(app, diff)
+        logger.info("*** 133")
 
         while True:
-            # Ask for confirmation using the UI function
-            response, message = prompt_for_confirmation("Apply these changes?")
+            # Ask for confirmation using the app's UI
+            response, message = await app.ui.prompt_for_confirmation("Apply these changes?", diff_lines=diff)
 
             if response == 'yes':
                 # Copy temp file to destination
@@ -383,7 +385,7 @@ def write_with_confirmation(app, filepath, content):
     return False, None
 
 
-def apply_file_changes(app, changes_json):
+async def apply_file_changes(app, changes_json):
     """
     Apply changes to files based on the provided JSON.
 
@@ -459,7 +461,7 @@ def apply_file_changes(app, changes_json):
             return {"success": False}
 
         # Write the updated lines to a temp file, show diff, and ask for confirmation
-        result, user_message = write_with_confirmation(app, filepath, new_lines)
+        result, user_message = await write_with_confirmation(app, filepath, new_lines)
         if result:
             files_changed.append(filepath)
             message = f"Updated {filepath}"
@@ -492,7 +494,7 @@ def apply_file_changes(app, changes_json):
             logger.info(message)
 
         # Write the new file with confirmation
-        result, user_message = write_with_confirmation(app, filepath, new_content)
+        result, user_message = await write_with_confirmation(app, filepath, new_content)
         if result:
             files_changed.append(filepath)
             message = f"Created new file: {filepath}"

@@ -125,8 +125,10 @@ def display_diff(app: Any, diff_lines: List[str]) -> None:
     Display a unified diff to the terminal with color-coded additions and deletions.
 
     Args:
+        app: Application instance
         diff_lines: List of lines from a unified diff
     """
+    logger.info("*** display diff 131")
     if not diff_lines:
         app.ui.print_text("No changes detected in file content.", PrintType.WARNING)
         return
@@ -226,13 +228,17 @@ def print_steps(app: Any, steps: Dict[str, Any], completed_steps: Optional[List[
     app.ui.print_text("", PrintType.INFO)  # Add an empty line after the list
 
 
-def prompt_for_confirmation(prompt_text: str = "Apply these changes?") -> Tuple[str, Optional[str]]:
+async def prompt_for_confirmation(app: Any, prompt_text: str = "Apply these changes?", diff_lines: Optional[List[str]] = None) -> Tuple[str, Optional[str]]:
     """
     Prompt the user for confirmation with options to apply, reject, request changes,
     or edit the changes in a text editor.
+    
+    This is a backward compatibility wrapper that delegates to the UI wrapper's implementation.
 
     Args:
+        app: The application instance
         prompt_text: The text to display when prompting the user
+        diff_lines: Optional list of diff lines to display
 
     Returns:
         Tuple of (response, message):
@@ -240,21 +246,8 @@ def prompt_for_confirmation(prompt_text: str = "Apply these changes?") -> Tuple[
             - message: User's feedback message when requesting changes,
                       or edited content when editing, None otherwise
     """
-    while True:
-        response = input(f"\n{prompt_text} ✅ Yes [y] | ❌ No [n] | 🔄 Request Change [r] | ✏️  Edit [e]: ").lower().strip()
-        if response in ('y', 'yes'):
-            return 'yes', None
-        elif response in ('n', 'no'):
-            return 'no', None
-        elif response in ('r', 'request', 'request_change'):
-            app.ui.print_text("Please enter your requested changes:", PrintType.INFO)
-            message = input("> ")
-            return 'request_change', message
-        elif response in ('e', 'edit'):
-            app.ui.print_text("Opening editor... (Ctrl+S/Alt+W to save, Ctrl+Q/Alt+Q/ESC to quit)", PrintType.INFO)
-            return 'edit', None
-        else:
-            app.ui.print_text("Please enter 'y', 'n', 'r', or 'e'", PrintType.ERROR)
+    # Delegate to the app's UI implementation
+    return await app.ui.prompt_for_confirmation(prompt_text, diff_lines)
 
 
 def show_conversation(app: Any, max_messages: int = 10) -> None:
