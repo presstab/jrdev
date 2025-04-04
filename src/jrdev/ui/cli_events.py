@@ -1,6 +1,7 @@
 from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.ui.ui_wrapper import UiWrapper
 from typing import Any, List, Optional, Tuple
+import sys
 
 class CliEvents(UiWrapper):
     def __init__(self):  # Add app reference
@@ -45,3 +46,11 @@ class CliEvents(UiWrapper):
                 return 'edit', None
             else:
                 self.print_text("Please enter 'y', 'n', 'r', or 'e'", PrintType.ERROR)
+                
+    async def signal_exit(self):
+        """
+        Signal to the CLI app that it should exit.
+        For the CLI implementation, this directly exits the process.
+        """
+        # For CLI, we just exit the process directly
+        sys.exit(0)

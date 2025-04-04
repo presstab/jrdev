@@ -33,7 +33,9 @@ class JrDevUI(App[None]):
     async def accept_input(self, event: Event) -> None:
         input = self.query_one(Input)
         text = input.value
-        # Here you would typically pass input to your application logic
+        # mirror user input to richlog
+        self.query_one(RichLog).write(f"[blue]>[/blue][green]{text}[/green]")
+        # pass input to jrdev core
         self.run_worker(self.jrdev.process_input(text))
         input.value = ""
 
@@ -51,6 +53,11 @@ class JrDevUI(App[None]):
         
         # When the screen is dismissed, the on_screen_resume will be called with the result
         self.push_screen(screen)
+        
+    @on(TextualEvents.ExitRequest)
+    def handle_exit_request(self, message: TextualEvents.ExitRequest) -> None:
+        """Handle a request to exit the application"""
+        self.exit()
 
 
 def run_textual_ui() -> None:

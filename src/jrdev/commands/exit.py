@@ -6,7 +6,6 @@ Exit command implementation for the JrDev application.
 
 from typing import Any, List
 from jrdev.ui.ui import PrintType
-import sys
 
 
 async def handle_exit(app: Any, args: List[str]):
@@ -22,6 +21,9 @@ async def handle_exit(app: Any, args: List[str]):
     
     # Set the running flag to False to signal the main loop to exit
     app.state.running = False
+    
+    # Send the exit signal to the UI layer
+    await app.ui.signal_exit()
     
     # Make sure the state update is visible
     app.logger.info(f"Running state set to: {app.state.running}")

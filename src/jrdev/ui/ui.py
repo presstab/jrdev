@@ -128,7 +128,6 @@ def display_diff(app: Any, diff_lines: List[str]) -> None:
         app: Application instance
         diff_lines: List of lines from a unified diff
     """
-    logger.info("*** display diff 131")
     if not diff_lines:
         app.ui.print_text("No changes detected in file content.", PrintType.WARNING)
         return

@@ -29,3 +29,12 @@ class UiWrapper:
                           or edited content when editing, None otherwise
         """
         raise NotImplementedError("Subclasses must implement prompt_for_confirmation()")
+        
+    async def signal_exit(self):
+        """
+        Signal to the UI that it should exit the application
+        
+        This method is called when the application needs to shut down.
+        Each UI implementation should handle this appropriately.
+        """
+        raise NotImplementedError("Subclasses must implement signal_exit()")

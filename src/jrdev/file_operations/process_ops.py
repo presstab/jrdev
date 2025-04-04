@@ -128,9 +128,7 @@ async def write_with_confirmation(app, filepath, content):
         ))
 
         # Display diff using the UI function
-        logger.info("*** 131")
         display_diff(app, diff)
-        logger.info("*** 133")
 
         while True:
             # Ask for confirmation using the app's UI

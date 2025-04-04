@@ -39,15 +39,29 @@ async def handle_modelprofile(app: Any, args: List[str]) -> None:
         app: The Application instance
         args: Command line arguments
     """
-    # Initialize profile manager if not already initialized
-    if not hasattr(app, "model_profile_manager"):
-        app.model_profile_manager = ModelProfileManager()
 
-    manager = app.model_profile_manager
+    usage_str = (
+        """
+Usage:
+  /modelprofile - Interactive menu for managing profiles
+  /modelprofile list - Show all profiles and their assigned models
+  /modelprofile get [profile] - Show the model assigned to a profile
+  /modelprofile set [profile] [model] - Set a profile to use a specific model
+  /modelprofile default [profile] - Set the default profile
+  /modelprofile showdefault - Show the current default profile
+        """
+    )
+
+    manager = app.profile_manager()
 
     # If no arguments provided, show interactive menu
     if len(args) == 1:
-        await show_interactive_menu(app, manager)
+        if app.ui.ui_name == "cli":
+            await show_interactive_menu(app, manager)
+        else:
+            app.ui.print_text(usage_str)
+            app.ui.print_text("")
+            await list_profiles(app, manager)
         return
 
     # Process standard command-line arguments
@@ -55,12 +69,12 @@ async def handle_modelprofile(app: Any, args: List[str]) -> None:
 
     if subcommand == "list":
         # List all profiles and their models
-        await list_profiles(manager)
+        await list_profiles(app, manager)
 
     elif subcommand == "get":
         # Get model for a specific profile
         if len(args) < 3:
-            terminal_print(
+            app.ui.print_text(
                 "Missing profile name. Usage: /modelprofile get [profile]",
                 PrintType.ERROR,
             )
@@ -68,12 +82,12 @@ async def handle_modelprofile(app: Any, args: List[str]) -> None:
 
         profile = args[2]
         model = manager.get_model(profile)
-        terminal_print(f"Profile '{profile}' uses model: {model}", PrintType.INFO)
+        app.ui.print_text(f"Profile '{profile}' uses model: {model}", PrintType.INFO)
 
     elif subcommand == "set":
         # Set a profile to use a different model
         if len(args) < 4:
-            terminal_print(
+            app.ui.print_text(
                 "Missing arguments. Usage: /modelprofile set [profile] [model]",
                 PrintType.ERROR,
             )
@@ -81,15 +95,17 @@ async def handle_modelprofile(app: Any, args: List[str]) -> None:
 
         profile = args[2]
         model = args[3]
-        success = manager.update_profile(profile, model)
+        success = manager.update_profile(profile, model, app.state.model_list)
 
         if not success:
-            terminal_print(f"Failed to update profile '{profile}'", PrintType.ERROR)
+            app.ui.print_text(f"Failed to update profile '{profile}'", PrintType.ERROR)
+        else:
+            app.ui.print_text(f"Updated {profile} to use model: {model}")
 
     elif subcommand == "default":
         # Set the default profile
         if len(args) < 3:
-            terminal_print(
+            app.ui.print_text(
                 "Missing profile name. Usage: /modelprofile default [profile]",
                 PrintType.ERROR,
             )
@@ -99,27 +115,29 @@ async def handle_modelprofile(app: Any, args: List[str]) -> None:
         success = manager.set_default_profile(profile)
 
         if not success:
-            terminal_print(
+            app.ui.print_text(
                 f"Failed to set '{profile}' as default profile", PrintType.ERROR
             )
+        else:
+            app.ui.print_text(f"Updated {profile} as default profile")
 
     elif subcommand == "showdefault":
         # Show the current default profile
         default = manager.get_default_profile()
         model = manager.get_model(default)
-        terminal_print(
+        app.ui.print_text(
             f"Default profile: {default} (using model: {model})", PrintType.INFO
         )
 
     else:
-        terminal_print(f"Unknown subcommand: {subcommand}", PrintType.ERROR)
-        terminal_print(
+        app.ui.print_text(f"Unknown subcommand: {subcommand}", PrintType.ERROR)
+        app.ui.print_text(
             "Available subcommands: list, get, set, default, showdefault",
             PrintType.INFO,
         )
 
 
-async def list_profiles(manager: ModelProfileManager) -> None:
+async def list_profiles(app: Any, manager: ModelProfileManager) -> None:
     """
     List all available profiles and their assigned models.
 
@@ -132,9 +150,9 @@ async def list_profiles(manager: ModelProfileManager) -> None:
     terminal_print("Available Model Profiles:", PrintType.INFO)
     for profile, model in sorted(profiles.items()):
         if profile == default:
-            terminal_print(f"* {profile}: {model} (default)", PrintType.SUCCESS)
+            app.ui.print_text(f"* {profile}: {model} (default)", PrintType.SUCCESS)
         else:
-            terminal_print(f"  {profile}: {model}", PrintType.INFO)
+            app.ui.print_text(f"  {profile}: {model}", PrintType.INFO)
 
 
 async def show_interactive_menu(app: Any, manager: ModelProfileManager) -> None:

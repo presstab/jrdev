@@ -5,6 +5,10 @@ from textual.widgets import Button, Input
 from jrdev.ui.ui_wrapper import UiWrapper
 from jrdev.ui.ui import PrintType
 import asyncio
+import logging
+
+# Get the global logger instance
+logger = logging.getLogger("jrdev")
 
 class TextualEvents(UiWrapper):
     class PrintMessage(Message):
@@ -24,6 +28,10 @@ class TextualEvents(UiWrapper):
             super().__init__()
             self.response = response
             self.message = message
+            
+    class ExitRequest(Message):
+        """Signal to the Textual UI app that it should exit"""
+        pass
 
     def __init__(self, app):  # Add app reference
         super().__init__()
@@ -65,3 +73,9 @@ class TextualEvents(UiWrapper):
         # Wait for the confirmation response
         result = await self.confirmation_future
         return result
+
+    async def signal_exit(self):
+        """
+        Signal to the Textual UI app that it should exit
+        """
+        self.app.post_message(self.ExitRequest())
