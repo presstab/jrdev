@@ -41,6 +41,7 @@ class AppState:
         # Runtime state
         self.running: bool = True
         self.need_first_time_setup: bool = False
+        self.need_api_keys: bool = False
 
     # Message thread management
     def get_current_thread(self) -> MessageThread:

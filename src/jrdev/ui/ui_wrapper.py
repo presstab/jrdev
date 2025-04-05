@@ -38,3 +38,11 @@ class UiWrapper:
         Each UI implementation should handle this appropriately.
         """
         raise NotImplementedError("Subclasses must implement signal_exit()")
+
+    async def signal_no_keys(self):
+        """
+        Signal to the UI that no api keys have been detected
+
+        This method is called when the application is first started
+        """
+        raise NotImplementedError("Subclasses must implement signal_no_keys")

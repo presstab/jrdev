@@ -3,6 +3,7 @@ Command handler for API key management.
 """
 import asyncio
 import os
+import logging
 from getpass import getpass
 from typing import Dict, Optional, Tuple, Any, Callable
 from dotenv import load_dotenv
@@ -11,6 +12,7 @@ from functools import partial
 from jrdev.file_utils import add_to_gitignore, get_env_path
 from jrdev.ui.ui import PrintType
 
+logger = logging.getLogger("jrdev")
 
 async def async_input(prompt: str = "") -> str:
     """
@@ -126,7 +128,7 @@ async def _add_update_key(app: Any) -> None:
         if new_key:
             keys = _load_current_keys()
             keys[key_name] = new_key
-            _save_keys_to_env(keys)
+            save_keys_to_env(keys)
             
             # Reload environment variables
             load_dotenv()
@@ -171,7 +173,7 @@ async def _remove_key(app: Any) -> None:
     keys = _load_current_keys()
     if key_name in keys:
         del keys[key_name]
-        _save_keys_to_env(keys)
+        save_keys_to_env(keys)
         
         # Reload environment variables
         load_dotenv()
@@ -236,7 +238,7 @@ def _load_current_keys() -> Dict[str, str]:
     return keys
 
 
-def _save_keys_to_env(keys: Dict[str, str]) -> None:
+def save_keys_to_env(keys: Dict[str, str]) -> None:
     """
     Save API keys to .env file with proper permissions.
     
@@ -306,9 +308,9 @@ async def run_first_time_setup(app: Any) -> bool:
         app.ui.print_text("- API keys will be stored in a local .env file", PrintType.INFO)
         app.ui.print_text("- Restricted file permissions (600) for security", PrintType.INFO)
         app.ui.print_text("- Automatically added to .gitignore", PrintType.INFO)
-        
+
         await async_input("Press Enter to continue with setup...")
-        
+
         # Get the keys
         app.ui.print_text("API Key Configuration", PrintType.HEADER)
         keys = {
@@ -318,7 +320,7 @@ async def run_first_time_setup(app: Any) -> bool:
             "DEEPSEEK_API_KEY": await _prompt_key("DeepSeek (optional)")
         }
         
-        _save_keys_to_env(keys)
+        save_keys_to_env(keys)
         
         # Reload environment variables
         load_dotenv()

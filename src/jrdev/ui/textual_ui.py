@@ -8,6 +8,8 @@ import asyncio
 from jrdev.core.application import Application
 from jrdev.ui.textual_events import TextualEvents
 from jrdev.ui.textual.confirmation_screen import ConfirmationScreen
+from jrdev.ui.textual.api_key_entry import ApiKeyEntry
+#from jrdev.ui.textual.wrapping_input import WrappingInput
 
 
 logger = logging.getLogger("jrdev")
@@ -15,21 +17,24 @@ logger = logging.getLogger("jrdev")
 
 class JrDevUI(App[None]):
     def compose(self) -> Generator[Any, None, None]:
+        # jrdev setup order matters here
         self.jrdev = Application()
-        # Create TextualEvents with reference to self
         self.jrdev.ui = TextualEvents(self)
         self.title = "JrDev Terminal"
+        self.jrdev.setup()
         yield Header()
         yield RichLog()
-        yield Input(placeholder="Type here").focus()
+        yield Input(placeholder="Enter Command", id="cmd_input").focus()
 
     async def on_mount(self) -> None:
-        self.query_one(RichLog).wrap = True
-        self.query_one(RichLog).markup = True
+        richlog = self.query_one(RichLog)
+        richlog.wrap = True
+        richlog.markup = True
+        richlog.can_focus = False
 
         await self.jrdev.initialize_services()
 
-    @on(Input.Submitted)
+    @on(Input.Submitted, "#cmd_input")
     async def accept_input(self, event: Event) -> None:
         input = self.query_one(Input)
         text = input.value
@@ -53,6 +58,16 @@ class JrDevUI(App[None]):
         
         # When the screen is dismissed, the on_screen_resume will be called with the result
         self.push_screen(screen)
+
+    @on(TextualEvents.EnterApiKeys)
+    def handle_enter_api_keys(self, message: TextualEvents.EnterApiKeys):
+        def check_keys(keys: dict):
+            self.jrdev.save_keys(keys)
+            if self.jrdev.state.need_first_time_setup:
+                # finish initialization now that keys are setup
+                self.run_worker(self.jrdev.initialize_services())
+
+        self.push_screen(ApiKeyEntry(), check_keys)
         
     @on(TextualEvents.ExitRequest)
     def handle_exit_request(self, message: TextualEvents.ExitRequest) -> None:

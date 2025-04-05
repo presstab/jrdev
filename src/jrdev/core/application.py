@@ -10,7 +10,7 @@ from jrdev.core.clients import APIClients
 from jrdev.core.commands import CommandHandler
 from jrdev.core.state import AppState
 from jrdev.file_utils import add_to_gitignore, JRDEV_DIR, get_env_path
-from jrdev.commands.keys import check_existing_keys, run_first_time_setup
+from jrdev.commands.keys import check_existing_keys, save_keys_to_env, run_first_time_setup
 from jrdev.llm_requests import stream_request
 from jrdev.logger import setup_logger
 from jrdev.message_builder import MessageBuilder
@@ -30,9 +30,11 @@ class Application:
         self.logger = setup_logger(JRDEV_DIR)
         self.state = AppState()
         self.state.clients = APIClients()
+        self.ui: UiWrapper = UiWrapper()
+
+    def setup(self):
         self._initialize_commands()
         self._setup_infrastructure()
-        self.ui: UiWrapper = UiWrapper()
 
     def _initialize_commands(self) -> None:
         """Initialize command handlers"""
@@ -58,11 +60,13 @@ class Application:
 
         if not check_existing_keys():
             self.state.need_first_time_setup = True
+            self.state.need_api_keys = True
             self.ui.print_text("API keys not found. Setup will begin shortly...", PrintType.INFO)
 
     async def run(self):
         """Main application entry point"""
-        self.ui = CliEvents()
+        self.ui = CliEvents(self)
+        self.setup()
         await self.initialize_services()
         await self._start_services()
         await self._main_loop()
@@ -71,14 +75,18 @@ class Application:
         """Initialize API clients and services"""
         self.logger.info("initialize services")
         if hasattr(self.state, 'need_first_time_setup') and self.state.need_first_time_setup:
-            self.logger.info("needs first time setup")
-            await self._perform_first_time_setup()
+            success = await self._perform_first_time_setup()
+            # UI signalled that keys or other steps need to be taken
+            if not success:
+                return False
 
         if not self.state.clients.is_initialized():
             self.logger.info("api clients not initialized")
             await self._initialize_api_clients()
             
         self.logger.info("Application services initialized")
+
+        return True
 
     async def _start_services(self):
         """Start background services"""
@@ -708,22 +716,26 @@ class Application:
             self.save_history(user_input)
             
         return user_input
+
     async def _perform_first_time_setup(self):
         """Handle first-time setup process"""
         self.logger.info("Performing first-time setup")
+        if self.state.need_api_keys:
+            await self.ui.signal_no_keys()
+            return False
+
         if self.state.need_first_time_setup:
-            setup_success = await run_first_time_setup(self)
-            
-            if not setup_success:
-                self.ui.print_text("Failed to set up required API keys. Exiting...", PrintType.ERROR)
-                sys.exit(1)
-                
             self._load_environment()
             
         env_path = get_env_path()
         load_dotenv(dotenv_path=env_path)
         await self._initialize_api_clients()
         self.state.need_first_time_setup = False
+        return True
+
+    def save_keys(self, keys):
+        save_keys_to_env(keys)
+        self.state.need_api_keys = not check_existing_keys()
 
     async def _initialize_api_clients(self):
         """Initialize all API clients"""

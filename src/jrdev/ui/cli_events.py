@@ -1,12 +1,14 @@
 from jrdev.ui.ui import terminal_print, PrintType
 from jrdev.ui.ui_wrapper import UiWrapper
+from jrdev.commands.keys import check_existing_keys, run_first_time_setup
 from typing import Any, List, Optional, Tuple
 import sys
 
 class CliEvents(UiWrapper):
-    def __init__(self):  # Add app reference
+    def __init__(self, app):  # Add app reference
         super().__init__()
         self.ui_name = "cli"
+        self.app = app
 
     def print_text(self, message: Any, print_type: PrintType = PrintType.INFO, end: str = "\n", prefix: Optional[str] = None, flush: bool = False):
         # Post custom message when print is called
@@ -46,6 +48,14 @@ class CliEvents(UiWrapper):
                 return 'edit', None
             else:
                 self.print_text("Please enter 'y', 'n', 'r', or 'e'", PrintType.ERROR)
+
+    async def signal_no_keys(self):
+        setup_success = await run_first_time_setup(self.app)
+        if not setup_success:
+            self.print_text("Failed to set up required API keys. Exiting...", PrintType.ERROR)
+            sys.exit(1)
+        self.app.state.need_api_keys = not check_existing_keys()
+        await self.app.initialize_services()
                 
     async def signal_exit(self):
         """

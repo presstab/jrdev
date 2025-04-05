@@ -33,6 +33,10 @@ class TextualEvents(UiWrapper):
         """Signal to the Textual UI app that it should exit"""
         pass
 
+    class EnterApiKeys(Message):
+        """Signal to the UI that Api Keys need to be entered"""
+        pass
+
     def __init__(self, app):  # Add app reference
         super().__init__()
         self.ui_name = "textual"
@@ -73,6 +77,13 @@ class TextualEvents(UiWrapper):
         # Wait for the confirmation response
         result = await self.confirmation_future
         return result
+
+    async def signal_no_keys(self):
+        """
+        Signal to UI that no api keys were found on startup
+        Returns:
+        """
+        self.app.post_message(self.EnterApiKeys())
 
     async def signal_exit(self):
         """
