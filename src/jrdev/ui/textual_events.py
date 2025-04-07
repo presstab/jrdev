@@ -11,6 +11,13 @@ import logging
 logger = logging.getLogger("jrdev")
 
 class TextualEvents(UiWrapper):
+    def __init__(self, app):  # Add app reference
+        super().__init__()
+        self.ui_name = "textual"
+        self.app = app  # Store reference to Textual app
+        self.word_stream = ""
+        self.confirmation_future = None
+
     class PrintMessage(Message):
         def __init__(self, text):
             super().__init__()
@@ -36,13 +43,6 @@ class TextualEvents(UiWrapper):
     class EnterApiKeys(Message):
         """Signal to the UI that Api Keys need to be entered"""
         pass
-
-    def __init__(self, app):  # Add app reference
-        super().__init__()
-        self.ui_name = "textual"
-        self.app = app  # Store reference to Textual app
-        self.word_stream = ""
-        self.confirmation_future = None
 
     def print_text(self, message: Any, print_type: PrintType = PrintType.INFO, end: str = "\n", prefix: Optional[str] = None, flush: bool = False):
         # Post custom message when print is called

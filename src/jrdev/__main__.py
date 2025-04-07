@@ -1,6 +1,6 @@
 import argparse
 import asyncio
-from .core.application import Application
+from jrdev.ui.cli.cli_app import CliApp
 from .ui.ui import terminal_print, PrintType
 
 def run_cli():
@@ -14,7 +14,7 @@ def run_cli():
         return
 
     try:
-        asyncio.run(Application().run())
+        asyncio.run(CliApp().run())
     except KeyboardInterrupt:
         terminal_print("\nExiting JrDev terminal...", PrintType.INFO)
 
