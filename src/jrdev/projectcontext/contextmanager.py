@@ -279,7 +279,7 @@ class ContextManager:
                     {"role": "assistant", "content": str(additional_context)}
                 )
 
-            logger.info(f"Waiting for LLM analysis of {file_path}...", PrintType.PROCESSING)
+            logger.info(f"Waiting for LLM analysis of {file_path}...")
 
             # Send the request to the LLM
             file_analysis_result: Any = await stream_request(
@@ -292,7 +292,7 @@ class ContextManager:
 
             # Print the analysis
             logger.info(f"\nFile Analysis for {file_path}:")
-            logger.info(file_analysis, PrintType.INFO)
+            logger.info(file_analysis)
 
             # Get context file path and create parent directories if needed
             # For multiple files, always use the first file as the primary file for context storage
