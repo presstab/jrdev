@@ -48,27 +48,24 @@ class ApiKeyEntry(Screen[dict]):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label("Enter API Keys", id="title")
-            h1 = Horizontal()
-            i1 = Input(id="venice_key")
-            with h1:
+            with Horizontal():
                 yield Label("Venice Key:")
-                yield i1
+                yield Input(id="venice_key", password=True)
             with Horizontal():
                 yield Label("OpenAi Key:")
-                yield Input(id="openai_key")
+                yield Input(id="openai_key", password=True)
             with Horizontal():
                 yield Label("Anthropic Key:")
-                yield Input(id="anthropic_key")
+                yield Input(id="anthropic_key", password=True)
             with Horizontal():
                 yield Label("DeepSeek Key:")
-                yield Input(id="deepseek_key")
+                yield Input(id="deepseek_key", password=True)
             with Horizontal():
                 yield Button("Save", id="save")
                 yield Button("Exit", id="exit")
             spacer = Static()
             spacer.styles.height = "1fr"
             yield spacer
-
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "save":
