@@ -46,8 +46,9 @@ class ModelSelectionWidget(RadioSet):
             for model in model_group:
                 button = RadioButton(model["name"])
                 button.can_focus = False
-                button.BUTTON_RIGHT = " "
-                button.BUTTON_LEFT = " "
+                button.BUTTON_RIGHT = ""
+                button.BUTTON_LEFT = ""
+                button.BUTTON_INNER = "\u2794" #arrow
                 await self.mount(button)
                 # Store reference to button for selection later
                 self._model_buttons[model["name"]] = button
