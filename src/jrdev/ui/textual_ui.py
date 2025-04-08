@@ -10,6 +10,7 @@ import asyncio
 from jrdev.core.application import Application
 from jrdev.ui.textual_events import TextualEvents
 from jrdev.ui.textual.confirmation_screen import ConfirmationScreen
+from jrdev.ui.textual.filtered_directory_tree import FilteredDirectoryTree
 from jrdev.ui.textual.api_key_entry import ApiKeyEntry
 from jrdev.ui.textual.model_selection_widget import ModelSelectionWidget
 
@@ -85,7 +86,7 @@ class JrDevUI(App[None]):
         #todo active tasks
         self.running_tasks = RichLog()
         #todo filter out jrdev dir
-        self.directory_tree = DirectoryTree("./")
+        self.directory_tree = FilteredDirectoryTree("./")
         self.model_list = ModelSelectionWidget(id="model_list")
 
         with Horizontal():
