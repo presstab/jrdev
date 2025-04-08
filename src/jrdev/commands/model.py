@@ -21,7 +21,7 @@ async def handle_model(app, args: List[str]):
     if len(args) > 1:
         requested_model = args[1]
         if requested_model in model_names:
-            app.state.model = requested_model
+            app.set_model(requested_model)
             app.ui.print_text(f"Model changed to: {app.state.model}", print_type=PrintType.SUCCESS)
         else:
             app.ui.print_text(f"Unknown model: {requested_model}", print_type=PrintType.ERROR)

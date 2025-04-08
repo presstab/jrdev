@@ -64,3 +64,6 @@ class CliEvents(UiWrapper):
         """
         # For CLI, we just exit the process directly
         sys.exit(0)
+
+    def model_changed(self, model):
+        pass

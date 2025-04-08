@@ -61,7 +61,7 @@ async def handle_models(app: Any, args: List[str]) -> None:
 
             if selected_model:
                 # User selected a model
-                app.state.model = selected_model
+                app.set_model(selected_model)
                 app.ui.print_text(f"Model changed to: {app.state.model}", print_type=PrintType.SUCCESS)
         except Exception as e:
             # Handle any curses errors gracefully

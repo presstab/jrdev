@@ -1,17 +1,17 @@
 from textual import on
 from textual.app import App
 from textual.containers import Horizontal, Vertical
-from textual.widgets import DirectoryTree, Header, Input, Label, RadioButton, RadioSet, RichLog
+from textual.widgets import DirectoryTree, Header, Input, RadioSet, RichLog
 from textual.events import Event
 from textual.color import Color
 from typing import Any, Generator, List, Optional, Tuple
-from collections import defaultdict, OrderedDict
 import logging
 import asyncio
 from jrdev.core.application import Application
 from jrdev.ui.textual_events import TextualEvents
 from jrdev.ui.textual.confirmation_screen import ConfirmationScreen
 from jrdev.ui.textual.api_key_entry import ApiKeyEntry
+from jrdev.ui.textual.model_selection_widget import ModelSelectionWidget
 
 logger = logging.getLogger("jrdev")
 
@@ -86,7 +86,7 @@ class JrDevUI(App[None]):
         self.running_tasks = RichLog()
         #todo filter out jrdev dir
         self.directory_tree = DirectoryTree("./")
-        self.model_list = RadioSet()
+        self.model_list = ModelSelectionWidget(id="model_list")
 
         with Horizontal():
             with self.vlayout_terminal:
@@ -110,10 +110,6 @@ class JrDevUI(App[None]):
         self.terminal_input.styles.border = ("round", Color.parse("#63f554"))
         self.directory_tree.border_title = "Project Files"
         self.directory_tree.styles.border = ("round", Color.parse("#63f554"))
-        self.model_list.border_title = "Model"
-        self.model_list.styles.border = ("round", Color.parse("#63f554"))
-        self.model_list.styles.width = "100%"
-        self.model_list.can_focus = False
 
         # Horizontal Layout Splits
         self.vlayout_terminal.styles.width = "70%"
@@ -124,32 +120,13 @@ class JrDevUI(App[None]):
         await self.jrdev.initialize_services()
 
         models = self.jrdev.get_models()
-        models_by_provider = defaultdict(list)
-
-        for model in models:
-            logger.info(f"{model}")
-            models_by_provider[model["provider"]].append(model)
-
-        # Reorder to put 'venice' first
-        ordered_providers = OrderedDict()
-
-        # Add 'venice' group first if it exists
-        if "venice" in models_by_provider:
-            ordered_providers["venice"] = models_by_provider.pop("venice")
-
-        # Add remaining providers in sorted order (optional)
-        for provider in sorted(models_by_provider):
-            ordered_providers[provider] = models_by_provider[provider]
-
-        # Mount grouped UI
-        for provider, model_group in ordered_providers.items():
-            await self.model_list.mount(Label(f"{provider}", classes="provider-label"))
-            for model in model_group:
-                button = RadioButton(model["name"])
-                button.can_focus = False
-                button.BUTTON_RIGHT = " "
-                button.BUTTON_LEFT = " "
-                await self.model_list.mount(button)
+        
+        # Set up the model list widget with the models
+        await self.model_list.setup_models(models)
+        
+        # Set the current model as selected if available
+        if self.jrdev.state.model:
+            self.model_list.set_model_selected(self.jrdev.state.model)
 
     @on(Input.Submitted, "#cmd_input")
     async def accept_input(self, event: Event) -> None:
@@ -184,6 +161,14 @@ class JrDevUI(App[None]):
                 self.run_worker(self.jrdev.initialize_services())
 
         self.push_screen(ApiKeyEntry(), check_keys)
+
+    @on(TextualEvents.ModelChanged)
+    def handle_model_change(self, message: TextualEvents.ModelChanged):
+        self.model_list.set_model_selected(message.text)
+
+    @on(RadioSet.Changed, "#model_list")
+    def handle_model_selected(self, event: RadioSet.Changed):
+        self.jrdev.set_model(str(event.pressed.label), send_to_ui=False)
         
     @on(TextualEvents.ExitRequest)
     def handle_exit_request(self, message: TextualEvents.ExitRequest) -> None:

@@ -46,3 +46,9 @@ class UiWrapper:
         This method is called when the application is first started
         """
         raise NotImplementedError("Subclasses must implement signal_no_keys")
+
+    def model_changed(self, model):
+        """
+        Signal to the UI that a new model has been selected
+        """
+        raise NotImplementedError("Subclasses must implement model_changed")

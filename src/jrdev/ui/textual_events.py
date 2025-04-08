@@ -22,6 +22,12 @@ class TextualEvents(UiWrapper):
         def __init__(self, text):
             super().__init__()
             self.text = text
+
+    class ModelChanged(Message):
+        """Send the UI the new model"""
+        def __init__(self, model):
+            super().__init__()
+            self.text = model
             
     class ConfirmationRequest(Message):
         def __init__(self, prompt_text: str, future: asyncio.Future, diff_lines: Optional[List[str]] = None):
@@ -90,3 +96,11 @@ class TextualEvents(UiWrapper):
         Signal to the Textual UI app that it should exit
         """
         self.app.post_message(self.ExitRequest())
+
+    def model_changed(self, model):
+        """
+        Signal to UI that the selected model has changed
+        Args:
+            model: llm model selected in state
+        """
+        self.app.post_message(self.ModelChanged(model))

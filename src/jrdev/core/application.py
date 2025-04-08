@@ -233,6 +233,13 @@ class Application:
         current_models = self.get_models()
         return [model["name"] for model in current_models]
 
+    def set_model(self, model, send_to_ui=True):
+        model_names = self.get_model_names()
+        if model in model_names:
+            self.state.model = model
+            if send_to_ui:
+                self.ui.model_changed(model)
+
     async def update_model_names_cache(self):
         """Update the model names cache in the background."""
         try:
