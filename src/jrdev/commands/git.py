@@ -30,14 +30,14 @@ class Application(Protocol):
 
 
 # Type for command handlers
-CommandHandler = Callable[[Application, List[str]], Awaitable[None]]
+CommandHandler = Callable[[Application, List[str], str], Awaitable[None]]
 
 # Git subcommand registry using same pattern as application.py
 # This is a simple flat dictionary with clear naming conventions
 GIT_SUBCOMMANDS: Dict[str, CommandHandler] = {}
 
 
-async def handle_git(app: Application, args: List[str]) -> None:
+async def handle_git(app: Application, args: List[str], worker_id: str) -> None:
     """
     Handle the /git command with subcommands.
     
@@ -63,7 +63,7 @@ async def handle_git(app: Application, args: List[str]) -> None:
         
         if subcommand in GIT_SUBCOMMANDS:
             # Found a specific handler (e.g., git_pr_summary)
-            await GIT_SUBCOMMANDS[subcommand](app, args)
+            await GIT_SUBCOMMANDS[subcommand](app, args, worker_id)
             return
             
     # If there's no multi-part handler or it's a single command
@@ -71,7 +71,7 @@ async def handle_git(app: Application, args: List[str]) -> None:
     
     # Check if there's a handler for this command
     if subcommand in GIT_SUBCOMMANDS:
-        await GIT_SUBCOMMANDS[subcommand](app, args)
+        await GIT_SUBCOMMANDS[subcommand](app, args, worker_id)
     else:
         # Unknown command
         app.ui.print_text(f"Unknown git subcommand: {subcommand}", PrintType.ERROR)
@@ -245,7 +245,7 @@ def _register_subcommands() -> None:
     GIT_SUBCOMMANDS["pr_review"] = handle_git_pr_review
     
     # Handle for "/git pr" - must return an awaitable
-    async def show_pr_help(app: Application, args: List[str]) -> None:
+    async def show_pr_help(app: Application, args: List[str], worker_id: str) -> None:
         show_subcommand_help(app, "pr")
     GIT_SUBCOMMANDS["pr"] = show_pr_help
 
@@ -255,7 +255,7 @@ def _register_subcommands() -> None:
     GIT_SUBCOMMANDS["config_list"] = handle_git_config_list
     
     # Handle for "/git config" - must return an awaitable
-    async def show_config_help(app: Application, args: List[str]) -> None:
+    async def show_config_help(app: Application, args: List[str], worker_id: str) -> None:
         show_subcommand_help(app, "config")
     GIT_SUBCOMMANDS["config"] = show_config_help
 

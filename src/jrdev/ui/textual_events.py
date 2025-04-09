@@ -23,6 +23,13 @@ class TextualEvents(UiWrapper):
             super().__init__()
             self.text = text
 
+    class TaskUpdate(Message):
+        """Send the UI update info about a worker thread's activities"""
+        def __init__(self, worker_id, update):
+            super().__init__()
+            self.worker_id = worker_id
+            self.update = update
+
     class ModelChanged(Message):
         """Send the UI the new model"""
         def __init__(self, model):
@@ -59,6 +66,9 @@ class TextualEvents(UiWrapper):
         while '\n' in self.word_stream:
             line, self.word_stream = self.word_stream.split('\n', 1)
             self.app.post_message(self.PrintMessage(line))
+
+    def update_task_info(self, worker_id: str, update: dict = None) -> None:
+        self.app.post_message(self.TaskUpdate(worker_id, update))
             
     async def prompt_for_confirmation(self, prompt_text: str = "Apply these changes?", diff_lines: Optional[List[str]] = None) -> Tuple[str, Optional[str]]:
         """

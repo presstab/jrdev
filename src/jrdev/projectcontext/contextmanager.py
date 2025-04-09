@@ -283,7 +283,7 @@ class ContextManager:
 
             # Send the request to the LLM
             file_analysis_result: Any = await stream_request(
-                app, app.state.model, temp_messages, print_stream=False
+                app, app.state.model, temp_messages, task_id=None, print_stream=False
             )
             file_analysis = str(file_analysis_result)
             if contains_chinese(file_analysis):

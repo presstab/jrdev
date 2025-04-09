@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 from jrdev.colors import Colors
 from jrdev.core.clients import APIClients
-from jrdev.core.commands import CommandHandler
+from jrdev.core.commands import Command, CommandHandler
 from jrdev.core.state import AppState
 from jrdev.file_utils import add_to_gitignore, JRDEV_DIR, get_env_path
 from jrdev.commands.keys import check_existing_keys, save_keys_to_env, run_first_time_setup
@@ -88,8 +88,8 @@ class Application:
         
         self.logger.info("Background services started")
 
-    async def handle_command(self, command):
-        cmd_parts = command.split()
+    async def handle_command(self, command: Command):
+        cmd_parts = command.text.split()
         if not cmd_parts:
             return
 
@@ -99,7 +99,7 @@ class Application:
         self.logger.info(f"Command received: {cmd}")
 
         try:
-            result = await self.command_handler.execute(cmd, cmd_parts)
+            result = await self.command_handler.execute(cmd, cmd_parts, command.request_id)
             return result
         except Exception as e:
             self.logger.error(f"Error handling command {cmd}: {e}")
@@ -122,7 +122,7 @@ class Application:
         """Create a new thread"""
         return self.state.create_thread(thread_id)
 
-    async def send_message(self, msg_thread, content, writepath=None, print_stream=True):
+    async def send_message(self, msg_thread, content, writepath=None, print_stream=True, worker_id=None):
         """
         Send a message to the LLM with default behavior.
         If writepath is provided, the response will be saved to that file.
@@ -178,7 +178,7 @@ class Application:
 
         try:
             # Send the message to the LLM
-            response_text = await stream_request(self, self.state.model, messages, print_stream=print_stream)
+            response_text = await stream_request(self, self.state.model, messages, task_id=worker_id, print_stream=print_stream)
             self.logger.info(f"Successfully received response from model in thread {msg_thread.thread_id}")
 
             # Add response to messages
@@ -373,7 +373,7 @@ class Application:
         await asyncio.sleep(1.0)  # Check every second
         await self.task_monitor_callback()
 
-    async def process_input(self, user_input):
+    async def process_input(self, user_input, worker_id=None):
         """Process user input."""
         await asyncio.sleep(0.01)  # Brief yield to event loop
         
@@ -381,14 +381,15 @@ class Application:
             return
             
         if user_input.startswith("/"):
-            result = await self.handle_command(user_input)
+            command = Command(user_input, worker_id)
+            result = await self.handle_command(command)
             # Check for special exit code
             if result == "EXIT":
                 self.logger.info("Exit command received, forcing running state to False")
                 self.state.running = False
         else:
             msg_thread = self.state.get_current_thread()
-            await self.send_message(msg_thread, user_input, print_stream=True)
+            await self.send_message(msg_thread, user_input, print_stream=True, worker_id=worker_id)
 
     async def _perform_first_time_setup(self):
         """Handle first-time setup process"""

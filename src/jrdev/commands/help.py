@@ -43,7 +43,7 @@ def format_command_with_args_plain(command, args=None):
     return command
 
 
-async def handle_help(app: Any, args: List[str]):
+async def handle_help(app: Any, args: List[str], worker_id: str):
     """
     Handle the /help command to display available commands categorized.
     """

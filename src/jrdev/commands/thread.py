@@ -22,7 +22,7 @@ from jrdev.commands.help import format_command_with_args
 from jrdev.ui.ui import COLORS, PrintType, show_conversation
 
 
-async def handle_thread(app: Any, args: List[str]) -> None:
+async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
     """Handle the /thread command for creating and managing message threads.
 
     Args:

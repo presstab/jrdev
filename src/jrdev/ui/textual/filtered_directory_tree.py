@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Iterable
 
-from textual.app import App, ComposeResult
 from textual.widgets import DirectoryTree
 
 

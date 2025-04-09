@@ -7,7 +7,7 @@ from typing import List
 from jrdev.ui.ui import PrintType
 
 
-async def handle_model(app, args: List[str]):
+async def handle_model(app, args: List[str], worker_id: str):
     """
     Handle the /model command to change or display the current model.
 

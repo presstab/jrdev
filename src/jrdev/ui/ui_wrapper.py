@@ -52,3 +52,12 @@ class UiWrapper:
         Signal to the UI that a new model has been selected
         """
         raise NotImplementedError("Subclasses must implement model_changed")
+
+    def update_task_info(self, worker_id: str, update: dict = None) -> None:
+        """
+        Send updates to the UI about worker task
+        Args:
+            worker_id:
+            update: mutable dict containing any kind of updates to parse
+        """
+        raise NotImplementedError("Subclasses must implement update_task_info")

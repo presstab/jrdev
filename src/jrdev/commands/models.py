@@ -28,7 +28,7 @@ class ModelInfo(TypedDict):
     context_tokens: int
 
 
-async def handle_models(app: Any, args: List[str]) -> None:
+async def handle_models(app: Any, args: List[str], worker_id: str) -> None:
     """
     Handle the /models command to list all available models.
 

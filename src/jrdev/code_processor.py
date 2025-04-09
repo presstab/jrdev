@@ -10,7 +10,7 @@ from jrdev.message_builder import MessageBuilder
 
 
 class CodeProcessor:
-    def __init__(self, app: Any):
+    def __init__(self, app: Any, worker_id=None):
         """
         Initialize the CodeProcessor with the application instance.
         The app object should provide access to logging, message history,
@@ -18,6 +18,7 @@ class CodeProcessor:
         """
         self.app = app
         self.profile_manager = app.profile_manager()
+        self.worker_id = worker_id
 
     async def process(self, user_task: str) -> None:
         """
@@ -50,7 +51,7 @@ class CodeProcessor:
 
         model_name = self.profile_manager.get_model("advanced_reasoning")
         self.app.ui.print_text(f"\n{model_name} is processing the request... (advanced_reasoning profile)", PrintType.PROCESSING)
-        response_text = await stream_request(self.app, model_name, messages)
+        response_text = await stream_request(self.app, model_name, messages, task_id=self.worker_id)
         self.app.ui.print_text("", PrintType.INFO)
         return response_text
 
@@ -172,7 +173,7 @@ class CodeProcessor:
         model = self.profile_manager.get_model("advanced_coding")
         self.app.logger.info(f"Sending code request to {model}")
         self.app.ui.print_text(f"\nSending code request to {model} (advanced_coding profile)...\n", PrintType.PROCESSING)
-        response = await stream_request(self.app, model, messages, print_stream=True, json_output=True)
+        response = await stream_request(self.app, model, messages, task_id=self.worker_id, print_stream=True, json_output=True)
         return response
 
     async def check_and_apply_code_changes(self, response_text: str) -> Dict:
@@ -209,7 +210,7 @@ class CodeProcessor:
         model = self.profile_manager.get_model("advanced_reasoning")
         self.app.logger.info(f"Sending file contents to {model}")
         self.app.ui.print_text(f"\nSending requested files to {model} (advanced_reasoning profile)...", PrintType.PROCESSING)
-        response = await stream_request(self.app, model, messages)
+        response = await stream_request(self.app, model, messages, task_id=self.worker_id)
         self.app.ui.print_text("", PrintType.INFO)
         return response
 
@@ -251,7 +252,7 @@ class CodeProcessor:
         self.app.logger.info(f"Validating changed files with {model}")
         self.app.ui.print_text(f"\nValidating changed files with {model} (intermediate_reasoning profile)", PrintType.PROCESSING)
         validation_response = await stream_request(
-            self.app, model, messages, print_stream=False
+            self.app, model, messages, task_id=self.worker_id, print_stream=False
         )
         self.app.logger.info(f"Validation response: {validation_response}")
         if validation_response.strip().startswith("VALID"):

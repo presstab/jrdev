@@ -11,7 +11,7 @@ from typing import Any, List
 from jrdev.ui.ui import PrintType
 
 
-async def handle_tasks(app: Any, args: List[str]) -> None:
+async def handle_tasks(app: Any, args: List[str], worker_id: str) -> None:
     """
     Handle the /tasks command to display current background tasks.
 

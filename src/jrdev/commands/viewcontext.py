@@ -9,7 +9,7 @@ from typing import Any, List
 from jrdev.ui.ui import PrintType
 
 
-async def handle_viewcontext(app: Any, args: List[str]):
+async def handle_viewcontext(app: Any, args: List[str], worker_id: str):
     """
     Handle the /viewcontext command to view the content in the LLM context window.
 

@@ -177,7 +177,7 @@ def save_git_config(app: Any, config: Dict[str, Any]) -> bool:
         return False
 
 
-async def handle_git_config_list(app: Any, args: List[str]) -> None:
+async def handle_git_config_list(app: Any, args: List[str], worker_id: str) -> None:
     """
     List all git configuration values.
     Args:
@@ -220,7 +220,7 @@ async def handle_git_config_list(app: Any, args: List[str]) -> None:
                 )
 
 
-async def handle_git_config_get(app: Any, args: List[str]) -> None:
+async def handle_git_config_get(app: Any, args: List[str], worker_id: str) -> None:
     """
     Get a specific git configuration value.
     Args:
@@ -275,7 +275,7 @@ async def handle_git_config_get(app: Any, args: List[str]) -> None:
         )
 
 
-async def handle_git_config_set(app: Any, args: List[str]) -> None:
+async def handle_git_config_set(app: Any, args: List[str], worker_id: str) -> None:
     """
     Set a git configuration value.
     Args:

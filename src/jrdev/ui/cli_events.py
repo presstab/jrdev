@@ -67,3 +67,6 @@ class CliEvents(UiWrapper):
 
     def model_changed(self, model):
         pass
+
+    def update_task_info(self, worker_id: str, update: dict = None) -> None:
+        pass

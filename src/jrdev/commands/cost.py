@@ -6,7 +6,7 @@ from jrdev.ui.ui import PrintType
 from jrdev.usage import get_instance
 
 
-async def handle_cost(app: Any, cmd_parts: List[str]) -> None:
+async def handle_cost(app: Any, cmd_parts: List[str], worker_id: str) -> None:
     """Handle the /cost command.
 
     Args:

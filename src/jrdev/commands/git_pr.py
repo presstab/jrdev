@@ -29,6 +29,7 @@ async def _handle_git_pr_common(
     message_type: str,
     error_message: str,
     add_project_files: bool = False,
+    worker_id: str = None
 ) -> Optional[str]:
     """
     Common helper function for PR operations.
@@ -233,7 +234,7 @@ async def _handle_git_pr_common(
         return None
 
 
-async def handle_git_pr_summary(app: Any, args: List[str]) -> None:
+async def handle_git_pr_summary(app: Any, args: List[str], worker_id: str) -> None:
     """
     Generate a PR summary based on git diff with configured base branch.
     Args:
@@ -248,10 +249,11 @@ async def handle_git_pr_summary(app: Any, args: List[str]) -> None:
         message_type="pull request summary",
         error_message="failed pull request summary",
         add_project_files=False,
+        worker_id=worker_id
     )
 
 
-async def handle_git_pr_review(app: Any, args: List[str]) -> None:
+async def handle_git_pr_review(app: Any, args: List[str], worker_id: str) -> None:
     """
     Generate a detailed PR code review based on git diff with configured base branch.
     Args:
@@ -266,4 +268,5 @@ async def handle_git_pr_review(app: Any, args: List[str]) -> None:
         message_type="detailed code review",
         error_message="failed pull request review",
         add_project_files=True,
+        worker_id=worker_id
     )

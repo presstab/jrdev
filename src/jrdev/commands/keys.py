@@ -42,7 +42,7 @@ async def async_getpass(prompt: str = "") -> str:
     return await loop.run_in_executor(None, lambda: getpass(prompt))
 
 
-async def handle_keys(app: Any, args: list[str]) -> None:
+async def handle_keys(app: Any, args: list[str], worker_id: str) -> None:
     """Manage API keys through an interactive menu."""
     choices = """
     1. View configured keys
@@ -50,7 +50,11 @@ async def handle_keys(app: Any, args: list[str]) -> None:
     3. Remove key
     4. Cancel/Exit
     """
-    
+
+    if app.ui.ui_name == "textual":
+        app.ui.edit_keys()
+        return
+
     app.ui.print_text("API Key Management", PrintType.HEADER)
     app.ui.print_text(choices, PrintType.INFO)
     

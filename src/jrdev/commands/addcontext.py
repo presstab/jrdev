@@ -10,7 +10,7 @@ from typing import Any, List
 from jrdev.ui.ui import PrintType
 
 
-async def handle_addcontext(app: Any, args: List[str]) -> None:
+async def handle_addcontext(app: Any, args: List[str], worker_id: str) -> None:
     """
     Handle the /addcontext command to add a file to the LLM context.
 

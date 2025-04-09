@@ -1,18 +1,19 @@
 from textual import on
 from textual.app import App
 from textual.containers import Horizontal, Vertical
-from textual.widgets import DirectoryTree, Header, Input, RadioSet, RichLog
+from textual.widgets import Input, RadioSet, RichLog
+from textual.worker import Worker, WorkerState
 from textual.events import Event
 from textual.color import Color
-from typing import Any, Generator, List, Optional, Tuple
+from typing import Any, Generator
 import logging
-import asyncio
 from jrdev.core.application import Application
 from jrdev.ui.textual_events import TextualEvents
 from jrdev.ui.textual.confirmation_screen import ConfirmationScreen
 from jrdev.ui.textual.filtered_directory_tree import FilteredDirectoryTree
 from jrdev.ui.textual.api_key_entry import ApiKeyEntry
 from jrdev.ui.textual.model_selection_widget import ModelSelectionWidget
+from jrdev.ui.textual.task_monitor import TaskMonitor
 
 logger = logging.getLogger("jrdev")
 
@@ -83,15 +84,14 @@ class JrDevUI(App[None]):
         self.vlayout_right = Vertical()
         self.terminal_output = RichLog(id="terminal_output", min_width=10)
         self.terminal_input = Input(placeholder="Enter Command", id="cmd_input")
-        #todo active tasks
-        self.running_tasks = RichLog()
-        #todo filter out jrdev dir
+        self.task_monitor = TaskMonitor()
         self.directory_tree = FilteredDirectoryTree("./")
         self.model_list = ModelSelectionWidget(id="model_list")
+        self.task_count = 0
 
         with Horizontal():
             with self.vlayout_terminal:
-                yield self.running_tasks
+                yield self.task_monitor
                 yield self.terminal_output
                 yield self.terminal_input
             with self.vlayout_right:
@@ -99,8 +99,6 @@ class JrDevUI(App[None]):
                 yield self.model_list
 
     async def on_mount(self) -> None:
-        self.running_tasks.border_title = "Running Tasks"
-        self.running_tasks.styles.border = ("round", Color.parse("#63f554"))
         self.terminal_output.wrap = True
         self.terminal_output.markup = True
         self.terminal_output.can_focus = False
@@ -116,7 +114,7 @@ class JrDevUI(App[None]):
         self.vlayout_terminal.styles.width = "70%"
 
         # Terminal Layout Splits
-        self.running_tasks.styles.height = "25%"
+        self.task_monitor.styles.height = "25%"
 
         await self.jrdev.initialize_services()
 
@@ -134,9 +132,30 @@ class JrDevUI(App[None]):
         text = self.terminal_input.value
         # mirror user input to richlog
         self.terminal_output.write(f"[blue]>[/blue][green]{text}[/green]")
+
+        # is this something that should be tracked as an active task?
+        task_id = None
+        if self.task_monitor.should_track(text):
+            task_id = self.get_new_task_id()
+
         # pass input to jrdev core
-        self.run_worker(self.jrdev.process_input(text))
+        worker = self.run_worker(self.jrdev.process_input(text, task_id))
+        if task_id:
+            worker.name = task_id
+            self.task_monitor.add_task(worker, task_id, text, "model_name")
+
+        # clear input widget
         self.terminal_input.value = ""
+
+    def get_new_task_id(self):
+        id = self.task_count
+        self.task_count += 1
+        return str(id)
+
+    async def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        worker = event.worker
+        state = event.state
+        self.task_monitor.worker_updated(worker, state)
 
     @on(TextualEvents.PrintMessage)
     def handle_print_message(self, event: Any) -> None:
@@ -170,6 +189,25 @@ class JrDevUI(App[None]):
     @on(RadioSet.Changed, "#model_list")
     def handle_model_selected(self, event: RadioSet.Changed):
         self.jrdev.set_model(str(event.pressed.label), send_to_ui=False)
+
+    @on(TextualEvents.TaskUpdate)
+    def handle_task_update(self, message: TextualEvents.TaskUpdate):
+        if "input_token_estimate" in message.update:
+            # first message gives us input token estimate and model being used
+            token_count = message.update["input_token_estimate"]
+            model = message.update["model"]
+            self.task_monitor.update_input_tokens(message.worker_id, token_count, model)
+        elif "output_token_estimate" in message.update:
+            token_count = message.update['output_token_estimate']
+            tokens_per_second = message.update["tokens_per_second"]
+            self.task_monitor.update_output_tokens(message.worker_id, token_count, tokens_per_second)
+        elif "input_tokens" in message.update:
+            # final official accounting of tokens
+            input_tokens = message.update.get("input_tokens")
+            self.task_monitor.update_input_tokens(message.worker_id, input_tokens)
+            output_tokens = message.update.get("output_tokens")
+            tokens_per_second = message.update.get("tokens_per_second")
+            self.task_monitor.update_output_tokens(message.worker_id, output_tokens, tokens_per_second)
         
     @on(TextualEvents.ExitRequest)
     def handle_exit_request(self, message: TextualEvents.ExitRequest) -> None:

@@ -15,7 +15,8 @@ setup(
         "python-dotenv",
         "pyreadline3; platform_system=='Windows'",
         "pydantic>=2.0.0",
-        "textual>=0.40.0"
+        "textual>=0.40.0",
+        "tiktoken"
     ],
     entry_points={
         "console_scripts": [

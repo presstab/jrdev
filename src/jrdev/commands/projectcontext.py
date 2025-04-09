@@ -10,7 +10,7 @@ from typing import Any, Dict, List
 from jrdev.ui.ui import PrintType
 
 
-async def handle_projectcontext(app: Any, args: List[str]) -> None:
+async def handle_projectcontext(app: Any, args: List[str], worker_id: str) -> None:
     """
     Handle the /projectcontext command for managing project context.
 

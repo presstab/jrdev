@@ -8,7 +8,7 @@ from typing import Any, List
 from jrdev.ui.ui import PrintType
 
 
-async def handle_exit(app: Any, args: List[str]):
+async def handle_exit(app: Any, args: List[str], worker_id: str):
     """
     Handle the /exit command to terminate the application.
 

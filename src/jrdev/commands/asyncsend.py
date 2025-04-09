@@ -13,7 +13,7 @@ from typing import Any, List
 from jrdev.ui.ui import PrintType
 
 
-async def handle_asyncsend(app: Any, args: List[str]) -> None:
+async def handle_asyncsend(app: Any, args: List[str], worker_id: str) -> None:
     """
     Handle the /asyncsend command to send a message and optionally save the response to a file.
     This command returns control to the terminal immediately while processing continues in background.

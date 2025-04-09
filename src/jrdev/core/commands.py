@@ -23,6 +23,10 @@ from jrdev.commands import (
     handle_viewcontext
 )
 
+class Command:
+    def __init__(self, _text, _id):
+        self.text = _text
+        self.request_id = _id
 
 class CommandHandler:
     """Manage command registration and execution"""
@@ -66,12 +70,13 @@ class CommandHandler:
         from jrdev.commands.debug import handle_modelswin
         self.commands["/modelswin"] = handle_modelswin
 
-    async def execute(self, command: str, args: List[str]) -> Any:
+    async def execute(self, command: str, args: List[str], worker_id: str) -> Any:
         """
         Execute a command with arguments
         Args:
             command: The command string (e.g. "/model")
             args: List of arguments including the command itself
+            worker_id: ID of worker/task
         Returns:
             Result of the command handler execution
         """
@@ -83,7 +88,7 @@ class CommandHandler:
             return None
 
         try:
-            return await handler(self.app, args)
+            return await handler(self.app, args, worker_id)
         except Exception as e:
             self.app.logger.error(f"Error executing command {cmd}: {str(e)}")
             raise

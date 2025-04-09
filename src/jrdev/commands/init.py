@@ -77,7 +77,7 @@ async def get_file_summary(
         return None
 
 
-async def handle_init(app: Any, args: List[str]) -> None:
+async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
     """
     Handle the /init command to generate file tree, analyze files, and create
     project overview.
@@ -103,9 +103,7 @@ async def handle_init(app: Any, args: List[str]) -> None:
             current_dir, output_file, use_gitignore=True
         )
 
-        app.ui.print_text(
-            f"File tree generated and saved to {output_file}", PrintType.SUCCESS
-        )
+        app.ui.print_text(f"File tree generated and saved to {output_file}", PrintType.SUCCESS)
 
         # Extract file paths from tree_output
         tree_files = [
@@ -119,9 +117,7 @@ async def handle_init(app: Any, args: List[str]) -> None:
         app.ui.print_text(f"Model changed to: {app.state.model} (advanced_reasoning profile)", PrintType.INFO)
 
         # Send the file tree to the LLM with a request for file recommendations
-        app.ui.print_text(
-            "Waiting for LLM analysis of project tree...", PrintType.PROCESSING
-        )
+        app.ui.print_text("Waiting for LLM analysis of project tree...", PrintType.PROCESSING)
 
         # Use MessageBuilder for file recommendations
         builder = MessageBuilder(app)
@@ -140,7 +136,7 @@ async def handle_init(app: Any, args: List[str]) -> None:
         # Send the request to the LLM
         try:
             recommendation_response = await stream_request(
-                app, app.state.model, temp_messages
+                app, app.state.model, temp_messages, task_id=worker_id
             )
 
             # Parse the file list from the response
@@ -265,6 +261,7 @@ async def handle_init(app: Any, args: List[str]) -> None:
                             app,
                             conventions_model,
                             conventions_messages,
+                            task_id=worker_id,
                             print_stream=False,
                         )
 
@@ -364,7 +361,7 @@ async def handle_init(app: Any, args: List[str]) -> None:
                 # Send request to the model for project overview
                 try:
                     full_overview = await stream_request(
-                        app, app.state.model, overview_messages
+                        app, app.state.model, overview_messages, task_id=worker_id
                     )
 
                     # Save to markdown file

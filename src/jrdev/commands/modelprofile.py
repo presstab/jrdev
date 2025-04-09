@@ -23,7 +23,7 @@ async def async_input(prompt: str = "") -> str:
     return await loop.run_in_executor(None, lambda: input(prompt))
 
 
-async def handle_modelprofile(app: Any, args: List[str]) -> None:
+async def handle_modelprofile(app: Any, args: List[str], worker_id: str) -> None:
     """
     Handle /modelprofile commands for managing model profiles.
 
