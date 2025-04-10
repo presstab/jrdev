@@ -24,7 +24,6 @@ def process_add_operation(lines, change, filename):
     end_idx = start_idx
 
     new_content = change["new_content"]
-    new_content = new_content.replace("\\n", "\n").replace("\\\"", "\"")
 
     # right now every ADD should have insert_location in it
     if change.get("insert_location") is not None:

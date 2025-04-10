@@ -176,31 +176,29 @@ def get_file_contents(file_list, file_alias=None):
 
 def cutoff_string(input_string, cutoff_before_match, cutoff_after_match):
     """
-    Cuts off parts of the input string before the first occurrence of cutoff_before_match
-    and after the second occurrence of cutoff_after_match.
-
-    Parameters:
-    - input_string (str): The original string.
-    - cutoff_before_match (str): The phrase before which all text will be cut off (including this).
-    - cutoff_after_match (str): The phrase after which all text will be cut off (second occurance and including this).
-
-    Returns:
-    - str: The modified string.
+    Removes all lines up to and including the line containing cutoff_before_match,
+    and all lines from (and including) the line containing cutoff_after_match.
+    Returns the lines in between.
     """
-    try:
-        # Find the index of the first occurrence of cutoff_before_match
-        start_index = input_string.index(cutoff_before_match)
-        cropped = input_string[start_index + len(cutoff_before_match):]
+    lines = input_string.splitlines()
+    start = 0
+    end = len(lines)
 
-        match2 = cropped.index(cutoff_after_match)
-        cropped = cropped[0:(match2 + - len(cutoff_after_match))]
+    # Find the line index for cutoff_before_match
+    for i, line in enumerate(lines):
+        if cutoff_before_match in line:
+            start = i + 1  # skip this line and everything before
+            break
 
-        # Return the substring between the two indices
-        return cropped.strip()
+    # Find the line index for cutoff_after_match, starting from 'start'
+    for j in range(start, len(lines)):
+        if cutoff_after_match in lines[j]:
+            end = j  # do not include this line or anything after
+            break
 
-    except ValueError:
-        # If either phrase is not found or the order is incorrect, return the original string
-        return input_string
+    # Return the lines in between, joined by newlines
+    return "\n".join(lines[start:end]).strip()
+
 
 
 def write_string_to_file(filename: str, content: str):

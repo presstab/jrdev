@@ -78,8 +78,8 @@ def insert_after_function(change, lines, filepath):
     # Get the end line index of the function (convert from 1-indexed to 0-indexed)
     func_end_idx = matched_function["end_line"] - 1
 
-    # Prepare the new content and replace escaped newlines
-    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
+    # Prepare the new content
+    new_content = change["new_content"]
 
     # Handle special case where new_content is intended to be just blank lines
     if new_content.strip() == "":
@@ -196,8 +196,8 @@ def insert_after_line(change, lines, filepath):
     insert_after_text = change["insert_after_line"]
     logger.info(f"insert_after_line '{insert_after_text}'")
 
-    # Get the new content and replace escaped newlines
-    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
+    # Get the new content
+    new_content = change["new_content"]
 
     # Find the line to insert after
     found = False
@@ -307,7 +307,7 @@ def insert_within_function(change, lines, filepath):
     logger.info(f"func_start {func_start_idx} func_end {func_end_idx}")
 
     # Prepare the new content and replace escaped newlines
-    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
+    new_content = change["new_content"]
 
     # Determine insert position based on position_marker
     insert_idx = None
@@ -424,7 +424,7 @@ def insert_after_marker(change, lines, filepath):
     logger.info(f"insert_after_marker '{marker}'")
 
     # Get the new content and replace escaped newlines
-    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"").replace('\\\\', '\\')
+    new_content = change["new_content"]
 
     # check indentation hint
     indentation_hint = None
@@ -434,6 +434,7 @@ def insert_after_marker(change, lines, filepath):
     # Find the line to insert after
     found = False
     # Unescape quotes in the marker before comparing, similar to what we do for new_content
+    # todo still needed?
     unescaped_marker = marker.replace('\"', '"')
     for i, line in enumerate(lines):
         if unescaped_marker.strip() in line.strip() or marker.strip() in line.strip():
@@ -493,7 +494,7 @@ def insert_global(change, lines, filepath):
     logger.info(f"insert_global at '{global_position}'")
 
     # Get the new content and replace escaped newlines
-    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
+    new_content = change["new_content"]
 
     # Determine where to insert the content
     if global_position == "start" or global_position is True:

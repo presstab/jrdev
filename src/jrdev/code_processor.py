@@ -1,9 +1,10 @@
+import json
 import os
 from typing import Any, Dict, List, Set
 
 from jrdev.llm_requests import stream_request
 from jrdev.prompts.prompt_utils import PromptManager
-from jrdev.file_utils import requested_files, get_file_contents, cutoff_string, manual_json_parse
+from jrdev.file_utils import requested_files, get_file_contents, cutoff_string
 from jrdev.file_operations.process_ops import apply_file_changes
 from jrdev.ui.ui import PrintType, print_steps
 from jrdev.message_builder import MessageBuilder
@@ -183,9 +184,9 @@ class CodeProcessor:
         """
         try:
             json_block = cutoff_string(response_text, "```json", "```")
-            changes = manual_json_parse(json_block)
+            changes = json.loads(json_block)
         except Exception as e:
-            raise Exception(f"Parsing failed in code changes: {str(e)}")
+            raise Exception(f"Parsing failed in code changes: {str(e)}\n Blob:{json_block}\n")
         if "changes" in changes:
             return await apply_file_changes(self.app, changes)
         return {"success": False}
@@ -220,7 +221,7 @@ class CodeProcessor:
         Also, verify that every file referenced in steps exists in the provided filelist.
         """
         json_content = cutoff_string(steps_text, "```json", "```")
-        steps_json = manual_json_parse(json_content)
+        steps_json = json.loads(json_content)
 
         # Check for missing files in the step instructions.
         missing_files = []

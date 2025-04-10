@@ -481,7 +481,6 @@ async def apply_file_changes(app, changes_json):
 
         filepath = change["filename"]
         new_content = change["new_content"]
-        new_content = new_content.replace("\\n", "\n").replace("\\\"", "\"")
 
         # Create directories if they don't exist
         directory = os.path.dirname(filepath)

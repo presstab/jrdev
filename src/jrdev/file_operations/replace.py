@@ -66,7 +66,7 @@ def replace_code_snippet(lines, change, filepath):
     """
     target_ref = change["target_reference"]
     code_snippet = target_ref.get("code_snippet", "")
-    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
+    new_content = change["new_content"]
 
     if not code_snippet:
         message = f"Warning: Missing code_snippet in target_reference: {change}"
@@ -128,7 +128,7 @@ def replace_function_signature(lines, change, filepath):
         List: Updated list of lines
     """
     function_name = change["target_reference"]["function_name"]
-    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
+    new_content = change["new_content"]
 
     line_idx = find_function_signature(lines, function_name)
     if line_idx >= 0:
@@ -185,7 +185,7 @@ def replace_function_implementation(lines, change, filepath):
         List: Updated list of lines
     """
     function_name = change["target_reference"]["function_name"]
-    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
+    new_content = change["new_content"]
 
     # Find matching function
     matched_function = find_function(function_name, filepath)
@@ -241,7 +241,7 @@ def replace_code_block(lines, change, filepath):
     function_name = target_ref.get("function_name")
     start_marker = target_ref.get("start_marker")
     end_marker = target_ref.get("end_marker")
-    new_content = change["new_content"].replace("\\n", "\n").replace("\\\"", "\"")
+    new_content = change["new_content"]
 
     if function_name is None or start_marker is None or end_marker is None:
         raise Exception(f"Missing required target_reference fields for BLOCK replacement: {change}")
