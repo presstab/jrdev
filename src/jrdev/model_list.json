@@ -1,6 +1,14 @@
 {
     "models": [
         {
+            "name": "claude-3-5-haiku-20240620",
+            "provider": "anthropic",
+            "is_think": false,
+            "input_cost": 8,
+            "output_cost": 40,
+            "context_tokens": 200000
+        },
+        {
             "name": "claude-3-7-sonnet-20250219",
             "provider": "anthropic",
             "is_think": false,
@@ -92,33 +100,25 @@
             "name": "o3-mini-2025-01-31",
             "provider": "openai",
             "is_think": false,
-            "input_cost": 7,
-            "output_cost": 28,
-            "context_tokens": 32768
+            "input_cost": 11,
+            "output_cost": 44,
+            "context_tokens": 200000
         },
         {
             "name": "gpt-4o",
             "provider": "openai",
             "is_think": false,
-            "input_cost": 10,
-            "output_cost": 30,
+            "input_cost": 25,
+            "output_cost": 100,
             "context_tokens": 128000
         },
         {
-            "name": "gpt-4-turbo",
+            "name": "gpt-4o-mini",
             "provider": "openai",
             "is_think": false,
-            "input_cost": 10,
-            "output_cost": 30,
+            "input_cost": 2,
+            "output_cost": 6,
             "context_tokens": 128000
-        },
-        {
-            "name": "gpt-3.5-turbo",
-            "provider": "openai",
-            "is_think": false,
-            "input_cost": 5,
-            "output_cost": 15,
-            "context_tokens": 16384
         },
         {
             "name": "qwen-2.5-vl",

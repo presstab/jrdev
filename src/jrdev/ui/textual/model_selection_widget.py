@@ -26,7 +26,6 @@ class ModelSelectionWidget(RadioSet):
         self._model_buttons = {}  # Reset button tracking
 
         for model in models:
-            logger.info(f"{model}")
             models_by_provider[model["provider"]].append(model)
 
         # Reorder to put 'venice' first

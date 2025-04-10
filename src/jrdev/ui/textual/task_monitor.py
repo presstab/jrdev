@@ -63,7 +63,8 @@ class TaskMonitor(DataTable):
 
     def should_track(self, command: str) -> bool:
         if command.startswith("/"):
-            return command in self.tracked_commands
+            cmd = command[1:]
+            return cmd in self.tracked_commands
         # if it doesn't start with / then it's a chat, so track
         return True
 
