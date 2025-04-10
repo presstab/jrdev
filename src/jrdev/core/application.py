@@ -419,7 +419,8 @@ class Application:
             "VENICE_API_KEY": os.getenv("VENICE_API_KEY"),
             "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
             "ANTHROPIC_API_KEY": os.getenv("ANTHROPIC_API_KEY"),
-            "DEEPSEEK_API_KEY": os.getenv("DEEPSEEK_API_KEY")
+            "DEEPSEEK_API_KEY": os.getenv("DEEPSEEK_API_KEY"),
+            "OPEN_ROUTER_KEY": os.getenv("OPEN_ROUTER_KEY")
         }
         
         # Initialize all clients using the APIClients class

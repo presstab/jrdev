@@ -17,7 +17,8 @@ class APIClients:
             "venice": None,
             "openai": None,
             "anthropic": None,
-            "deepseek": None
+            "deepseek": None,
+            "open_router": None
         }
         self._initialized = False
 
@@ -30,6 +31,7 @@ class APIClients:
         await self._init_openai(env.get("OPENAI_API_KEY"))
         await self._init_anthropic(env.get("ANTHROPIC_API_KEY"))
         await self._init_deepseek(env.get("DEEPSEEK_API_KEY"))
+        await self._init_open_router(env.get("OPEN_ROUTER_KEY"))
         self._initialized = True
 
     async def _init_venice(self, api_key: Optional[str]) -> None:
@@ -62,6 +64,14 @@ class APIClients:
                 api_key=api_key,
                 base_url="https://api.deepseek.com",
             )
+            
+    async def _init_open_router(self, api_key: Optional[str]) -> None:
+        """Initialize OpenRouter client (optional)"""
+        if api_key:
+            self._clients["open_router"] = AsyncOpenAI(
+                api_key=api_key,
+                base_url="https://openrouter.ai/api/v1",
+            )
 
     @property
     def venice(self) -> AsyncOpenAI:
@@ -82,6 +92,11 @@ class APIClients:
     def deepseek(self) -> Optional[AsyncOpenAI]:
         """Get DeepSeek client"""
         return self._clients["deepseek"]
+        
+    @property
+    def open_router(self) -> Optional[AsyncOpenAI]:
+        """Get OpenRouter client"""
+        return self._clients["open_router"]
 
     def get_all_clients(self) -> Dict[str, Any]:
         """Get all initialized clients"""

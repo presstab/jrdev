@@ -54,6 +54,10 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
         client = app.state.clients.deepseek
         if not client:
             raise ValueError(f"DeepSeek API key not configured but model {model} requires it")
+    elif model_provider == "open_router":
+        client = app.state.clients.open_router
+        if not client:
+            raise ValueError(f"OpenRouter API key not configured but model {model} requires it")
     else:
         raise ValueError(f"Unknown provider for model {model}")
 
