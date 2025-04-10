@@ -219,6 +219,7 @@ class ContextManager:
         file_path: str,
         app: Any = None,
         additional_context: Optional[List[str]] = None,
+        task_id: Optional[str] = None
     ) -> Optional[str]:
         """
         Generate context for a file using an LLM and cache it.
@@ -283,7 +284,7 @@ class ContextManager:
 
             # Send the request to the LLM
             file_analysis_result: Any = await stream_request(
-                app, app.state.model, temp_messages, task_id=None, print_stream=False
+                app, app.state.model, temp_messages, task_id=task_id, print_stream=False
             )
             file_analysis = str(file_analysis_result)
             if contains_chinese(file_analysis):

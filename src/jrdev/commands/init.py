@@ -33,6 +33,7 @@ async def get_file_summary(
     app: Any,
     file_path: Any,
     additional_context: Optional[List[str]] = None,
+    task_id: Optional[str] = None
 ) -> Optional[str]:
     """
     Generate a summary of a file using an LLM and store in the ContextManager.
@@ -65,7 +66,7 @@ async def get_file_summary(
         # Use the context manager to generate the context
         file_input = files[0] if len(files) == 1 else files
         file_analysis = await app.context_manager.generate_context(
-            file_input, app, additional_context
+            file_input, app, additional_context=additional_context, task_id=task_id
         )
 
         if file_analysis:
@@ -134,6 +135,7 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
         temp_messages = builder.build()
 
         # Send the request to the LLM
+        sub_task_id = 0
         try:
             recommendation_response = await stream_request(
                 app, app.state.model, temp_messages, task_id=worker_id
@@ -190,23 +192,36 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
                     PrintType.PROCESSING,
                 )
 
-                async def analyze_file(index: int, file_path: str) -> Optional[str]:
+                async def analyze_file(index: int, file_path: str, task_id: str = None) -> Optional[str]:
                     """Helper function to analyze a single file."""
                     # prevent rate limits
                     if index > 0 and index % 5 == 0:
                         await asyncio.sleep(2)  # Sleep for 1.5 second
+
+                    sub_task_str = None
+                    if task_id:
+                        # create a sub task id
+                        sub_task_str = f"{task_id}:{index}"
+                        app.ui.update_task_info(task_id, update={"new_sub_task": sub_task_str, "description": str(file_path)})
 
                     app.ui.print_text(
                         f"Starting analysis for file {index + 1}/"
                         f"{len(cleaned_file_list)}: {file_path}",
                         PrintType.PROCESSING,
                     )
-                    result = await get_file_summary(app, file_path)
+
+                    result = await get_file_summary(app, file_path, task_id=sub_task_str)
                     app.ui.print_text(
                         f"Completed analysis for file {index + 1}/"
                         f"{len(cleaned_file_list)}: {file_path}",
                         PrintType.SUCCESS,
                     )
+
+                    # mark sub_task complete
+                    if task_id:
+                        sub_task_str = f"{task_id}:{index}"
+                        app.ui.update_task_info(sub_task_str, update={"sub_task_finished": True})
+
                     return result
 
                 # Parallel task to generate conventions using the same files
@@ -255,13 +270,19 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
                     # Get the constructed message list
                     conventions_messages = conventions_builder.build()
 
+                    # Create a sub task id for conventions
+                    conventions_task_id = None
+                    if worker_id:
+                        conventions_task_id = f"{worker_id}:{len(cleaned_file_list)}"
+                        app.ui.update_task_info(worker_id, update={"new_sub_task": conventions_task_id, "description": "Project Conventions"})
+
                     try:
                         # Use conventions_model directly instead of changing app.state.model
                         conventions_result = await stream_request(
                             app,
                             conventions_model,
                             conventions_messages,
-                            task_id=worker_id,
+                            task_id=conventions_task_id,
                             print_stream=False,
                         )
 
@@ -269,6 +290,10 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
                         conventions_file_path = f"{JRDEV_DIR}jrdev_conventions.md"
                         with open(conventions_file_path, "w") as f:
                             f.write(conventions_result)
+
+                        # Mark conventions sub_task complete
+                        if conventions_task_id:
+                            app.ui.update_task_info(conventions_task_id, update={"sub_task_finished": True})
 
                         return conventions_result
                     except Exception as e:
@@ -283,7 +308,7 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
 
                 # Start file analysis tasks
                 file_analysis_tasks = [
-                    analyze_file(i, file_path)
+                    analyze_file(i, file_path, worker_id)
                     for i, file_path in enumerate(cleaned_file_list)
                 ]
 
@@ -357,11 +382,17 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
                 
                 # Get the constructed message list
                 overview_messages = overview_builder.build()
+
+                # Create a sub task id for project overview
+                overview_task_id = None
+                if worker_id:
+                    overview_task_id = f"{worker_id}:{len(cleaned_file_list) + 1}"
+                    app.ui.update_task_info(worker_id, update={"new_sub_task": overview_task_id, "description": "Project Overview"})
                 
                 # Send request to the model for project overview
                 try:
                     full_overview = await stream_request(
-                        app, app.state.model, overview_messages, task_id=worker_id
+                        app, app.state.model, overview_messages, task_id=overview_task_id
                     )
 
                     # Save to markdown file
@@ -374,6 +405,10 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
                         f"{overview_file_path}",
                         PrintType.SUCCESS,
                     )
+
+                    # Mark overview sub_task complete
+                    if overview_task_id:
+                        app.ui.update_task_info(overview_task_id, update={"sub_task_finished": True})
                 except Exception as e:
                     app.ui.print_text(
                         f"Error generating project overview: {str(e)}", PrintType.ERROR

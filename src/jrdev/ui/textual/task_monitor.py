@@ -1,3 +1,5 @@
+from typing import Optional
+
 from textual.widgets import DataTable, Label
 from textual.color import Color
 from textual.worker import Worker, WorkerState
@@ -10,7 +12,7 @@ class TaskMonitor(DataTable):
 
     def __init__(self):
         super().__init__()
-        self.column_names = ["id", "task", "model", "input_tokens", "output_tokens", "tokens/sec", "runtime", "status"]
+        self.column_names = ["id", "task", "model", "tok_in", "tok_out", "tok/sec", "runtime", "status"]
         self.row_key_workers = {} # {row_key: worker.name}
         self.runtimes = {} # {worker.name: start_time}
         self.update_timer = None
@@ -27,15 +29,24 @@ class TaskMonitor(DataTable):
         self.border_title = "Tasks"
         self.styles.border = ("round", Color.parse("#63f554"))
         for column in self.column_names:
-            self.add_column(column, key=column)
+            if column == "model":
+                self.add_column(column, key=column, width=16)
+            else:
+                self.add_column(column, key=column)
 
-    def add_task(self, worker: Worker, task_id: str, task_name: str, model: str) -> None:
-        if not task_name.startswith("/"):
+    def truncate_cell_content(self, content: str, max_width: int) -> str:
+        return content if len(content) <= max_width else content[:max_width - 1] + "…"
+
+    def add_task(self, task_id: str, task_name: str, model: str, sub_task_name: Optional[str] = None) -> None:
+        if not sub_task_name and not task_name.startswith("/"):
             task_name = "chat"
-        row = (task_id, task_name, model, 0, 0, 0, 0, "active")
+        use_name = task_name
+        if sub_task_name:
+            use_name = sub_task_name
+        use_name = self.truncate_cell_content(use_name, 20)
+        row = (task_id, use_name, model, 0, 0, 0, 0, "active")
         row_key = self.add_row(*row, key=task_id)
-        self.row_key_workers[worker.name] = row_key
-        logger.info(f"add_task worker_name: {worker.name}")
+        self.row_key_workers[task_id] = row_key
         self.runtimes[task_id] = time.time()
 
         # add periodic update of runtimes
@@ -74,15 +85,20 @@ class TaskMonitor(DataTable):
             if row_key is not None:
                 self.update_cell(row_key, "status", "done")  # 4 = index of "status" column
 
+    def set_task_finished(self, task_id):
+        row_key = self.row_key_workers.get(task_id)
+        if row_key is not None:
+            self.update_cell(row_key, "status", "done")
+
     def update_input_tokens(self, worker_id, token_count, model=None):
         row_key = self.row_key_workers.get(worker_id)
         if row_key is not None:
-            self.update_cell(row_key, "input_tokens", token_count)
+            self.update_cell(row_key, "tok_in", token_count)
             if model:
                 self.update_cell(row_key, "model", model)
 
     def update_output_tokens(self, worker_id, token_count, tokens_per_second):
         row_key = self.row_key_workers.get(worker_id)
         if row_key is not None:
-            self.update_cell(row_key, "output_tokens", token_count)
-            self.update_cell(row_key, "tokens/sec", tokens_per_second)
+            self.update_cell(row_key, "tok_out", token_count)
+            self.update_cell(row_key, "tok/sec", tokens_per_second)

@@ -142,7 +142,7 @@ class JrDevUI(App[None]):
         worker = self.run_worker(self.jrdev.process_input(text, task_id))
         if task_id:
             worker.name = task_id
-            self.task_monitor.add_task(worker, task_id, text, "model_name")
+            self.task_monitor.add_task(task_id, text, "")
 
         # clear input widget
         self.terminal_input.value = ""
@@ -208,6 +208,15 @@ class JrDevUI(App[None]):
             output_tokens = message.update.get("output_tokens")
             tokens_per_second = message.update.get("tokens_per_second")
             self.task_monitor.update_output_tokens(message.worker_id, output_tokens, tokens_per_second)
+        elif "new_sub_task" in message.update:
+            # new sub task spawned
+            sub_task_id = message.update.get("new_sub_task")
+            description = message.update.get("description")
+            self.task_monitor.add_task(sub_task_id, task_name="init", model="", sub_task_name=description)
+        elif "sub_task_finished" in message.update:
+            self.task_monitor.set_task_finished(message.worker_id)
+
+
         
     @on(TextualEvents.ExitRequest)
     def handle_exit_request(self, message: TextualEvents.ExitRequest) -> None:
