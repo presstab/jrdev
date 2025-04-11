@@ -1,16 +1,17 @@
+import json
 import os
 from typing import Any, Dict, List, Set
 
 from jrdev.llm_requests import stream_request
 from jrdev.prompts.prompt_utils import PromptManager
-from jrdev.file_utils import requested_files, get_file_contents, cutoff_string, manual_json_parse
+from jrdev.file_utils import requested_files, get_file_contents, cutoff_string
 from jrdev.file_operations.process_ops import apply_file_changes
-from jrdev.ui.ui import terminal_print, PrintType, print_steps
+from jrdev.ui.ui import PrintType, print_steps
 from jrdev.message_builder import MessageBuilder
 
 
 class CodeProcessor:
-    def __init__(self, app: Any):
+    def __init__(self, app: Any, worker_id=None):
         """
         Initialize the CodeProcessor with the application instance.
         The app object should provide access to logging, message history,
@@ -18,6 +19,7 @@ class CodeProcessor:
         """
         self.app = app
         self.profile_manager = app.profile_manager()
+        self.worker_id = worker_id
 
     async def process(self, user_task: str) -> None:
         """
@@ -33,7 +35,7 @@ class CodeProcessor:
             await self.process_code_response(initial_response, user_task)
         except Exception as e:
             self.app.logger.error(f"Error in CodeProcessor: {str(e)}")
-            terminal_print(f"Error processing code: {str(e)}", PrintType.ERROR)
+            self.app.ui.print_text(f"Error processing code: {str(e)}", PrintType.ERROR)
 
     async def send_initial_request(self, user_task: str) -> str:
         """
@@ -49,9 +51,9 @@ class CodeProcessor:
         messages = builder.build()
 
         model_name = self.profile_manager.get_model("advanced_reasoning")
-        terminal_print(f"\n{model_name} is processing the request... (advanced_reasoning profile)", PrintType.PROCESSING)
-        response_text = await stream_request(self.app, model_name, messages)
-        terminal_print("", PrintType.INFO)
+        self.app.ui.print_text(f"\n{model_name} is processing the request... (advanced_reasoning profile)", PrintType.PROCESSING)
+        response_text = await stream_request(self.app, model_name, messages, task_id=self.worker_id)
+        self.app.ui.print_text("", PrintType.INFO)
         return response_text
 
     async def process_code_response(self, response_text: str, user_task: str) -> None:
@@ -77,7 +79,7 @@ class CodeProcessor:
             failed_steps = []
             for i, step in enumerate(steps["steps"]):
                 print_steps(self.app, steps, completed_steps, current_step=i)
-                terminal_print(
+                self.app.ui.print_text(
                     f"Working on step {i + 1}: {step.get('operation_type')} for {step.get('filename')}",
                     PrintType.PROCESSING
                 )
@@ -90,7 +92,7 @@ class CodeProcessor:
 
             # Second pass for any steps that did not succeed on the first try.
             for idx, step in failed_steps:
-                terminal_print(f"Retrying step {idx + 1}", PrintType.PROCESSING)
+                self.app.ui.print_text(f"Retrying step {idx + 1}", PrintType.PROCESSING)
                 print_steps(self.app, steps, completed_steps, current_step=idx)
                 new_changes = await self.complete_step(step, files_to_send)
                 if new_changes:
@@ -117,17 +119,17 @@ class CodeProcessor:
         file_content = get_file_contents(files_to_send)
         code_response = await self.request_code(step, file_content, retry_message)
         try:
-            result = self.check_and_apply_code_changes(code_response)
+            result = await self.check_and_apply_code_changes(code_response)
             if result.get("success"):
                 return result.get("files_changed", [])
             if "change_requested" in result:
                 # Use change-request feedback to retry the step.
                 retry_message = result["change_requested"]
-                terminal_print("Retrying step with additional feedback...", PrintType.WARNING)
+                self.app.ui.print_text("Retrying step with additional feedback...", PrintType.WARNING)
                 return await self.complete_step(step, files_to_send, retry_message)
             raise Exception("Failed to apply code changes in step.")
         except Exception as e:
-            terminal_print(f"Step failed: {str(e)}", PrintType.ERROR)
+            self.app.ui.print_text(f"Step failed: {str(e)}", PrintType.ERROR)
             return []
 
     async def request_code(self, change_instruction: Dict, file_content: str, additional_prompt: str = None) -> str:
@@ -171,22 +173,22 @@ class CodeProcessor:
         # Send request
         model = self.profile_manager.get_model("advanced_coding")
         self.app.logger.info(f"Sending code request to {model}")
-        terminal_print(f"\nSending code request to {model} (advanced_coding profile)...\n", PrintType.PROCESSING)
-        response = await stream_request(self.app, model, messages, print_stream=True, json_output=True)
+        self.app.ui.print_text(f"\nSending code request to {model} (advanced_coding profile)...\n", PrintType.PROCESSING)
+        response = await stream_request(self.app, model, messages, task_id=self.worker_id, print_stream=True, json_output=True)
         return response
 
-    def check_and_apply_code_changes(self, response_text: str) -> Dict:
+    async def check_and_apply_code_changes(self, response_text: str) -> Dict:
         """
         Extract and parse the JSON snippet for code changes from the LLM response,
         then apply the file changes.
         """
         try:
             json_block = cutoff_string(response_text, "```json", "```")
-            changes = manual_json_parse(json_block)
+            changes = json.loads(json_block)
         except Exception as e:
-            raise Exception(f"Parsing failed in code changes: {str(e)}")
+            raise Exception(f"Parsing failed in code changes: {str(e)}\n Blob:{json_block}\n")
         if "changes" in changes:
-            return apply_file_changes(changes)
+            return await apply_file_changes(self.app, changes)
         return {"success": False}
 
     async def send_file_request(self, files_to_send: List[str], user_task: str, initial_response: str) -> str:
@@ -208,9 +210,9 @@ class CodeProcessor:
 
         model = self.profile_manager.get_model("advanced_reasoning")
         self.app.logger.info(f"Sending file contents to {model}")
-        terminal_print(f"\nSending requested files to {model} (advanced_reasoning profile)...", PrintType.PROCESSING)
-        response = await stream_request(self.app, model, messages)
-        terminal_print("", PrintType.INFO)
+        self.app.ui.print_text(f"\nSending requested files to {model} (advanced_reasoning profile)...", PrintType.PROCESSING)
+        response = await stream_request(self.app, model, messages, task_id=self.worker_id)
+        self.app.ui.print_text("", PrintType.INFO)
         return response
 
     async def parse_steps(self, steps_text: str, filelist: List[str]) -> Dict:
@@ -219,7 +221,7 @@ class CodeProcessor:
         Also, verify that every file referenced in steps exists in the provided filelist.
         """
         json_content = cutoff_string(steps_text, "```json", "```")
-        steps_json = manual_json_parse(json_content)
+        steps_json = json.loads(json_content)
 
         # Check for missing files in the step instructions.
         missing_files = []
@@ -249,18 +251,18 @@ class CodeProcessor:
         # Validation Model
         model = self.profile_manager.get_model("intermediate_reasoning")
         self.app.logger.info(f"Validating changed files with {model}")
-        terminal_print(f"\nValidating changed files with {model} (intermediate_reasoning profile)", PrintType.PROCESSING)
+        self.app.ui.print_text(f"\nValidating changed files with {model} (intermediate_reasoning profile)", PrintType.PROCESSING)
         validation_response = await stream_request(
-            self.app, model, messages, print_stream=False
+            self.app, model, messages, task_id=self.worker_id, print_stream=False
         )
         self.app.logger.info(f"Validation response: {validation_response}")
         if validation_response.strip().startswith("VALID"):
-            terminal_print("✓ Files validated successfully", PrintType.SUCCESS)
+            self.app.ui.print_text("✓ Files validated successfully", PrintType.SUCCESS)
         elif "INVALID" in validation_response:
             reason = (
                 validation_response.split("INVALID:")[1].strip() if ":" in validation_response
                 else "Unspecified error"
             )
-            terminal_print(f"⚠ Files may be malformed: {reason}", PrintType.ERROR)
+            self.app.ui.print_text(f"⚠ Files may be malformed: {reason}", PrintType.ERROR)
         else:
-            terminal_print("⚠ Could not determine file validation status", PrintType.WARNING)
+            self.app.ui.print_text("⚠ Could not determine file validation status", PrintType.WARNING)

@@ -5,7 +5,7 @@ import re
 from difflib import SequenceMatcher
 
 from jrdev.languages.utils import detect_language, is_headers_language
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 
 # Base directory for jrdev files
 JRDEV_DIR = "jrdev/"
@@ -28,7 +28,7 @@ def requested_files(text):
         try:
             file_list = eval(file_list_str)
         except Exception as e:
-            terminal_print(f"Error parsing file list: {str(e)}", PrintType.ERROR)
+            logger.error(f"Error parsing file list: {str(e)}")
             file_list = []
 
     if file_list == []:
@@ -156,13 +156,13 @@ def get_file_contents(file_list, file_alias=None):
             else:
                 similar_file = find_similar_file(file_path)
                 if similar_file:
-                    terminal_print(f"\nFound similar file: {similar_file} instead of {file_path}", PrintType.WARNING)
+                    logger.warning(f"\nFound similar file: {similar_file} instead of {file_path}")
                     with open(similar_file, "r") as f:
                         file_contents[file_path] = f.read()
                 else:
-                    terminal_print(f"Error reading file {file_path}: File not found", PrintType.ERROR)
+                    logger.error(f"Error reading file {file_path}: File not found")
         except Exception as e:
-            terminal_print(f"Error reading file {file_path}: {str(e)}", PrintType.ERROR)
+            logger.error(f"Error reading file {file_path}: {str(e)}")
 
     formatted_content = ""
     for path, content in file_contents.items():
@@ -176,31 +176,29 @@ def get_file_contents(file_list, file_alias=None):
 
 def cutoff_string(input_string, cutoff_before_match, cutoff_after_match):
     """
-    Cuts off parts of the input string before the first occurrence of cutoff_before_match
-    and after the second occurrence of cutoff_after_match.
-
-    Parameters:
-    - input_string (str): The original string.
-    - cutoff_before_match (str): The phrase before which all text will be cut off (including this).
-    - cutoff_after_match (str): The phrase after which all text will be cut off (second occurance and including this).
-
-    Returns:
-    - str: The modified string.
+    Removes all lines up to and including the line containing cutoff_before_match,
+    and all lines from (and including) the line containing cutoff_after_match.
+    Returns the lines in between.
     """
-    try:
-        # Find the index of the first occurrence of cutoff_before_match
-        start_index = input_string.index(cutoff_before_match)
-        cropped = input_string[start_index + len(cutoff_before_match):]
+    lines = input_string.splitlines()
+    start = 0
+    end = len(lines)
 
-        match2 = cropped.index(cutoff_after_match)
-        cropped = cropped[0:(match2 + - len(cutoff_after_match))]
+    # Find the line index for cutoff_before_match
+    for i, line in enumerate(lines):
+        if cutoff_before_match in line:
+            start = i + 1  # skip this line and everything before
+            break
 
-        # Return the substring between the two indices
-        return cropped.strip()
+    # Find the line index for cutoff_after_match, starting from 'start'
+    for j in range(start, len(lines)):
+        if cutoff_after_match in lines[j]:
+            end = j  # do not include this line or anything after
+            break
 
-    except ValueError:
-        # If either phrase is not found or the order is incorrect, return the original string
-        return input_string
+    # Return the lines in between, joined by newlines
+    return "\n".join(lines[start:end]).strip()
+
 
 
 def write_string_to_file(filename: str, content: str):
@@ -212,7 +210,7 @@ def write_string_to_file(filename: str, content: str):
     """
     content = content.replace("\\n", "\n").replace("\\\"", "\"")
     with open(filename, 'w', encoding='utf-8') as file:
-        terminal_print(f"Writing {filename}", PrintType.WARNING)
+        logger.info(f"Writing {filename}")
         file.write(content)
 
 
@@ -259,18 +257,17 @@ def add_to_gitignore(gitignore_path: str, ignore_str: str, create_if_dne: bool =
                     f.write("\n")
                 f.write(f"{ignore_pattern}\n")
 
-            terminal_print(f"Added '{ignore_pattern}' to {gitignore_path}", PrintType.SUCCESS)
+            logger.info(f"Added '{ignore_pattern}' to {gitignore_path}")
         elif create_if_dne:
             # File doesn't exist, create it with the pattern
             with open(gitignore_path, 'w') as f:
                 f.write(f"{ignore_pattern}\n")
 
-            terminal_print(f"Created {gitignore_path} with pattern '{ignore_pattern}'", PrintType.SUCCESS)
+            logger.info(f"Created {gitignore_path} with pattern '{ignore_pattern}'")
 
         return True
 
     except Exception as e:
-        terminal_print(f"Error adding to gitignore: {str(e)}", PrintType.ERROR)
         logger.error(f"Error adding to gitignore: {str(e)}")
         return False
 

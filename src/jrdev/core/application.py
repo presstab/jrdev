@@ -1,20 +1,16 @@
 import asyncio
 import json
 import os
-import re
 import sys
-from typing import Any, Dict, List, Set
-
+from typing import Any, Dict, List
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
-import anthropic
 
 from jrdev.colors import Colors
 from jrdev.core.clients import APIClients
-from jrdev.core.commands import CommandHandler
+from jrdev.core.commands import Command, CommandHandler
 from jrdev.core.state import AppState
-from jrdev.file_utils import add_to_gitignore, JRDEV_DIR, get_env_path, get_file_contents
-from jrdev.commands.keys import check_existing_keys, run_first_time_setup
+from jrdev.file_utils import add_to_gitignore, JRDEV_DIR, get_env_path
+from jrdev.commands.keys import check_existing_keys, save_keys_to_env, run_first_time_setup
 from jrdev.llm_requests import stream_request
 from jrdev.logger import setup_logger
 from jrdev.message_builder import MessageBuilder
@@ -22,8 +18,8 @@ from jrdev.model_list import ModelList
 from jrdev.model_profiles import ModelProfileManager
 from jrdev.model_utils import load_hardcoded_models
 from jrdev.models import fetch_venice_models
-from jrdev.prompts.prompt_utils import PromptManager
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
+from jrdev.ui.ui_wrapper import UiWrapper
 from jrdev.projectcontext.contextmanager import ContextManager
 
 
@@ -33,6 +29,9 @@ class Application:
         self.logger = setup_logger(JRDEV_DIR)
         self.state = AppState()
         self.state.clients = APIClients()
+        self.ui: UiWrapper = UiWrapper()
+
+    def setup(self):
         self._initialize_commands()
         self._setup_infrastructure()
 
@@ -50,7 +49,6 @@ class Application:
         self.state.model_list.set_model_list(load_hardcoded_models())
         self.state.context_manager = ContextManager()
         self.state.model_profile_manager = ModelProfileManager()
-        self._setup_readline()
 
     def _load_environment(self):
         """Load environment variables"""
@@ -60,25 +58,27 @@ class Application:
 
         if not check_existing_keys():
             self.state.need_first_time_setup = True
-            terminal_print("API keys not found. Setup will begin shortly...", PrintType.INFO)
+            self.state.need_api_keys = True
+            self.ui.print_text("API keys not found. Setup will begin shortly...", PrintType.INFO)
 
-    async def run(self):
-        """Main application entry point"""
-        await self._initialize_services()
-        await self._start_services()
-        await self._main_loop()
-
-    async def _initialize_services(self):
+    async def initialize_services(self):
         """Initialize API clients and services"""
+        self.logger.info("initialize services")
         if hasattr(self.state, 'need_first_time_setup') and self.state.need_first_time_setup:
-            await self._perform_first_time_setup()
+            success = await self._perform_first_time_setup()
+            # UI signalled that keys or other steps need to be taken
+            if not success:
+                return False
 
         if not self.state.clients.is_initialized():
+            self.logger.info("api clients not initialized")
             await self._initialize_api_clients()
             
         self.logger.info("Application services initialized")
 
-    async def _start_services(self):
+        return True
+
+    async def start_services(self):
         """Start background services"""
         # Start task monitor
         self.state.task_monitor = asyncio.create_task(self._schedule_task_monitor())
@@ -88,23 +88,8 @@ class Application:
         
         self.logger.info("Background services started")
 
-    async def _main_loop(self):
-        """Main application loop"""
-        self._print_welcome_message()
-
-        while self.state.running:
-            try:
-                user_input = await self._get_user_input()
-                await self._process_input(user_input)
-            except KeyboardInterrupt:
-                self._handle_keyboard_interrupt()
-            except Exception as e:
-                self._handle_error(e)
-
-        await self._shutdown_services()
-
-    async def handle_command(self, command):
-        cmd_parts = command.split()
+    async def handle_command(self, command: Command):
+        cmd_parts = command.text.split()
         if not cmd_parts:
             return
 
@@ -114,16 +99,16 @@ class Application:
         self.logger.info(f"Command received: {cmd}")
 
         try:
-            result = await self.command_handler.execute(cmd, cmd_parts)
+            result = await self.command_handler.execute(cmd, cmd_parts, command.request_id)
             return result
         except Exception as e:
             self.logger.error(f"Error handling command {cmd}: {e}")
-            terminal_print(f"Error: {e}", print_type=PrintType.ERROR)
+            self.ui.print_text(f"Error: {e}", print_type=PrintType.ERROR)
             import traceback
             self.logger.error(traceback.format_exc())
             # Show help message for unknown commands
             if cmd not in self.command_handler.get_commands():
-                terminal_print("Type /help for available commands", print_type=PrintType.INFO)
+                self.ui.print_text("Type /help for available commands", print_type=PrintType.INFO)
         
     def get_current_thread(self):
         """Get the currently active thread"""
@@ -137,7 +122,7 @@ class Application:
         """Create a new thread"""
         return self.state.create_thread(thread_id)
 
-    async def send_message(self, msg_thread, content, writepath=None, print_stream=True):
+    async def send_message(self, msg_thread, content, writepath=None, print_stream=True, worker_id=None):
         """
         Send a message to the LLM with default behavior.
         If writepath is provided, the response will be saved to that file.
@@ -156,7 +141,7 @@ class Application:
         if not isinstance(content, str):
             error_msg = f"Expected string but got {type(content)}"
             self.logger.error(error_msg)
-            terminal_print(f"Error: {error_msg}", PrintType.ERROR)
+            self.ui.print_text(f"Error: {error_msg}", PrintType.ERROR)
             return None
 
         user_additional_modifier = " Here is the user's question or instruction:"
@@ -189,11 +174,11 @@ class Application:
         msg_thread.messages = messages
 
         model_name = self.state.model
-        terminal_print(f"\n{model_name} is processing request in message thread: {msg_thread.thread_id}...", PrintType.PROCESSING)
+        self.ui.print_text(f"\n{model_name} is processing request in message thread: {msg_thread.thread_id}...", PrintType.PROCESSING)
 
         try:
             # Send the message to the LLM
-            response_text = await stream_request(self, self.state.model, messages, print_stream=print_stream)
+            response_text = await stream_request(self, self.state.model, messages, task_id=worker_id, print_stream=print_stream)
             self.logger.info(f"Successfully received response from model in thread {msg_thread.thread_id}")
 
             # Add response to messages
@@ -225,17 +210,17 @@ class Application:
                     f.write(response_text)
 
                 self.logger.info(f"Response saved to file: {writepath}")
-                terminal_print(f"Response saved to {writepath}", print_type=PrintType.SUCCESS)
+                self.ui.print_text(f"Response saved to {writepath}", print_type=PrintType.SUCCESS)
                 return response_text
             except Exception as e:
                 error_msg = f"Error writing to file {writepath}: {str(e)}"
                 self.logger.error(error_msg)
-                terminal_print(error_msg, print_type=PrintType.ERROR)
+                self.ui.print_text(error_msg, print_type=PrintType.ERROR)
                 return response_text
         except Exception as e:
             error_msg = str(e)
             self.logger.error(f"Error in send_message: {error_msg}")
-            terminal_print(f"Error: {error_msg}", PrintType.ERROR)
+            self.ui.print_text(f"Error: {error_msg}", PrintType.ERROR)
             return None
     
     def profile_manager(self):
@@ -247,6 +232,13 @@ class Application:
     def get_model_names(self):
         current_models = self.get_models()
         return [model["name"] for model in current_models]
+
+    def set_model(self, model, send_to_ui=True):
+        model_names = self.get_model_names()
+        if model in model_names:
+            self.state.model = model
+            if send_to_ui:
+                self.ui.model_changed(model)
 
     async def update_model_names_cache(self):
         """Update the model names cache in the background."""
@@ -381,7 +373,7 @@ class Application:
         await asyncio.sleep(1.0)  # Check every second
         await self.task_monitor_callback()
 
-    async def _process_input(self, user_input):
+    async def process_input(self, user_input, worker_id=None):
         """Process user input."""
         await asyncio.sleep(0.01)  # Brief yield to event loop
         
@@ -389,348 +381,46 @@ class Application:
             return
             
         if user_input.startswith("/"):
-            result = await self.handle_command(user_input)
+            command = Command(user_input, worker_id)
+            result = await self.handle_command(command)
             # Check for special exit code
             if result == "EXIT":
                 self.logger.info("Exit command received, forcing running state to False")
                 self.state.running = False
         else:
             msg_thread = self.state.get_current_thread()
-            await self.send_message(msg_thread, user_input, print_stream=True)
-    
-    def _handle_keyboard_interrupt(self):
-        """Handle keyboard interrupt."""
-        self.logger.info("User initiated terminal exit (KeyboardInterrupt)")
-        terminal_print("\nExiting JrDev terminal...", PrintType.INFO)
-        self.state.running = False
-    
-    def _handle_error(self, error):
-        """Handle general errors in main loop."""
-        error_msg = str(error)
-        self.logger.error(f"Error in main loop: {error_msg}")
-        terminal_print(f"Error: {error_msg}", PrintType.ERROR)
+            await self.send_message(msg_thread, user_input, print_stream=True, worker_id=worker_id)
 
-    # The following methods need implementation
-    # based on READLINE_AVAILABLE functionality 
-    def _setup_readline(self):
-        """Set up the readline module for command history and tab completion."""
-        try:
-            import readline
-            self.READLINE_AVAILABLE = True
-        except ImportError:
-            self.READLINE_AVAILABLE = False
-            return
-            
-        try:
-            self.history_file = os.path.expanduser("~/.jrdev_history")
-            
-            # Ensure the history file exists
-            if not os.path.exists(self.history_file):
-                try:
-                    with open(self.history_file, 'w') as f:
-                        pass  # Create empty file
-                    self.logger.info(f"Created history file: {self.history_file}")
-                except Exception as e:
-                    self.logger.error(f"Failed to create history file: {e}")
-                    
-            readline.parse_and_bind("tab: complete")
-            readline.set_completer(self.completer)
-            readline.set_completer_delims(' \t\n;')
-
-            # Make sure readline's history length is set properly
-            readline.set_history_length(1000)
-
-            # Initial history load
-            if os.path.exists(self.history_file):
-                readline.read_history_file(self.history_file)
-            
-            # Refresh display if needed
-            if hasattr(readline, 'redisplay'):
-                readline.redisplay()
-
-            if hasattr(readline, 'set_screen_size'):
-                try:
-                    import shutil
-                    columns, _ = shutil.get_terminal_size()
-                    readline.set_screen_size(100, columns)
-                except Exception:
-                    readline.set_screen_size(100, 120)
-        except Exception as e:
-            terminal_print(f"Error setting up readline: {str(e)}", PrintType.ERROR)
-    
-    def completer(self, text, state):
-        """
-        Custom completer function for readline.
-        Provides tab completion for commands and their arguments.
-        """
-        if not hasattr(self, 'READLINE_AVAILABLE') or not self.READLINE_AVAILABLE:
-            return None
-            
-        try:
-            import readline
-            buffer = readline.get_line_buffer()
-            line = buffer.lstrip()
-
-            # If the line starts with a slash, it might be a command
-            if line.startswith("/"):
-
-                # Check if we're completing a command or its arguments
-                if " " in line:
-                    # We're completing arguments for a command
-                    command, args_prefix = line.split(" ", 1)
-
-                    # If the command is /model, provide model name completions
-                    if command == "/model":
-                        model_names = self.get_model_names()
-                        matches = [name for name in model_names if name.startswith(args_prefix)]
-
-                        # If there's only one match and we've pressed tab once (state == 0)
-                        if len(matches) == 1 and state == 0:
-                            return matches[0]
-
-                        # If there are multiple matches and this is the first time showing them (state == 0)
-                        if len(matches) > 1 and state == 0:
-                            # Print a newline to start the completions on a fresh line
-                            print("\033[2K\n")
-
-                            # Print all matches in columns
-                            terminal_width = os.get_terminal_size().columns
-                            max_item_len = max(len(item) for item in matches) + 2  # +2 for spacing
-                            items_per_row = max(1, terminal_width // max_item_len)
-
-                            for i, item in enumerate(matches):
-                                print(f"{item:<{max_item_len}}", end=("" if (i + 1) % items_per_row else "\n"))
-
-                            # If we didn't end with a newline, print one now
-                            if len(matches) % items_per_row != 0:
-                                print()
-
-                            # Redisplay the prompt and current input
-                            print(f"\n{Colors.BOLD}{Colors.GREEN}> {Colors.RESET}{command} {args_prefix}", end="", flush=True)
-
-                        # Return items based on state
-                        try:
-                            return matches[state]
-                        except IndexError:
-                            return None
-
-                    # If the command is /addcontext, provide file path completions
-                    elif command == "/addcontext":
-                        # Get the current working directory
-                        cwd = os.getcwd()
-
-                        # Check if args_prefix contains wildcard (*, ?, [)
-                        has_wildcard = any(c in args_prefix for c in ['*', '?', '['])
-
-                        # If it has a wildcard already, we don't provide completions
-                        if has_wildcard:
-                            return None
-
-                        # Split the args_prefix into directory and filename parts
-                        if "/" in args_prefix:
-                            dir_prefix, file_prefix = os.path.split(args_prefix)
-                            dir_path = os.path.join(cwd, dir_prefix)
-                        else:
-                            dir_path = cwd
-                            file_prefix = args_prefix
-
-                        try:
-                            # Get all files and directories in the target directory
-                            if os.path.isdir(dir_path):
-                                items = os.listdir(dir_path)
-                                matches = []
-
-                                for item in items:
-                                    # Only include items that match the prefix
-                                    if item.startswith(file_prefix):
-                                        full_item = item
-                                        # If the args_prefix includes a directory, include it in the completion
-                                        if "/" in args_prefix:
-                                            full_item = os.path.join(dir_prefix, item)
-
-                                        # Add a trailing slash for directories
-                                        full_path = os.path.join(cwd, dir_prefix if "/" in args_prefix else "", item)
-                                        if os.path.isdir(full_path):
-                                            full_item += "/"
-
-                                        matches.append(full_item)
-
-                                # If there's only one match and we've pressed tab once (state == 0)
-                                if len(matches) == 1 and state == 0:
-                                    return matches[0]
-
-                                # If there are multiple matches and this is the first time showing them (state == 0)
-                                if len(matches) > 1 and state == 0:
-                                    # Print a newline to start the completions on a fresh line
-                                    print("\033[2K\n")
-
-                                    # Print all matches in columns
-                                    terminal_width = os.get_terminal_size().columns
-                                    max_item_len = max(len(item) for item in matches) + 2  # +2 for spacing
-                                    items_per_row = max(1, terminal_width // max_item_len)
-
-                                    for i, item in enumerate(matches):
-                                        print(f"{item:<{max_item_len}}", end=("" if (i + 1) % items_per_row else "\n"))
-
-                                    # If we didn't end with a newline, print one now
-                                    if len(matches) % items_per_row != 0:
-                                        print()
-
-                                    # Redisplay the prompt and current input
-                                    print(f"\n{Colors.BOLD}{Colors.GREEN}> {Colors.RESET}{command} {args_prefix}", end="", flush=True)
-
-                                # Return items based on state
-                                try:
-                                    return matches[state]
-                                except IndexError:
-                                    return None
-                        except Exception as e:
-                            # Print debug info
-                            print(f"\nError in file completion: {str(e)}")
-                            return None
-
-                    return None
-                else:
-                    # We're completing a command
-                    matches = [cmd for cmd in self.command_handler.get_commands().keys() if cmd.startswith(line)]
-
-                    # If there's only one match and we've pressed tab once (state == 0)
-                    if len(matches) == 1 and state == 0:
-                        return matches[0]
-
-                    # If there are multiple matches and this is the first time showing them (state == 0)
-                    if len(matches) > 1 and state == 0:
-                        # Print a newline to start the completions on a fresh line
-                        print("\033[2K\n")
-
-                        # Print all matches in columns
-                        terminal_width = os.get_terminal_size().columns
-                        max_item_len = max(len(item) for item in matches) + 2  # +2 for spacing
-                        items_per_row = max(1, terminal_width // max_item_len)
-
-                        for i, item in enumerate(matches):
-                            print(f"{item:<{max_item_len}}", end=("" if (i + 1) % items_per_row else "\n"))
-
-                        # If we didn't end with a newline, print one now
-                        if len(matches) % items_per_row != 0:
-                            print()
-
-                        # Redisplay the prompt and current input
-                        print(f"\n{Colors.BOLD}{Colors.GREEN}> {Colors.RESET}{line}", end="", flush=True)
-
-                    # Return items based on state
-                    try:
-                        return matches[state]
-                    except IndexError:
-                        return None
-        except Exception as e:
-            self.logger.error(f"Error in completer: {e}")
-            return None
-
-        return None
-    
-    def save_history(self, input_text):
-        """Save the input to history file."""
-        if not hasattr(self, 'READLINE_AVAILABLE') or not self.READLINE_AVAILABLE or not input_text.strip():
-            return
-
-        try:
-            import readline
-            # Just write to history file
-            # Don't add to in-memory history as input() already does this
-            readline.write_history_file(self.history_file)
-        except Exception as e:
-            self.logger.error(f"Error saving history: {str(e)}")
-            # Don't display errors to user as this isn't critical functionality
-    
-    async def _get_user_input(self):
-        """Get user input with proper line wrapping using asyncio to prevent blocking the event loop."""
-        # We'll use a standard prompt and rely on Python's built-in input handling
-        prompt = f"\n\001{Colors.BOLD}{Colors.GREEN}\002> \001{Colors.RESET}\002"
-
-        # Use a clean approach to avoid history issues
-        def read_input():
-            if not hasattr(self, 'READLINE_AVAILABLE') or not self.READLINE_AVAILABLE:
-                return input(prompt)
-
-            import readline
-            # Refresh display to ensure proper cursor state
-            if hasattr(readline, 'redisplay'):
-                readline.redisplay()
-                
-            # Use the standard input with proper prompt
-            try:
-                # Use the standard prompt-with-input approach
-                # The readline library will properly handle the prompt protection
-                return input(prompt)
-            except KeyboardInterrupt:
-                print("\n")
-                return ""
-            except EOFError:
-                readline.clear_history()  # Add history cleanup on EOF
-                print("\n")
-                return ""
-
-        try:
-            # Get terminal width to help with wrapping behavior
-            import shutil
-            term_width = shutil.get_terminal_size().columns
-            # Adjust prompt width consideration
-            prompt_len = 4  # Length of "> " without color codes
-            available_width = term_width - prompt_len
-
-            # Only work with readline if it's available
-            if hasattr(self, 'READLINE_AVAILABLE') and self.READLINE_AVAILABLE:
-                import readline
-                
-                # Readline will use this width for wrapping
-                if hasattr(readline, 'set_screen_size'):
-                    readline.set_screen_size(100, available_width)
-                    
-                # Set up completion display hooks if available
-                if hasattr(readline, 'set_completion_display_matches_hook'):
-                    def hook(substitution, matches, longest_match_length):
-                        print("\033[2K", end="")  # Clear line before showing matches
-                    readline.set_completion_display_matches_hook(hook)
-
-        except Exception as e:
-            self.logger.error(f"Error setting up input dimensions: {str(e)}")
-
-        # Use a less intrusive approach with asyncio to get input
-        # This should help preserve readline's state better
-        loop = asyncio.get_running_loop()
-        user_input = await loop.run_in_executor(None, read_input)
-        
-        # Save to history if needed
-        if user_input.strip():
-            self.save_history(user_input)
-            
-        return user_input
     async def _perform_first_time_setup(self):
         """Handle first-time setup process"""
         self.logger.info("Performing first-time setup")
+        if self.state.need_api_keys:
+            await self.ui.signal_no_keys()
+            return False
+
         if self.state.need_first_time_setup:
-            setup_success = await run_first_time_setup()
-            
-            if not setup_success:
-                terminal_print("Failed to set up required API keys. Exiting...", PrintType.ERROR)
-                sys.exit(1)
-                
             self._load_environment()
             
         env_path = get_env_path()
         load_dotenv(dotenv_path=env_path)
         await self._initialize_api_clients()
         self.state.need_first_time_setup = False
+        return True
+
+    def save_keys(self, keys):
+        save_keys_to_env(keys)
+        self.state.need_api_keys = not check_existing_keys()
 
     async def _initialize_api_clients(self):
         """Initialize all API clients"""
         # Create a dictionary of environment variables
+        self.logger.info("initializing api clients")
         env = {
             "VENICE_API_KEY": os.getenv("VENICE_API_KEY"),
             "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
             "ANTHROPIC_API_KEY": os.getenv("ANTHROPIC_API_KEY"),
-            "DEEPSEEK_API_KEY": os.getenv("DEEPSEEK_API_KEY")
+            "DEEPSEEK_API_KEY": os.getenv("DEEPSEEK_API_KEY"),
+            "OPEN_ROUTER_KEY": os.getenv("OPEN_ROUTER_KEY")
         }
         
         # Initialize all clients using the APIClients class
@@ -740,8 +430,8 @@ class Application:
         except Exception as e:
             error_msg = f"Failed to initialize API clients: {str(e)}"
             self.logger.error(error_msg)
-            terminal_print(f"Error: {error_msg}", PrintType.ERROR)
-            terminal_print("Please restart the application and provide a valid Venice API key.", PrintType.INFO)
+            self.ui.print_text(f"Error: {error_msg}", PrintType.ERROR)
+            self.ui.print_text("Please restart the application and provide a valid Venice API key.", PrintType.INFO)
             sys.exit(1)
 
     # Client property accessors for backward compatibility
@@ -774,19 +464,3 @@ class Application:
     def context(self):
         """Return the context list for backward compatibility"""
         return self.state.context if hasattr(self.state, 'context') else []
-    
-    def _print_welcome_message(self):
-        """Print startup messages"""
-        terminal_print(f"JrDev Terminal (Model: {self.state.model})", PrintType.HEADER)
-        terminal_print("Type a message to chat with the model", PrintType.INFO)
-        terminal_print("Type /help for available commands", PrintType.INFO)
-        terminal_print("Type /exit to quit", PrintType.INFO)
-        terminal_print("Use /thread to manage conversation threads", PrintType.INFO)
-
-    # Additional methods would be ported from JrDevTerminal with similar refactoring
-
-    async def _shutdown_services(self):
-        """Cleanup resources before exit"""
-        if self.state.task_monitor and not self.state.task_monitor.done():
-            self.state.task_monitor.cancel()
-        self.logger.info("Application shutdown complete")

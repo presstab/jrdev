@@ -2,7 +2,6 @@ import logging
 
 from jrdev.file_operations.find_function import find_function
 from jrdev.string_utils import find_code_snippet
-from jrdev.ui.ui import terminal_print, PrintType
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -50,7 +49,6 @@ def process_delete_operation(lines, change):
     end_idx = change["end_line"]
 
     message = f"Deleting content from line {change['start_line']} to {change['end_line']} in {change['filename']}"
-    terminal_print(message, PrintType.INFO)
     logger.info(message)
 
     return lines[:start_idx] + lines[end_idx:]

@@ -1,7 +1,6 @@
 import logging
 
 from jrdev.file_operations.insert import process_insert_after_changes
-from jrdev.ui.ui import terminal_print, PrintType
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -25,7 +24,6 @@ def process_add_operation(lines, change, filename):
     end_idx = start_idx
 
     new_content = change["new_content"]
-    new_content = new_content.replace("\\n", "\n").replace("\\\"", "\"")
 
     # right now every ADD should have insert_location in it
     if change.get("insert_location") is not None:
@@ -33,7 +31,6 @@ def process_add_operation(lines, change, filename):
 
     logger.info("process_add_operation default")
     message = f"Adding content at line {change['start_line']} in {filename}"
-    terminal_print(message, PrintType.INFO)
     logger.info(message)
 
     # Prepare the new content and insert it

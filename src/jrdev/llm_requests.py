@@ -1,8 +1,9 @@
 import re
 import time
+import tiktoken
 
 from jrdev.model_utils import is_think_model
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 from jrdev.usage import get_instance
 
 
@@ -22,7 +23,7 @@ def is_inside_think_tag(text):
     return think_open > think_close
 
 
-async def stream_openai_format(app, model, messages, print_stream=True, json_output=False):
+async def stream_openai_format(app, model, messages, task_id=None, print_stream=True, json_output=False):
     # Start timing the response
     start_time = time.time()
 
@@ -39,6 +40,9 @@ async def stream_openai_format(app, model, messages, print_stream=True, json_out
             model_provider = entry["provider"]
             break
 
+    # token estimator
+    token_encoder = tiktoken.get_encoding("cl100k_base")
+
     # Select the appropriate client based on provider
     if model_provider == "venice":
         client = app.state.clients.venice
@@ -50,6 +54,10 @@ async def stream_openai_format(app, model, messages, print_stream=True, json_out
         client = app.state.clients.deepseek
         if not client:
             raise ValueError(f"DeepSeek API key not configured but model {model} requires it")
+    elif model_provider == "open_router":
+        client = app.state.clients.open_router
+        if not client:
+            raise ValueError(f"OpenRouter API key not configured but model {model} requires it")
     else:
         raise ValueError(f"Unknown provider for model {model}")
 
@@ -66,9 +74,10 @@ async def stream_openai_format(app, model, messages, print_stream=True, json_out
             kwargs["reasoning_effort"] = "high"
             #o3-mini incompatible with temp
             del kwargs["temperature"]
+        kwargs["stream_options"] = {"include_usage": True}
     elif model == "qwen-2.5-qwq-32b":
         kwargs["top_p"] = 0.95
-        kwargs["extra_body"] = {"venice_parameters":{"include_venice_system_prompt": False}, "frequency_penalty": 0.3}
+        kwargs["extra_body"] = {"venice_parameters": {"include_venice_system_prompt": False}, "frequency_penalty": 0.3}
     elif model == "deepseek-r1-671b":
         kwargs["extra_body"] = {"venice_parameters": {"include_venice_system_prompt": False}}
     elif model == "deepseek-reasoner" or model == "deepseek-chat":
@@ -87,15 +96,28 @@ async def stream_openai_format(app, model, messages, print_stream=True, json_out
     log_interval = 100  # Log every 100 chunks
     stream_start_time = None  # Track when we start receiving chunks
 
+    # notify ui of tokens
+    if task_id:
+        try:
+            input_chunk = ""
+            for msg in messages:
+                if "content" in msg:
+                    input_chunk += msg["content"]
+            input_token_estimate = token_encoder.encode(input_chunk)
+            app.ui.update_task_info(task_id, update={"input_token_estimate": len(input_token_estimate), "model": model})
+        except Exception:
+            pass
+
+    output_tokens_estimate = 0
     async for chunk in stream:
         if first_chunk:
             # Update status message when first chunk arrives
             stream_start_time = time.time()  # Start timing from first chunk
             if print_stream:
-                terminal_print(f"Receiving response from {model}...", PrintType.PROCESSING)
+                app.ui.print_text(f"Receiving response from {model}...", PrintType.PROCESSING)
             app.logger.info(f"Started receiving response from {model}")
             first_chunk = False
-        
+
         chunk_count += 1
         if chunk_count % log_interval == 0:
             # Calculate chunks per second
@@ -110,6 +132,18 @@ async def stream_openai_format(app, model, messages, print_stream=True, json_out
             chunk_text = chunk.choices[0].delta.content
             response_text += chunk_text
 
+            # only estimate tokens if its being tracked
+            if task_id:
+                tokens = token_encoder.encode(chunk_text)
+                output_tokens_estimate += len(tokens)
+
+                # don't send too many updates
+                if chunk_count % 10 == 0:
+                    elapsed_time = time.time() - stream_start_time
+                    tokens_per_second = (output_tokens_estimate*10) / elapsed_time
+                    tokens_per_second_fl = float(tokens_per_second)/10.0
+                    app.ui.update_task_info(worker_id=task_id, update={"output_token_estimate": output_tokens_estimate, "tokens_per_second": tokens_per_second_fl})
+
             # For DeepSeek models, only print content that's not in <think> tags
             if uses_think:
                 # Check if this chunk contains any complete </think> tags
@@ -120,22 +154,17 @@ async def stream_openai_format(app, model, messages, print_stream=True, json_out
                     # Print only new content since last filtered output
                     if len(filtered_text) > 0:
                         if print_stream:
-                            terminal_print(
-                                filtered_text[-len(chunk_text):],
-                                PrintType.LLM,
-                                end="",
-                                flush=True
-                            )
+                            app.ui.print_stream(filtered_text[-len(chunk_text):])
                 else:
                     # For chunks without </think>, we check if we're currently inside a tag
                     in_think_tag = is_inside_think_tag(response_text)
                     if not in_think_tag and chunk_text:
                         if print_stream:
-                            terminal_print(chunk_text, PrintType.LLM, end="", flush=True)
+                            app.ui.print_stream(chunk_text)
             else:
                 # For non-think models, print all chunks
                 if print_stream:
-                    terminal_print(chunk_text, PrintType.LLM, end="", flush=True)
+                    app.ui.print_stream(chunk_text)
 
     # Handle token usage statistics for final chunk
     if "completion_tokens" in str(chunk):
@@ -151,13 +180,16 @@ async def stream_openai_format(app, model, messages, print_stream=True, json_out
         # Calculate chunks per second over the entire response
         stream_elapsed = end_time - (stream_start_time or start_time)
         chunks_per_second = round(chunk_count / stream_elapsed, 2) if stream_elapsed > 0 else 0
+        tokens_per_second = round(output_tokens / stream_elapsed, 2) if stream_elapsed > 0 else 0
 
         if print_stream:
-            terminal_print(
+            app.ui.print_text(
                 f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens} | "
                 f"Response Time: {elapsed_seconds}s | Avg: {chunks_per_second} chunks/sec",
                 PrintType.WARNING
             )
+        if task_id:
+            app.ui.update_task_info(worker_id=task_id, update={"input_tokens": input_tokens, "output_tokens": output_tokens, "tokens_per_second": tokens_per_second})
 
         # Log completion stats
         app.logger.info(
@@ -174,7 +206,7 @@ async def stream_openai_format(app, model, messages, print_stream=True, json_out
     else:
         return response_text
 
-async def stream_messages_format(app, model, messages, print_stream=True):
+async def stream_messages_format(app, model, messages, task_id=None, print_stream=True):
     # Start timing the response
     start_time = time.time()
     
@@ -245,7 +277,7 @@ async def stream_messages_format(app, model, messages, print_stream=True):
         
         # Start the streaming session with the context manager
         if print_stream:
-            terminal_print(f"Receiving response from {model}...", PrintType.PROCESSING)
+            app.ui.print_text(f"Receiving response from {model}...", PrintType.PROCESSING)
         app.logger.info(f"Started receiving response from {model}")
         stream_start_time = time.time()
         
@@ -257,7 +289,7 @@ async def stream_messages_format(app, model, messages, print_stream=True):
                         chunk_text = chunk.delta.text
                         response_text += chunk_text
                         if print_stream:
-                            terminal_print(chunk_text, PrintType.LLM, end="", flush=True)
+                            app.ui.print_stream(chunk_text)
                 
                 # Count each chunk for logging
                 chunk_count += 1
@@ -283,7 +315,7 @@ async def stream_messages_format(app, model, messages, print_stream=True):
                 chunks_per_second = round(chunk_count / stream_elapsed, 2) if stream_elapsed > 0 else 0
                 
                 if print_stream:
-                    terminal_print(
+                    app.ui.print_text(
                         f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens} | "
                         f"Response Time: {elapsed_seconds}s | Avg: {chunks_per_second} chunks/sec",
                         PrintType.WARNING
@@ -306,7 +338,7 @@ async def stream_messages_format(app, model, messages, print_stream=True):
         app.logger.error(f"Error making Anthropic API request: {str(e)}")
         raise ValueError(f"Error making Anthropic API request: {str(e)}")
 
-async def stream_request(app, model, messages, print_stream=True, json_output=False):
+async def stream_request(app, model, messages, task_id=None, print_stream=True, json_output=False):
     # Determine which client to use based on the model provider
     model_provider = None
 
@@ -319,6 +351,6 @@ async def stream_request(app, model, messages, print_stream=True, json_output=Fa
             
     # Call the appropriate streaming function based on provider
     if model_provider == "anthropic":
-        return await stream_messages_format(app, model, messages, print_stream)
+        return await stream_messages_format(app, model, messages, task_id, print_stream)
     else:
-        return await stream_openai_format(app, model, messages, print_stream, json_output)
+        return await stream_openai_format(app, model, messages, task_id, print_stream, json_output)

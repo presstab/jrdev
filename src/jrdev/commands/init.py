@@ -20,7 +20,7 @@ from jrdev.languages.utils import detect_language, is_headers_language
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.treechart import generate_compact_tree
 from jrdev.string_utils import contains_chinese
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 from jrdev.message_builder import MessageBuilder
 from jrdev.model_profiles import ModelProfileManager
 
@@ -33,6 +33,7 @@ async def get_file_summary(
     app: Any,
     file_path: Any,
     additional_context: Optional[List[str]] = None,
+    task_id: Optional[str] = None
 ) -> Optional[str]:
     """
     Generate a summary of a file using an LLM and store in the ContextManager.
@@ -59,13 +60,13 @@ async def get_file_summary(
         for file in files:
             full_path = os.path.join(current_dir, file)
             if not os.path.exists(full_path):
-                terminal_print(f"\nFile not found: {file}", PrintType.ERROR)
+                app.ui.print_text(f"\nFile not found: {file}", PrintType.ERROR)
                 return None
 
         # Use the context manager to generate the context
         file_input = files[0] if len(files) == 1 else files
         file_analysis = await app.context_manager.generate_context(
-            file_input, app, additional_context
+            file_input, app, additional_context=additional_context, task_id=task_id
         )
 
         if file_analysis:
@@ -73,11 +74,11 @@ async def get_file_summary(
         return None
 
     except Exception as e:
-        terminal_print(f"Error analyzing file {file_path}: {str(e)}", PrintType.ERROR)
+        app.ui.print_text(f"Error analyzing file {file_path}: {str(e)}", PrintType.ERROR)
         return None
 
 
-async def handle_init(app: Any, args: List[str]) -> None:
+async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
     """
     Handle the /init command to generate file tree, analyze files, and create
     project overview.
@@ -103,9 +104,7 @@ async def handle_init(app: Any, args: List[str]) -> None:
             current_dir, output_file, use_gitignore=True
         )
 
-        terminal_print(
-            f"File tree generated and saved to {output_file}", PrintType.SUCCESS
-        )
+        app.ui.print_text(f"File tree generated and saved to {output_file}", PrintType.SUCCESS)
 
         # Extract file paths from tree_output
         tree_files = [
@@ -116,12 +115,10 @@ async def handle_init(app: Any, args: List[str]) -> None:
 
         # Switch the model to the advanced reasoning profile
         app.state.model = profile_manager.get_model("advanced_reasoning")
-        terminal_print(f"Model changed to: {app.state.model} (advanced_reasoning profile)", PrintType.INFO)
+        app.ui.print_text(f"Model changed to: {app.state.model} (advanced_reasoning profile)", PrintType.INFO)
 
         # Send the file tree to the LLM with a request for file recommendations
-        terminal_print(
-            "Waiting for LLM analysis of project tree...", PrintType.PROCESSING
-        )
+        app.ui.print_text("Waiting for LLM analysis of project tree...", PrintType.PROCESSING)
 
         # Use MessageBuilder for file recommendations
         builder = MessageBuilder(app)
@@ -138,9 +135,10 @@ async def handle_init(app: Any, args: List[str]) -> None:
         temp_messages = builder.build()
 
         # Send the request to the LLM
+        sub_task_id = 0
         try:
             recommendation_response = await stream_request(
-                app, app.state.model, temp_messages
+                app, app.state.model, temp_messages, task_id=worker_id
             )
 
             # Parse the file list from the response
@@ -162,7 +160,7 @@ async def handle_init(app: Any, args: List[str]) -> None:
                         if similar_file:
                             cleaned_file_list.append(similar_file)
                         else:
-                            terminal_print(
+                            app.ui.print_text(
                                 f"Failed to find file {file_path}", PrintType.ERROR
                             )
 
@@ -174,49 +172,62 @@ async def handle_init(app: Any, args: List[str]) -> None:
                     cleaned_file_list = pair_header_source_files(cleaned_file_list)
 
                 # Print the LLM's response
-                terminal_print("\nLLM File Recommendations:", PrintType.HEADER)
-                terminal_print(cleaned_file_list, PrintType.INFO)
+                app.ui.print_text("\nLLM File Recommendations:", PrintType.HEADER)
+                app.ui.print_text(cleaned_file_list, PrintType.INFO)
 
-                terminal_print(
+                app.ui.print_text(
                     f"requesting {len(recommended_files)} files", PrintType.PROCESSING
                 )
 
                 # Now switch to a different model for file analysis
                 app.state.model = profile_manager.get_model("intermediate_reasoning")
-                terminal_print(
+                app.ui.print_text(
                     f"\nSwitching model to: {app.state.model} (intermediate_reasoning profile) for analysis",
                     PrintType.INFO,
                 )
 
                 # Process all recommended files concurrently
-                terminal_print(
+                app.ui.print_text(
                     f"\nAnalyzing {len(cleaned_file_list)} files concurrently...",
                     PrintType.PROCESSING,
                 )
 
-                async def analyze_file(index: int, file_path: str) -> Optional[str]:
+                async def analyze_file(index: int, file_path: str, task_id: str = None) -> Optional[str]:
                     """Helper function to analyze a single file."""
                     # prevent rate limits
                     if index > 0 and index % 5 == 0:
                         await asyncio.sleep(2)  # Sleep for 1.5 second
 
-                    terminal_print(
+                    sub_task_str = None
+                    if task_id:
+                        # create a sub task id
+                        sub_task_str = f"{task_id}:{index}"
+                        app.ui.update_task_info(task_id, update={"new_sub_task": sub_task_str, "description": str(file_path)})
+
+                    app.ui.print_text(
                         f"Starting analysis for file {index + 1}/"
                         f"{len(cleaned_file_list)}: {file_path}",
                         PrintType.PROCESSING,
                     )
-                    result = await get_file_summary(app, file_path)
-                    terminal_print(
+
+                    result = await get_file_summary(app, file_path, task_id=sub_task_str)
+                    app.ui.print_text(
                         f"Completed analysis for file {index + 1}/"
                         f"{len(cleaned_file_list)}: {file_path}",
                         PrintType.SUCCESS,
                     )
+
+                    # mark sub_task complete
+                    if task_id:
+                        sub_task_str = f"{task_id}:{index}"
+                        app.ui.update_task_info(sub_task_str, update={"sub_task_finished": True})
+
                     return result
 
                 # Parallel task to generate conventions using the same files
                 async def generate_conventions() -> Optional[str]:
                     """Generate project conventions in parallel with file analysis."""
-                    terminal_print(
+                    app.ui.print_text(
                         f"\nAnalyzing project conventions...", PrintType.PROCESSING
                     )
 
@@ -246,9 +257,9 @@ async def handle_init(app: Any, args: List[str]) -> None:
                                         size_mb = len(content) / (1024 * 1024)
                                         error_msg = f"File {file_path} is too large ({size_mb:.2f} MB) for analysis (max: 2MB)"
                                         app.logger.error(error_msg)
-                                        terminal_print(error_msg, PrintType.ERROR)
+                                        app.ui.print_text(error_msg, PrintType.ERROR)
                         except Exception as e:
-                            terminal_print(
+                            app.ui.print_text(
                                 f"Error reading file {file_path}: {str(e)}",
                                 PrintType.ERROR,
                             )
@@ -259,12 +270,19 @@ async def handle_init(app: Any, args: List[str]) -> None:
                     # Get the constructed message list
                     conventions_messages = conventions_builder.build()
 
+                    # Create a sub task id for conventions
+                    conventions_task_id = None
+                    if worker_id:
+                        conventions_task_id = f"{worker_id}:{len(cleaned_file_list)}"
+                        app.ui.update_task_info(worker_id, update={"new_sub_task": conventions_task_id, "description": "Project Conventions"})
+
                     try:
                         # Use conventions_model directly instead of changing app.state.model
                         conventions_result = await stream_request(
                             app,
                             conventions_model,
                             conventions_messages,
+                            task_id=conventions_task_id,
                             print_stream=False,
                         )
 
@@ -273,9 +291,13 @@ async def handle_init(app: Any, args: List[str]) -> None:
                         with open(conventions_file_path, "w") as f:
                             f.write(conventions_result)
 
+                        # Mark conventions sub_task complete
+                        if conventions_task_id:
+                            app.ui.update_task_info(conventions_task_id, update={"sub_task_finished": True})
+
                         return conventions_result
                     except Exception as e:
-                        terminal_print(
+                        app.ui.print_text(
                             f"Error generating project conventions: {str(e)}",
                             PrintType.ERROR,
                         )
@@ -286,7 +308,7 @@ async def handle_init(app: Any, args: List[str]) -> None:
 
                 # Start file analysis tasks
                 file_analysis_tasks = [
-                    analyze_file(i, file_path)
+                    analyze_file(i, file_path, worker_id)
                     for i, file_path in enumerate(cleaned_file_list)
                 ]
 
@@ -303,7 +325,7 @@ async def handle_init(app: Any, args: List[str]) -> None:
                     if result is not None and not contains_chinese(result):
                         returned_analysis.append(result)
 
-                terminal_print(
+                app.ui.print_text(
                     f"\nCompleted analysis of all {len(returned_analysis)} files",
                     PrintType.SUCCESS,
                 )
@@ -311,31 +333,31 @@ async def handle_init(app: Any, args: List[str]) -> None:
                 # Check if conventions were generated successfully
                 conventions_file_path = f"{JRDEV_DIR}jrdev_conventions.md"
                 if conventions_result is None or not os.path.exists(conventions_file_path):
-                    terminal_print(
+                    app.ui.print_text(
                         "\nError: Project conventions generation failed. Please try running /init again.",
                         PrintType.ERROR
                     )
                     # Calculate elapsed time before exiting
                     elapsed_time = time.time() - start_time
                     minutes, seconds = divmod(elapsed_time, 60)
-                    terminal_print(
+                    app.ui.print_text(
                         f"\nProject initialization failed (took {int(minutes)}m {int(seconds)}s)",
                         PrintType.ERROR,
                     )
                     return
 
                 # Print conventions
-                terminal_print("\nProject Conventions Analysis:", PrintType.HEADER)
-                terminal_print(conventions_result, PrintType.INFO)
+                app.ui.print_text("\nProject Conventions Analysis:", PrintType.HEADER)
+                app.ui.print_text(conventions_result, PrintType.INFO)
 
-                terminal_print(
+                app.ui.print_text(
                     f"\nProject conventions generated and saved to "
                     f"{conventions_file_path}",
                     PrintType.SUCCESS,
                 )
 
                 # Start project overview
-                terminal_print("\nGenerating project overview...", PrintType.PROCESSING)
+                app.ui.print_text("\nGenerating project overview...", PrintType.PROCESSING)
                 app.state.model = profile_manager.get_model("advanced_reasoning")
 
                 # Read the file tree
@@ -360,11 +382,17 @@ async def handle_init(app: Any, args: List[str]) -> None:
                 
                 # Get the constructed message list
                 overview_messages = overview_builder.build()
+
+                # Create a sub task id for project overview
+                overview_task_id = None
+                if worker_id:
+                    overview_task_id = f"{worker_id}:{len(cleaned_file_list) + 1}"
+                    app.ui.update_task_info(worker_id, update={"new_sub_task": overview_task_id, "description": "Project Overview"})
                 
                 # Send request to the model for project overview
                 try:
                     full_overview = await stream_request(
-                        app, app.state.model, overview_messages
+                        app, app.state.model, overview_messages, task_id=overview_task_id
                     )
 
                     # Save to markdown file
@@ -372,13 +400,17 @@ async def handle_init(app: Any, args: List[str]) -> None:
                     with open(overview_file_path, "w") as f:
                         f.write(full_overview)
 
-                    terminal_print(
+                    app.ui.print_text(
                         f"\nProject overview generated and saved to "
                         f"{overview_file_path}",
                         PrintType.SUCCESS,
                     )
+
+                    # Mark overview sub_task complete
+                    if overview_task_id:
+                        app.ui.update_task_info(overview_task_id, update={"sub_task_finished": True})
                 except Exception as e:
-                    terminal_print(
+                    app.ui.print_text(
                         f"Error generating project overview: {str(e)}", PrintType.ERROR
                     )
 
@@ -386,17 +418,17 @@ async def handle_init(app: Any, args: List[str]) -> None:
                 elapsed_time = time.time() - start_time
                 minutes, seconds = divmod(elapsed_time, 60)
 
-                terminal_print(
+                app.ui.print_text(
                     f"\nProject initialization finished (took {int(minutes)}m {int(seconds)}s)",
                     PrintType.SUCCESS,
                 )
             except Exception as e:
-                terminal_print(
+                app.ui.print_text(
                     f"Error processing file recommendations: {str(e)}", PrintType.ERROR
                 )
         except Exception as e:
-            terminal_print(
+            app.ui.print_text(
                 f"Error getting LLM recommendations: {str(e)}", PrintType.ERROR
             )
     except Exception as e:
-        terminal_print(f"Error generating file tree: {str(e)}", PrintType.ERROR)
+        app.ui.print_text(f"Error generating file tree: {str(e)}", PrintType.ERROR)

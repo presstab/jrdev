@@ -8,10 +8,10 @@ Lists all active asynchronous tasks.
 import asyncio
 from typing import Any, List
 
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 
 
-async def handle_tasks(app: Any, args: List[str]) -> None:
+async def handle_tasks(app: Any, args: List[str], worker_id: str) -> None:
     """
     Handle the /tasks command to display current background tasks.
 
@@ -20,10 +20,10 @@ async def handle_tasks(app: Any, args: List[str]) -> None:
         args: Command arguments (unused)
     """
     if not app.state.active_tasks:
-        terminal_print("No active background tasks.", print_type=PrintType.INFO)
+        app.ui.print_text("No active background tasks.", print_type=PrintType.INFO)
         return
 
-    terminal_print("\nActive Background Tasks:", print_type=PrintType.HEADER)
+    app.ui.print_text("\nActive Background Tasks:", print_type=PrintType.HEADER)
 
     current_time = asyncio.get_event_loop().time()
     for task_id, task_info in app.state.active_tasks.items():
@@ -32,15 +32,15 @@ async def handle_tasks(app: Any, args: List[str]) -> None:
         elapsed_str = format_time(elapsed)
 
         # Display task information
-        terminal_print(f"  Task #{task_id} ({elapsed_str})", print_type=PrintType.INFO)
+        app.ui.print_text(f"  Task #{task_id} ({elapsed_str})", print_type=PrintType.INFO)
 
         if task_info["type"] == "file_response":
-            terminal_print(f"    Type: Response → File", print_type=PrintType.INFO)
-            terminal_print(f"    Path: {task_info['path']}", print_type=PrintType.INFO)
+            app.ui.print_text(f"    Type: Response → File", print_type=PrintType.INFO)
+            app.ui.print_text(f"    Path: {task_info['path']}", print_type=PrintType.INFO)
         else:
-            terminal_print(f"    Type: Message", print_type=PrintType.INFO)
-            terminal_print(f"    Prompt: {task_info['prompt']}", print_type=PrintType.INFO)
-        terminal_print("", print_type=PrintType.INFO)
+            app.ui.print_text(f"    Type: Message", print_type=PrintType.INFO)
+            app.ui.print_text(f"    Prompt: {task_info['prompt']}", print_type=PrintType.INFO)
+        app.ui.print_text("", print_type=PrintType.INFO)
 
 
 def format_time(seconds: float) -> str:

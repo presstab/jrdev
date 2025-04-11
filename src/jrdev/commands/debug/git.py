@@ -6,10 +6,10 @@ This module provides additional git-related commands that are only available in 
 """
 
 import logging
-from typing import Awaitable, List, Protocol
+from typing import Any, Awaitable, List, Protocol
 
 from jrdev.commands.git_config import get_git_config, GitConfig
-from jrdev.ui.ui import PrintType, terminal_print
+from jrdev.ui.ui import PrintType
 
 
 # Define a Protocol for JrDevTerminal to avoid circular imports
@@ -23,37 +23,37 @@ async def handle_git_debug_config_dump(app: Any, args: List[str]) -> None:
     Debug command to dump git configuration information including the validation schema.
     
     Args:
-        terminal: The JrDevTerminal instance
+        app: The JrDevTerminal instance
         args: Command arguments
     """
     # Get current config
-    config = get_git_config()
+    config = get_git_config(app)
     
     # Get schema information
     schema = GitConfig.model_json_schema()
     
-    terminal_print("Git Config Debug Information", PrintType.HEADER)
-    terminal_print("Current Configuration:", PrintType.SUBHEADER)
+    app.ui.print_text("Git Config Debug Information", PrintType.HEADER)
+    app.ui.print_text("Current Configuration:", PrintType.SUBHEADER)
     
     for key, value in config.items():
-        terminal_print(f"  {key} = {value}", PrintType.INFO)
+        app.ui.print_text(f"  {key} = {value}", PrintType.INFO)
     
-    terminal_print("\nSchema Validation Rules:", PrintType.SUBHEADER)
+    app.ui.print_text("\nSchema Validation Rules:", PrintType.SUBHEADER)
     
     # Display properties from schema
     for prop_name, prop_info in schema.get("properties", {}).items():
-        terminal_print(f"  {prop_name}:", PrintType.INFO)
-        terminal_print(f"    Type: {prop_info.get('type', 'unknown')}", PrintType.INFO)
-        terminal_print(f"    Default: {prop_info.get('default', 'none')}", PrintType.INFO)
+        app.ui.print_text(f"  {prop_name}:", PrintType.INFO)
+        app.ui.print_text(f"    Type: {prop_info.get('type', 'unknown')}", PrintType.INFO)
+        app.ui.print_text(f"    Default: {prop_info.get('default', 'none')}", PrintType.INFO)
         if "description" in prop_info:
-            terminal_print(f"    Description: {prop_info['description']}", PrintType.INFO)
+            app.ui.print_text(f"    Description: {prop_info['description']}", PrintType.INFO)
     
     # Display additional schema information
-    terminal_print("\nSchema Constraints:", PrintType.SUBHEADER)
+    app.ui.print_text("\nSchema Constraints:", PrintType.SUBHEADER)
     if schema.get("additionalProperties", True):
-        terminal_print("  Additional properties: Allowed", PrintType.INFO)
+        app.ui.print_text("  Additional properties: Allowed", PrintType.INFO)
     else:
-        terminal_print("  Additional properties: Forbidden", PrintType.INFO)
+        app.ui.print_text("  Additional properties: Forbidden", PrintType.INFO)
 
 
 # Export handlers

@@ -4,7 +4,7 @@ import os
 from typing import Any, Dict, Optional
 
 from jrdev.file_utils import JRDEV_DIR
-from jrdev.ui.ui import PrintType, terminal_print
+from jrdev.ui.ui import PrintType
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -84,9 +84,7 @@ class ModelProfileManager:
 
         except Exception as e:
             logger.error(f"Error loading profile configuration: {str(e)}")
-            terminal_print(
-                f"Error loading profile configuration: {str(e)}", PrintType.ERROR
-            )
+            # Error log only, UI feedback handled by caller
             return default_config
 
     def get_model(self, profile_type: str) -> str:
@@ -104,10 +102,7 @@ class ModelProfileManager:
 
         # Fall back to default profile if requested profile doesn't exist
         default = str(self.profiles["default_profile"])
-        terminal_print(
-            f"Profile '{profile_type}' not found, using default: {default}",
-            PrintType.WARNING,
-        )
+        logger.warning(f"Profile '{profile_type}' not found, using default: {default}")
         return str(self.profiles["profiles"].get(default, "qwen-2.5-coder-32b"))
 
     def update_profile(self, profile_type: str, model_name: str, model_list: Optional[Any] = None) -> bool:
@@ -139,14 +134,14 @@ class ModelProfileManager:
                     break
             else:
                 # Model is not in profiles either, report error
-                terminal_print(
-                    f"Model '{model_name}' does not exist in available models",
-                    PrintType.ERROR,
-                )
+                logger.error(f"Model '{model_name}' does not exist in available models. Options:")
+                for model in model_list.get_model_list():
+                    logger.error(f"{model}")
+
                 return False
 
         if not model_name:
-            terminal_print("Invalid model name", PrintType.ERROR)
+            logger.error("Invalid model name")
             return False
 
         try:
@@ -162,7 +157,6 @@ class ModelProfileManager:
 
         except Exception as e:
             logger.error(f"Error updating profile: {str(e)}")
-            terminal_print(f"Error updating profile: {str(e)}", PrintType.ERROR)
             return False
 
     def list_available_profiles(self) -> Dict[str, str]:
@@ -195,7 +189,7 @@ class ModelProfileManager:
             True if successful, False otherwise
         """
         if profile_type not in self.profiles["profiles"]:
-            terminal_print(f"Profile '{profile_type}' does not exist", PrintType.ERROR)
+            logger.error(f"Profile '{profile_type}' does not exist")
             return False
 
         try:
@@ -210,5 +204,4 @@ class ModelProfileManager:
 
         except Exception as e:
             logger.error(f"Error setting default profile: {str(e)}")
-            terminal_print(f"Error setting default profile: {str(e)}", PrintType.ERROR)
             return False

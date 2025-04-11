@@ -6,10 +6,10 @@ ViewContext command implementation for the JrDev application.
 import os
 from typing import Any, List
 
-from jrdev.ui.ui import terminal_print, PrintType
+from jrdev.ui.ui import PrintType
 
 
-async def handle_viewcontext(app: Any, args: List[str]):
+async def handle_viewcontext(app: Any, args: List[str], worker_id: str):
     """
     Handle the /viewcontext command to view the content in the LLM context window.
 
@@ -23,20 +23,20 @@ async def handle_viewcontext(app: Any, args: List[str]):
         try:
             file_num = int(args[1]) - 1  # Convert to 0-based index
         except ValueError:
-            terminal_print(f"Invalid file number: {args[1]}. Please use a number.", PrintType.ERROR)
+            app.ui.print_text(f"Invalid file number: {args[1]}. Please use a number.", PrintType.ERROR)
             return
     if not app.context:
-        terminal_print("No context files have been added yet. Use /addcontext <file_path> to add files.", PrintType.INFO)
+        app.ui.print_text("No context files have been added yet. Use /addcontext <file_path> to add files.", PrintType.INFO)
         return
 
     # If a specific file was requested
     if file_num is not None:
         if file_num < 0 or file_num >= len(app.context):
-            terminal_print(f"Invalid file number. Please use a number between 1 and {len(app.context)}.", PrintType.ERROR)
+            app.ui.print_text(f"Invalid file number. Please use a number between 1 and {len(app.context)}.", PrintType.ERROR)
             return
 
         file_path = app.context[file_num]
-        terminal_print(f"Context File {file_num+1}: {file_path}", PrintType.HEADER)
+        app.ui.print_text(f"Context File {file_num+1}: {file_path}", PrintType.HEADER)
         
         # Read the file content to display
         try:
@@ -44,17 +44,17 @@ async def handle_viewcontext(app: Any, args: List[str]):
             full_path = os.path.join(current_dir, file_path)
             with open(full_path, "r") as f:
                 file_content = f.read()
-            terminal_print(file_content, PrintType.INFO)
+            app.ui.print_text(file_content, PrintType.INFO)
         except Exception as e:
-            terminal_print(f"Error reading file: {str(e)}", PrintType.ERROR)
+            app.ui.print_text(f"Error reading file: {str(e)}", PrintType.ERROR)
         return
 
     # Otherwise show a summary of all files
-    terminal_print("Current context content:", PrintType.HEADER)
-    terminal_print(f"Total files in context: {len(app.context)}", PrintType.INFO)
+    app.ui.print_text("Current context content:", PrintType.HEADER)
+    app.ui.print_text(f"Total files in context: {len(app.context)}", PrintType.INFO)
 
     # Show a summary of files in the context
-    terminal_print("Files in context:", PrintType.INFO)
+    app.ui.print_text("Files in context:", PrintType.INFO)
     for i, file_path in enumerate(app.context):
         # Try to read a preview of the content
         try:
@@ -67,8 +67,8 @@ async def handle_viewcontext(app: Any, args: List[str]):
         except Exception:
             preview = "(unable to read file)"
             
-        terminal_print(f"  {i+1}. {file_path} - {preview}", PrintType.COMMAND)
+        app.ui.print_text(f"  {i+1}. {file_path} - {preview}", PrintType.COMMAND)
 
-    terminal_print("\nUse '/viewcontext <number>' to view the full content of a specific file.", PrintType.INFO)
-    terminal_print("Use /addcontext <file_path> to add more files to the context.", PrintType.INFO)
-    terminal_print("Use /clearcontext to clear all context files.", PrintType.INFO)
+    app.ui.print_text("\nUse '/viewcontext <number>' to view the full content of a specific file.", PrintType.INFO)
+    app.ui.print_text("Use /addcontext <file_path> to add more files to the context.", PrintType.INFO)
+    app.ui.print_text("Use /clearcontext to clear all context files.", PrintType.INFO)

@@ -13,7 +13,7 @@ from typing import Awaitable, Dict, List, Optional, Protocol, Any
 from jrdev.commands.git_config import get_git_config, DEFAULT_GIT_CONFIG
 from jrdev.llm_requests import stream_request
 from jrdev.message_builder import MessageBuilder
-from jrdev.ui.ui import PrintType, terminal_print
+from jrdev.ui.ui import PrintType
 
 # Define a Protocol for Application to avoid circular imports
 class ApplicationProtocol(Protocol):
@@ -29,6 +29,7 @@ async def _handle_git_pr_common(
     message_type: str,
     error_message: str,
     add_project_files: bool = False,
+    worker_id: str = None
 ) -> Optional[str]:
     """
     Common helper function for PR operations.
@@ -45,23 +46,23 @@ async def _handle_git_pr_common(
         The response from the LLM as a string or None if an error occurred
     """
     # Get configured base branch
-    config = get_git_config()
+    config = get_git_config(app)
     base_branch = config.get("base_branch", DEFAULT_GIT_CONFIG["base_branch"])
 
     # Extract user prompt if provided
     user_prompt = " ".join(args[1:]) if len(args) > 1 else ""
 
-    terminal_print(
+    app.ui.print_text(
         f"Generating PR {operation_type} using diff with {base_branch}...",
         PrintType.INFO,
     )
-    terminal_print(
+    app.ui.print_text(
         f"Warning: Unresolved merge conflicts may affect diff results and show items that are not part of the PR",
         PrintType.WARNING
     )
     if user_prompt:
-        terminal_print(f"Using custom prompt: {user_prompt}", PrintType.INFO)
-    terminal_print(
+        app.ui.print_text(f"Using custom prompt: {user_prompt}", PrintType.INFO)
+    app.ui.print_text(
         f"This uses the configured base branch. To change it, run: "
         f"/git config set base_branch <branch-name>",
         PrintType.INFO,
@@ -89,11 +90,11 @@ async def _handle_git_pr_common(
         )
         
         # Display user-friendly error messages in the terminal
-        terminal_print(
+        app.ui.print_text(
             f"Error: Command timed out while verifying branch '{base_branch}'.",
             PrintType.ERROR,
         )
-        terminal_print(
+        app.ui.print_text(
             "This could indicate a problem with the git repository or the branch name.",
             PrintType.WARNING,
         )
@@ -111,15 +112,15 @@ async def _handle_git_pr_common(
         )
         
         # Display user-friendly error messages in the terminal
-        terminal_print(
+        app.ui.print_text(
             f"Error: Base branch '{base_branch}' does not exist or is not a valid reference.",
             PrintType.ERROR,
         )
-        terminal_print(
+        app.ui.print_text(
             f"Please configure a valid branch with: /git config set base_branch <valid-branch>",
             PrintType.INFO,
         )
-        terminal_print(f"Original git error: {error_output}", PrintType.ERROR)
+        app.ui.print_text(f"Original git error: {error_output}", PrintType.ERROR)
         return None
 
     # Get git diff using the sanitized base_branch
@@ -139,15 +140,15 @@ async def _handle_git_pr_common(
         )
         
         # Display user-friendly error messages in the terminal
-        terminal_print(
+        app.ui.print_text(
             f"Error: Command timed out while generating diff with '{base_branch}'.",
             PrintType.ERROR,
         )
-        terminal_print(
+        app.ui.print_text(
             "This could indicate a very large diff or a problem with the git repository.",
             PrintType.WARNING,
         )
-        terminal_print(
+        app.ui.print_text(
             "Try setting a more specific base branch with: /git config set base_branch <branch>",
             PrintType.INFO,
         )
@@ -165,19 +166,19 @@ async def _handle_git_pr_common(
         )
         
         # Display user-friendly error messages in the terminal
-        terminal_print(
+        app.ui.print_text(
             f"Error running git diff with branch '{base_branch}'", 
             PrintType.ERROR
         )
-        terminal_print(f"Git error: {error_output}", PrintType.ERROR)
-        terminal_print(
+        app.ui.print_text(f"Git error: {error_output}", PrintType.ERROR)
+        app.ui.print_text(
             "Make sure you have permission to access this repository and branch.",
             PrintType.INFO,
         )
         return None
 
     if not diff_output:
-        terminal_print(f"No changes found in diff with {base_branch}", PrintType.INFO)
+        app.ui.print_text(f"No changes found in diff with {base_branch}", PrintType.INFO)
         return None
 
     # Use MessageBuilder to construct messages
@@ -198,7 +199,7 @@ async def _handle_git_pr_common(
 
     # Send request
     try:
-        terminal_print(
+        app.ui.print_text(
             f"\n{app.state.model} is creating {message_type}...\n",
             PrintType.PROCESSING,
         )
@@ -222,18 +223,18 @@ async def _handle_git_pr_common(
         app.logger.debug(f"Traceback for {error_message}:\n{error_tb}")
         
         # User-friendly error message
-        terminal_print(
+        app.ui.print_text(
             f"An error occurred while creating the {message_type}.",
             PrintType.ERROR,
         )
-        terminal_print(
+        app.ui.print_text(
             f"Error details: {str(e)}",
             PrintType.ERROR,
         )
         return None
 
 
-async def handle_git_pr_summary(app: Any, args: List[str]) -> None:
+async def handle_git_pr_summary(app: Any, args: List[str], worker_id: str) -> None:
     """
     Generate a PR summary based on git diff with configured base branch.
     Args:
@@ -248,10 +249,11 @@ async def handle_git_pr_summary(app: Any, args: List[str]) -> None:
         message_type="pull request summary",
         error_message="failed pull request summary",
         add_project_files=False,
+        worker_id=worker_id
     )
 
 
-async def handle_git_pr_review(app: Any, args: List[str]) -> None:
+async def handle_git_pr_review(app: Any, args: List[str], worker_id: str) -> None:
     """
     Generate a detailed PR code review based on git diff with configured base branch.
     Args:
@@ -266,4 +268,5 @@ async def handle_git_pr_review(app: Any, args: List[str]) -> None:
         message_type="detailed code review",
         error_message="failed pull request review",
         add_project_files=True,
+        worker_id=worker_id
     )

@@ -10,7 +10,7 @@ from jrdev.file_operations.delete import process_delete_operation
 from jrdev.file_operations.replace import process_replace_operation
 from jrdev.file_utils import find_similar_file
 from jrdev.ui.diff_editor import curses_editor
-from jrdev.ui.ui import terminal_print, PrintType, display_diff, prompt_for_confirmation
+from jrdev.ui.ui import PrintType, display_diff
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -81,12 +81,13 @@ def apply_diff_to_content(original_content, diff_lines):
     return '\n'.join(result_lines)
 
 
-def write_with_confirmation(filepath, content):
+async def write_with_confirmation(app, filepath, content):
     """
     Writes content to a temporary file, shows diff, and asks for user confirmation
     before writing to the actual file.
 
     Args:
+        app: The Application instance
         filepath (str): Path to the file to write to
         content (list or str): Content to write to the file
 
@@ -127,11 +128,11 @@ def write_with_confirmation(filepath, content):
         ))
 
         # Display diff using the UI function
-        display_diff(diff)
+        display_diff(app, diff)
 
         while True:
-            # Ask for confirmation using the UI function
-            response, message = prompt_for_confirmation("Apply these changes?")
+            # Ask for confirmation using the app's UI
+            response, message = await app.ui.prompt_for_confirmation("Apply these changes?", diff_lines=diff)
 
             if response == 'yes':
                 # Copy temp file to destination
@@ -139,13 +140,13 @@ def write_with_confirmation(filepath, content):
                 if directory and not os.path.exists(directory):
                     os.makedirs(directory)
                 shutil.copy2(temp_file_path, filepath)
-                terminal_print(f"Changes applied to {filepath}", PrintType.SUCCESS)
+                logger.info(f"Changes applied to {filepath}")
                 return True, None
             elif response == 'no':
-                terminal_print(f"Changes to {filepath} discarded", PrintType.WARNING)
+                logger.info(f"Changes to {filepath} discarded")
                 return False, None
             elif response == 'request_change':
-                terminal_print(f"Changes to {filepath} not applied, feedback requested", PrintType.WARNING)
+                logger.info(f"Changes to {filepath} not applied, feedback requested")
                 return False, message
             elif response == 'edit':
 
@@ -158,7 +159,7 @@ def write_with_confirmation(filepath, content):
                 hunk_start = None
 
                 # Debug information
-                terminal_print(f"Processing diff with {len(diff)} lines", PrintType.INFO)
+                logger.info(f"Processing diff with {len(diff)} lines")
 
                 # First pass: Parse the diff to understand where changes are
                 current_line = 0
@@ -337,7 +338,7 @@ def write_with_confirmation(filepath, content):
                                 new_content_lines.append(cleaned_line)
 
                         new_content_str = "\n".join(new_content_lines)
-                        terminal_print(f"Processed edited content into {len(new_content_lines)} lines", PrintType.INFO)
+                        logger.info(f"Processed edited content into {len(new_content_lines)} lines")
 
                         # Write the new content to a new temp file
                         with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as new_temp_file:
@@ -354,24 +355,24 @@ def write_with_confirmation(filepath, content):
                         ))
 
                         # Show the new diff
-                        terminal_print("Updated changes:", PrintType.HEADER)
-                        display_diff(new_diff)
+                        app.ui.print_text("Updated changes:", PrintType.HEADER)
+                        display_diff(app, new_diff)
 
                         # Update the temp file path to the new one
                         os.unlink(temp_file_path)
                         temp_file_path = new_temp_path
 
                         # Continue the loop to prompt again with the updated diff
-                        terminal_print("Edited changes prepared. Please confirm:", PrintType.INFO)
+                        app.ui.print_text("Edited changes prepared. Please confirm:", PrintType.INFO)
                     except Exception as e:
-                        terminal_print(f"Error applying diff: {str(e)}", PrintType.ERROR)
+                        app.ui.print_text(f"Error applying diff: {str(e)}", PrintType.ERROR)
                         continue
                 else:
                     # User quit without saving or no changes were made
                     if edited_content and not content_changed:
-                        terminal_print("No changes were made in the editor.", PrintType.INFO)
+                        app.ui.print_text("No changes were made in the editor.", PrintType.INFO)
                     else:
-                        terminal_print("Edit cancelled.", PrintType.WARNING)
+                        app.ui.print_text("Edit cancelled.", PrintType.WARNING)
                     # Continue the confirmation loop
                     continue
 
@@ -382,7 +383,7 @@ def write_with_confirmation(filepath, content):
     return False, None
 
 
-def apply_file_changes(changes_json):
+async def apply_file_changes(app, changes_json):
     """
     Apply changes to files based on the provided JSON.
 
@@ -404,16 +405,15 @@ def apply_file_changes(changes_json):
 
     for change in changes_json["changes"]:
         if "operation" not in change:
-            terminal_print(f"apply_file_changes: malformed change request: {change}")
+            logger.error(f"apply_file_changes: malformed change request: {change}")
             continue
 
         operation = change["operation"]
         if operation not in valid_operations:
-            terminal_print(
-                f"apply_file_changes: malformed change request, bad operation: {operation}")
+            logger.warning(f"apply_file_changes: malformed change request, bad operation: {operation}")
             if operation == "MODIFY":
                 operation = "REPLACE"
-                terminal_print("switching MODIFY to REPLACE")
+                logger.warning("switching MODIFY to REPLACE")
             else:
                 continue
 
@@ -432,16 +432,16 @@ def apply_file_changes(changes_json):
             try:
                 filepath = find_similar_file(filename)
             except Exception:
-                terminal_print(f"File not found: {filepath}", PrintType.ERROR)
+                logger.error(f"File not found: {filepath}")
                 continue
         try:
             with open(filepath, "r", encoding="utf-8") as f:
                 lines = f.readlines()
         except FileNotFoundError:
-            terminal_print(f"File not found: {filepath}", PrintType.ERROR)
+            logger.error(f"File not found: {filepath}")
             continue
         except Exception as e:
-            terminal_print(f"Error reading {filepath}: {str(e)}", PrintType.ERROR)
+            logger.error(f"Error reading {filepath}: {str(e)}")
             continue
 
         # Process change operations
@@ -459,7 +459,7 @@ def apply_file_changes(changes_json):
             return {"success": False}
 
         # Write the updated lines to a temp file, show diff, and ask for confirmation
-        result, user_message = write_with_confirmation(filepath, new_lines)
+        result, user_message = await write_with_confirmation(app, filepath, new_lines)
         if result:
             files_changed.append(filepath)
             message = f"Updated {filepath}"
@@ -481,18 +481,17 @@ def apply_file_changes(changes_json):
 
         filepath = change["filename"]
         new_content = change["new_content"]
-        new_content = new_content.replace("\\n", "\n").replace("\\\"", "\"")
 
         # Create directories if they don't exist
         directory = os.path.dirname(filepath)
         if directory and not os.path.exists(directory):
             os.makedirs(directory)
             message = f"Created directory: {directory}"
-            terminal_print(message, PrintType.INFO)
+            app.ui.print_text(message, PrintType.INFO)
             logger.info(message)
 
         # Write the new file with confirmation
-        result, user_message = write_with_confirmation(filepath, new_content)
+        result, user_message = await write_with_confirmation(app, filepath, new_content)
         if result:
             files_changed.append(filepath)
             message = f"Created new file: {filepath}"

@@ -1,0 +1,233 @@
+from textual import on
+from textual.app import App
+from textual.containers import Horizontal, Vertical
+from textual.widgets import Input, RadioSet, RichLog
+from textual.worker import Worker, WorkerState
+from textual.events import Event
+from textual.color import Color
+from typing import Any, Generator
+import logging
+from jrdev.core.application import Application
+from jrdev.ui.textual_events import TextualEvents
+from jrdev.ui.textual.confirmation_screen import ConfirmationScreen
+from jrdev.ui.textual.filtered_directory_tree import FilteredDirectoryTree
+from jrdev.ui.textual.api_key_entry import ApiKeyEntry
+from jrdev.ui.textual.model_selection_widget import ModelSelectionWidget
+from jrdev.ui.textual.task_monitor import TaskMonitor
+
+logger = logging.getLogger("jrdev")
+
+
+class JrDevUI(App[None]):
+    CSS = """
+        RichLog {
+            scrollbar-background: #1e1e1e;
+            scrollbar-background-hover: #1e1e1e;
+            scrollbar-background-active: #1e1e1e;
+            scrollbar-color: #63f554 30%;
+            scrollbar-color-active: #63f554;
+            scrollbar-color-hover: #63f554 50%;
+        }
+        
+        RadioSet {
+            border: tall $border-blurred;
+            background: #1e1e1e;
+            padding: 0;
+            height: auto;
+            width: auto;
+    
+            & > RadioButton {
+                background: #1e1e1e;
+                border: none;
+                padding: 0 0 0 0;
+    
+                & > .toggle--button {
+                    color: #444444;
+                    background: #1e1e1e;
+                    border: none;
+                    padding: 0 0;
+                }
+    
+                &.-selected {
+                    background: #1e1e1e;
+                    border: none;
+                }
+            }
+    
+            & > RadioButton.-on .toggle--button {
+                color: #63f554;
+                background: #1e1e1e;
+                border: none;
+            }
+    
+            &:focus {
+                /* The following rules/styles mimic similar ToggleButton:focus rules in
+                * ToggleButton. If those styles ever get updated, these should be too.
+                */
+                border: none;
+                background-tint: #1e1e1e;
+                & > RadioButton.-selected {
+                    color: #1e1e1e;
+                    text-style: $block-cursor-text-style;
+                    background: #1e1e1e;
+                }
+            }
+        }
+    """
+    def compose(self) -> Generator[Any, None, None]:
+        # todo welcome message
+        self.jrdev = Application()
+        self.jrdev.ui = TextualEvents(self)
+        self.title = "JrDev Terminal"
+        self.jrdev.setup()
+        self.vlayout_terminal = Vertical()
+        self.vlayout_right = Vertical()
+        self.terminal_output = RichLog(id="terminal_output", min_width=10)
+        self.terminal_input = Input(placeholder="Enter Command", id="cmd_input")
+        self.task_monitor = TaskMonitor()
+        self.directory_tree = FilteredDirectoryTree("./")
+        self.model_list = ModelSelectionWidget(id="model_list")
+        self.task_count = 0
+
+        with Horizontal():
+            with self.vlayout_terminal:
+                yield self.task_monitor
+                yield self.terminal_output
+                yield self.terminal_input
+            with self.vlayout_right:
+                yield self.directory_tree
+                yield self.model_list
+
+    async def on_mount(self) -> None:
+        self.terminal_output.wrap = True
+        self.terminal_output.markup = True
+        self.terminal_output.can_focus = False
+        self.terminal_output.border_title = "JrDev Terminal"
+        self.terminal_output.styles.border = ("round", Color.parse("#63f554"))
+        self.terminal_input.focus()
+        self.terminal_input.border_title = "Command Input"
+        self.terminal_input.styles.border = ("round", Color.parse("#63f554"))
+        self.directory_tree.border_title = "Project Files"
+        self.directory_tree.styles.border = ("round", Color.parse("#63f554"))
+
+        # Horizontal Layout Splits
+        self.vlayout_terminal.styles.width = "70%"
+
+        # Terminal Layout Splits
+        self.task_monitor.styles.height = "25%"
+
+        await self.jrdev.initialize_services()
+
+        models = self.jrdev.get_models()
+        
+        # Set up the model list widget with the models
+        await self.model_list.setup_models(models)
+        
+        # Set the current model as selected if available
+        if self.jrdev.state.model:
+            self.model_list.set_model_selected(self.jrdev.state.model)
+
+    @on(Input.Submitted, "#cmd_input")
+    async def accept_input(self, event: Event) -> None:
+        text = self.terminal_input.value
+        # mirror user input to richlog
+        self.terminal_output.write(f"[blue]>[/blue][green]{text}[/green]")
+
+        # is this something that should be tracked as an active task?
+        task_id = None
+        if self.task_monitor.should_track(text):
+            task_id = self.get_new_task_id()
+
+        # pass input to jrdev core
+        worker = self.run_worker(self.jrdev.process_input(text, task_id))
+        if task_id:
+            worker.name = task_id
+            self.task_monitor.add_task(task_id, text, "")
+
+        # clear input widget
+        self.terminal_input.value = ""
+
+    def get_new_task_id(self):
+        id = self.task_count
+        self.task_count += 1
+        return str(id)
+
+    async def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        worker = event.worker
+        state = event.state
+        self.task_monitor.worker_updated(worker, state)
+
+    @on(TextualEvents.PrintMessage)
+    def handle_print_message(self, event: Any) -> None:
+        self.terminal_output.write(event.text)
+
+    @on(TextualEvents.ConfirmationRequest)
+    def handle_confirmation_request(self, message: TextualEvents.ConfirmationRequest) -> None:
+        """Handle a request for confirmation from the backend"""
+        screen = ConfirmationScreen(message.prompt_text, message.diff_lines)
+        
+        # Store the future so we can set the result when the screen is dismissed
+        screen.future = message.future
+        
+        # When the screen is dismissed, the on_screen_resume will be called with the result
+        self.push_screen(screen)
+
+    @on(TextualEvents.EnterApiKeys)
+    def handle_enter_api_keys(self, message: TextualEvents.EnterApiKeys):
+        def check_keys(keys: dict):
+            self.jrdev.save_keys(keys)
+            if self.jrdev.state.need_first_time_setup:
+                # finish initialization now that keys are setup
+                self.run_worker(self.jrdev.initialize_services())
+
+        self.push_screen(ApiKeyEntry(), check_keys)
+
+    @on(TextualEvents.ModelChanged)
+    def handle_model_change(self, message: TextualEvents.ModelChanged):
+        self.model_list.set_model_selected(message.text)
+
+    @on(RadioSet.Changed, "#model_list")
+    def handle_model_selected(self, event: RadioSet.Changed):
+        self.jrdev.set_model(str(event.pressed.label), send_to_ui=False)
+
+    @on(TextualEvents.TaskUpdate)
+    def handle_task_update(self, message: TextualEvents.TaskUpdate):
+        if "input_token_estimate" in message.update:
+            # first message gives us input token estimate and model being used
+            token_count = message.update["input_token_estimate"]
+            model = message.update["model"]
+            self.task_monitor.update_input_tokens(message.worker_id, token_count, model)
+        elif "output_token_estimate" in message.update:
+            token_count = message.update['output_token_estimate']
+            tokens_per_second = message.update["tokens_per_second"]
+            self.task_monitor.update_output_tokens(message.worker_id, token_count, tokens_per_second)
+        elif "input_tokens" in message.update:
+            # final official accounting of tokens
+            input_tokens = message.update.get("input_tokens")
+            self.task_monitor.update_input_tokens(message.worker_id, input_tokens)
+            output_tokens = message.update.get("output_tokens")
+            tokens_per_second = message.update.get("tokens_per_second")
+            self.task_monitor.update_output_tokens(message.worker_id, output_tokens, tokens_per_second)
+        elif "new_sub_task" in message.update:
+            # new sub task spawned
+            sub_task_id = message.update.get("new_sub_task")
+            description = message.update.get("description")
+            self.task_monitor.add_task(sub_task_id, task_name="init", model="", sub_task_name=description)
+        elif "sub_task_finished" in message.update:
+            self.task_monitor.set_task_finished(message.worker_id)
+
+
+        
+    @on(TextualEvents.ExitRequest)
+    def handle_exit_request(self, message: TextualEvents.ExitRequest) -> None:
+        """Handle a request to exit the application"""
+        self.exit()
+
+
+def run_textual_ui() -> None:
+    """Entry point for textual UI console script"""
+    JrDevUI().run()
+
+
+if __name__ == "__main__":
+    run_textual_ui()
