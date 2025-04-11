@@ -153,6 +153,11 @@ def print_steps(app: Any, steps: Dict[str, Any], completed_steps: Optional[List[
         completed_steps: Optional list of step indices (0-based) that have been completed
         current_step: Optional index (0-based) of the current step being worked on
     """
+
+    if app.ui.ui_name == "textual":
+        print_steps_plain(app, steps, completed_steps, current_step)
+        return
+
     # Define operation type colors
     operation_colors = {
         "ADD": COLORS["BRIGHT_GREEN"],
@@ -226,6 +231,53 @@ def print_steps(app: Any, steps: Dict[str, Any], completed_steps: Optional[List[
     
     app.ui.print_text("", PrintType.INFO)  # Add an empty line after the list
 
+def print_steps_plain(app: Any, steps: Dict[str, Any], completed_steps: Optional[List[int]] = None, current_step: Optional[int] = None) -> None:
+    """
+    Print steps in plain text format without any colors or emoticons.
+
+    Args:
+        app: The Application instance
+        steps: Dictionary containing the steps to print
+        completed_steps: Optional list of step indices (0-based) that have been completed
+        current_step: Optional index (0-based) of the current step being worked on
+    """
+    if "steps" not in steps or not steps["steps"]:
+        app.ui.print_text("No steps to display", PrintType.INFO)
+        return
+
+    if completed_steps is None:
+        completed_steps = []
+
+    app.ui.print_text("\nTODO List:", PrintType.INFO)
+
+    for i, step in enumerate(steps["steps"], 1):
+        operation = step.get("operation_type", "UNKNOWN")
+        filename = step.get("filename", "UNKNOWN")
+        description = step.get("description", "No description provided")
+        target = step.get("target_location", "UNKNOWN")
+
+        step_idx = i - 1  # Convert to 0-based index
+
+        if step_idx in completed_steps:
+            checkbox = "x"
+        elif step_idx == current_step:
+            checkbox = ">"
+        else:
+            checkbox = "-"
+
+        step_prefix = f"{checkbox} {i}. "
+        app.ui.print_text(
+            f"{step_prefix}{operation}: {filename} - {description}",
+            PrintType.INFO
+        )
+
+        location_indent = "   "
+        app.ui.print_text(
+            f"{location_indent}Location: {target}",
+            PrintType.INFO
+        )
+
+    app.ui.print_text("", PrintType.INFO)  # Add an empty line after the list
 
 async def prompt_for_confirmation(app: Any, prompt_text: str = "Apply these changes?", diff_lines: Optional[List[str]] = None) -> Tuple[str, Optional[str]]:
     """
@@ -304,7 +356,7 @@ def show_conversation(app: Any, max_messages: int = 10) -> None:
             app.ui.print_text(f"🤖 Assistant:", PrintType.SUBHEADER)
             app.ui.print_text(f"   {preview}", PrintType.LLM)
         else:
-            app.ui.print_text(f"[{role}]:", PrintType.SUBHEADER)
+            app.ui.print_text(f"[{role}]", PrintType.SUBHEADER)
             app.ui.print_text(f"   {preview}", PrintType.INFO)
         
         # Add separator between messages except for the last one

@@ -28,6 +28,12 @@ class TaskMonitor(DataTable):
     async def on_mount(self) -> None:
         self.border_title = "Tasks"
         self.styles.border = ("round", Color.parse("#63f554"))
+        self.styles.scrollbar_background = "#1e1e1e"
+        self.styles.scrollbar_background_hover = "#1e1e1e"
+        self.styles.scrollbar_background_active = "#1e1e1e"
+        self.styles.scrollbar_color = "#63f554 30%"
+        self.styles.scrollbar_color_active = "#63f554"
+        self.styles.scrollbar_color_hover = "#63f554 50%"
         for column in self.column_names:
             if column == "model":
                 self.add_column(column, key=column, width=16)
@@ -74,7 +80,8 @@ class TaskMonitor(DataTable):
 
     def should_track(self, command: str) -> bool:
         if command.startswith("/"):
-            cmd = command[1:]
+            # remove the / and only include first word
+            cmd = command[1:].split(" ")[0]
             return cmd in self.tracked_commands
         # if it doesn't start with / then it's a chat, so track
         return True
