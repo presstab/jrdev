@@ -383,6 +383,10 @@ class ContextManager:
 
         return outdated_files
 
+    def get_file_paths(self) -> List[str]:
+        obj_files = self.index.get("files", {})
+        return obj_files.keys()
+
     def get_index_paths(self) -> List[List[str]]:
         """
         Get relative paths of all indexes in the context manager.

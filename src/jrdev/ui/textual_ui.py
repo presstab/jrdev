@@ -103,7 +103,7 @@ class JrDevUI(App[None]):
         self.terminal_output = RichLog(id="terminal_output", min_width=10)
         self.terminal_input = Input(placeholder="Enter Command", id="cmd_input")
         self.task_monitor = TaskMonitor()
-        self.directory_tree = FilteredDirectoryTree("./")
+        self.directory_tree = FilteredDirectoryTree("./", self.jrdev.state)
         self.model_list = ModelSelectionWidget(id="model_list")
         self.task_count = 0
 
@@ -125,8 +125,12 @@ class JrDevUI(App[None]):
         self.terminal_input.focus()
         self.terminal_input.border_title = "Command Input"
         self.terminal_input.styles.border = ("round", Color.parse("#63f554"))
+
+        # directory tree
         self.directory_tree.border_title = "Project Files"
         self.directory_tree.styles.border = ("round", Color.parse("#63f554"))
+        # make aware of indexed paths
+        self.directory_tree.update_indexed_paths()
 
         # Horizontal Layout Splits
         self.vlayout_terminal.styles.width = "70%"
