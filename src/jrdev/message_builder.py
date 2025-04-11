@@ -10,14 +10,14 @@ logger = logging.getLogger("jrdev")
 
 
 class MessageBuilder:
-    def __init__(self, app: Optional[Any] = None):
+    def __init__(self, app: Any):
+        self.app = app
         self.messages: List[Dict[str, str]] = []
         self.files: Set[str] = set()
         self.project_files: Set[str] = set()
         self.file_aliases: Dict[str, str] = {}
         self.embedded_files: Set[str] = set()
         self.context: List[Dict[str, str]] = []
-        self.app = app
         self._current_user_content: List[str] = []
         self.isUserSectionFinal = False
 
@@ -113,7 +113,14 @@ class MessageBuilder:
     def _build_file_content(self) -> str:
         """Generate formatted file content section"""
         content = []
-        # Add project files first
+        # Add project files, including file tree
+        if self.project_files:
+            # Load current file tree, with short explanation of how to read the format.
+            tree_explanation = PromptManager.load("init/filetree_format")
+            content.append(tree_explanation)
+            file_tree = f"\n\n--- BEGIN FILE DIRECTORY ---\n{self.app.get_file_tree()}\n--- END FILE DIRECTORY ---\n"
+            content.append(file_tree)
+
         for file_path in self.project_files:
             try:
                 # mark indexes differently

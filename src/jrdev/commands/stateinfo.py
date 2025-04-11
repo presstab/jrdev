@@ -44,11 +44,7 @@ async def handle_stateinfo(app: Any, args: List[str], worker_id: str) -> None:
         app.ui.print_text(f"  OpenAI API configured", print_type=PrintType.INFO)
     
     # If the app has any file context loaded
-    project_files = {
-        "filetree": f"{JRDEV_DIR}jrdev_filetree.txt",
-        "filecontext": f"{JRDEV_DIR}jrdev_filecontext.md",
-        "overview": f"{JRDEV_DIR}jrdev_overview.md",
-    }
+    project_files = app.state.project_files
     
     loaded_files = []
     for key, filename in project_files.items():
