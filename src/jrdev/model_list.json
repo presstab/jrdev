@@ -1,7 +1,7 @@
 {
     "models": [
         {
-            "name": "claude-3-5-haiku-20240620",
+            "name": "claude-3-5-haiku-20241022",
             "provider": "anthropic",
             "is_think": false,
             "input_cost": 8,
