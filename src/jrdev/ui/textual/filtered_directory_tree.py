@@ -4,6 +4,7 @@ from typing import Iterable
 
 from rich.style import Style
 from rich.text import Text
+from textual.await_complete import AwaitComplete
 
 from textual.widgets import DirectoryTree
 from textual.widgets._directory_tree import DirEntry
@@ -19,6 +20,10 @@ class FilteredDirectoryTree(DirectoryTree):
     """Filter out jrdev directory"""
     def filter_paths(self, paths: Iterable[Path]) -> Iterable[Path]:
         return [path for path in paths if not (path.name.startswith("jrdev") and not path.parent.name.startswith("src"))]
+
+    def reload(self) -> AwaitComplete:
+        self.update_indexed_paths()
+        return super().reload()
 
     def update_indexed_paths(self):
         indexed_paths = self.state.context_manager.get_file_paths()
