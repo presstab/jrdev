@@ -55,7 +55,8 @@ class TerminalOutputWidget(Widget):
     def append_text(self, text: str) -> None:
         """Append text to the end of the terminal output regardless of cursor position.
         
-        This method preserves the current selection and doesn't auto-scroll to the end.
+        This method preserves the current selection and auto-scrolls only if the
+        scrollbar was already at the bottom before appending the text.
         
         Args:
             text: The text to append to the terminal output.
@@ -65,6 +66,18 @@ class TerminalOutputWidget(Widget):
         
         # Remember scroll position
         current_scroll = self.terminal_output.scroll_offset
+        
+        # Check if scroll is at the bottom before appending text
+        # Get the scroll_y and document size to determine if we're at the bottom
+        scroll_y = self.terminal_output.scroll_y
+        content_size = self.terminal_output.document.get_size(4)  # 4 is a common tab width
+        content_height = content_size.height
+        viewport_height = self.terminal_output.size.height
+        
+        # Consider at bottom if scrolled to within a small margin of the end
+        # or if all content fits in the viewport
+        margin = 5  # Allow a small margin for rounding errors
+        at_bottom = (scroll_y + viewport_height + margin >= content_height) or (content_height <= viewport_height)
         
         # Set the text with the new content appended
         new_text = current_text + text
@@ -77,6 +90,10 @@ class TerminalOutputWidget(Widget):
             # For an empty selection (just cursor), keep it where it was
             self.terminal_output.selection = Selection(current_selection.start, current_selection.start)
             
-        # Restore scroll position to prevent auto-scrolling to the end
-        self.terminal_output.scroll_to(x=current_scroll[0], y=current_scroll[1], animate=False)
+        # Auto-scroll to the end if we were at the bottom before, otherwise restore position
+        if at_bottom:
+            self.terminal_output.scroll_end(animate=False)
+        else:
+            self.terminal_output.scroll_to(x=current_scroll[0], y=current_scroll[1], animate=False)
+        
         logger.info(f"highlights:\n{self.terminal_output._highlights}")
