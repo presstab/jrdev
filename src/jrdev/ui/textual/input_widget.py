@@ -5,6 +5,10 @@ from textual.widgets import TextArea
 from textual import events
 from dataclasses import dataclass
 from typing import ClassVar
+import json
+import logging
+import os
+from jrdev.file_utils import get_persistent_storage_path
 
 
 class CommandTextArea(TextArea):
@@ -77,8 +81,23 @@ class CommandTextArea(TextArea):
         # Disable features we don't need
         self.show_line_numbers = False
 
-        self.submit_history = []
-        self.history_index = 0
+        # Load command history from persistent storage
+        logger = logging.getLogger("jrdev")
+        storage_path = get_persistent_storage_path()
+        history_file = f"{storage_path}command_history.json"
+        if os.path.exists(history_file):
+            try:
+                with open(history_file, "r", encoding="utf-8") as f:
+                    self.submit_history = json.load(f)
+                    self.history_index = len(self.submit_history)
+            except Exception as e:
+                logger.error(f"Error loading command history: {e}")
+                self.submit_history = []
+                self.history_index = 0
+        else:
+            self.submit_history = []
+            self.history_index = 0
+
         self._draft = None
 
     def render_line(self, y: int) -> "Strip":
@@ -113,6 +132,17 @@ class CommandTextArea(TextArea):
         self.post_message(self.Submitted(self, self.text))
         self.submit_history.append(self.text)
         self.history_index = len(self.submit_history)
+
+        # Save updated history
+        storage_path = get_persistent_storage_path()
+        history_file = f"{storage_path}command_history.json"
+        try:
+            with open(history_file, "w", encoding="utf-8") as f:
+                json.dump(self.submit_history, f)
+        except Exception as e:
+            logger = logging.getLogger("jrdev")
+            logger.error(f"Error saving command history: {e}")
+
         # Optionally clear the input after submission
         self.clear()
 
