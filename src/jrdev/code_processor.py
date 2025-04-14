@@ -114,6 +114,26 @@ class CodeProcessor:
 
             print_steps(self.app, steps, completed_steps)
             if changed_files:
+                review_response = await self.review_changes(user_task, files_to_send, changed_files)
+                try:
+                    json_content = cutoff_string(review_response, "```json", "```")
+                    review = json.loads(json_content)
+                    review_passed = review.get("success", False)
+                    if not review_passed:
+                        # send review comments back to the analysis
+                        reason = review.get("reason", None)
+                        action = review.get("action", None)
+                        if reason and action:
+                            change_request = (f"The user requested changes and an attempt was made to fulfill the change request. The reviewer determined that the changes "
+                                              f"failed because {reason}. The reviewer requests that this action be taken to complete the task: {action}. This is the user task: {user_task}")
+                            await self.process(change_request)
+                        else:
+                            logger.info(f"Malformed change request from reviewer:\n{review}")
+
+                except Exception as e:
+                    # todo try again?
+                    self.app.logger.error(f"failed to parse review: {review_response}")
+
                 await self.validate_changed_files(changed_files)
             else:
                 self.app.logger.info("No files were changed during processing.")
@@ -274,6 +294,46 @@ class CodeProcessor:
             self.app.logger.warning(f"Files not found: {missing_files}")
             steps_json["missing_files"] = missing_files
         return steps_json
+
+    async def review_changes(self, initial_prompt: str, files: Set[str], changed_files: Set[str]) -> None:
+        """
+        Review all changes and analyze whether the task has adequately been completed
+        Args:
+            initial_prompt:
+            files:
+
+        Returns:
+        """
+        full_file_list = files
+        for file in changed_files:
+            if file not in full_file_list:
+                full_file_list.append(file)
+        files_content = get_file_contents(list(changed_files))
+        builder = MessageBuilder(self.app)
+        builder.load_system_prompt("review_changes")
+        builder.add_user_message(f"***User Request***: {initial_prompt}")
+        messages = builder.build()
+
+        # Validation Model
+        model = self.profile_manager.get_model("advanced_reasoning")
+        self.app.logger.info(f"Checking work: {model}")
+        self.app.ui.print_text(f"\nChecking code changes to ensure completion with {model} (advanced_reasoning profile)", PrintType.PROCESSING)
+
+        sub_task_str = None
+        if self.worker_id:
+            # create a sub task id
+            self.sub_task_count += 1
+            sub_task_str = f"{self.worker_id}:{self.sub_task_count}"
+            self.app.ui.update_task_info(self.worker_id, update={"new_sub_task": sub_task_str, "description": "check work"})
+
+        response = await stream_request(self.app, model, messages, task_id=sub_task_str, print_stream=False)
+
+        # mark sub_task complete
+        if self.worker_id:
+            self.app.ui.update_task_info(sub_task_str, update={"sub_task_finished": True})
+        self.app.ui.print_text(f"Check Work:\n {response}")
+
+        return response
 
     async def validate_changed_files(self, changed_files: Set[str]) -> None:
         """
