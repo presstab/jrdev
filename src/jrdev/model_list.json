@@ -105,20 +105,20 @@
             "context_tokens": 200000
         },
         {
-            "name": "gpt-4o",
+            "name": "gpt-4.1-2025-04-14",
             "provider": "openai",
             "is_think": false,
-            "input_cost": 25,
-            "output_cost": 100,
-            "context_tokens": 128000
+            "input_cost": 20,
+            "output_cost": 80,
+            "context_tokens": 1000000
         },
         {
-            "name": "gpt-4o-mini",
+            "name": "gpt-4.1-mini-2025-04-14",
             "provider": "openai",
             "is_think": false,
-            "input_cost": 2,
-            "output_cost": 6,
-            "context_tokens": 128000
+            "input_cost": 4,
+            "output_cost": 16,
+            "context_tokens": 1000000
         },
         {
             "name": "qwen-2.5-vl",
