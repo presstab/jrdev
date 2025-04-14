@@ -16,7 +16,8 @@ setup(
         "pyreadline3; platform_system=='Windows'",
         "pydantic>=2.0.0",
         "textual>=0.40.0",
-        "tiktoken"
+        "tiktoken",
+        "pyperclip"
     ],
     entry_points={
         "console_scripts": [

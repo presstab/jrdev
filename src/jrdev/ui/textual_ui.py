@@ -1,7 +1,7 @@
 from textual import on
 from textual.app import App
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Input, RadioSet, RichLog
+from textual.widgets import Input, RadioSet, TextArea
 from textual.worker import Worker, WorkerState
 from textual.events import Event
 from textual.color import Color
@@ -14,13 +14,14 @@ from jrdev.ui.textual.filtered_directory_tree import FilteredDirectoryTree
 from jrdev.ui.textual.api_key_entry import ApiKeyEntry
 from jrdev.ui.textual.model_selection_widget import ModelSelectionWidget
 from jrdev.ui.textual.task_monitor import TaskMonitor
+from jrdev.ui.textual.terminal_output_widget import TerminalOutputWidget
 
 logger = logging.getLogger("jrdev")
 
 
 class JrDevUI(App[None]):
     CSS = """
-        RichLog {
+        TextArea {
             scrollbar-background: #1e1e1e;
             scrollbar-background-hover: #1e1e1e;
             scrollbar-background-active: #1e1e1e;
@@ -28,7 +29,14 @@ class JrDevUI(App[None]):
             scrollbar-color-active: #63f554;
             scrollbar-color-hover: #63f554 50%;
         }
-        
+        #copy_button {
+            background: #2a2a2a;
+            border: none;
+        }
+        #copy_button:hover {
+            background: #656565;
+            border: none;
+        }
         RadioSet {
             border: tall $border-blurred;
             background: #1e1e1e;
@@ -100,7 +108,7 @@ class JrDevUI(App[None]):
         self.jrdev.setup()
         self.vlayout_terminal = Vertical()
         self.vlayout_right = Vertical()
-        self.terminal_output = RichLog(id="terminal_output", min_width=10)
+        self.terminal_output_widget = TerminalOutputWidget()
         self.terminal_input = Input(placeholder="Enter Command", id="cmd_input")
         self.task_monitor = TaskMonitor()
         self.directory_tree = FilteredDirectoryTree("./", self.jrdev.state)
@@ -110,18 +118,16 @@ class JrDevUI(App[None]):
         with Horizontal():
             with self.vlayout_terminal:
                 yield self.task_monitor
-                yield self.terminal_output
+                yield self.terminal_output_widget
                 yield self.terminal_input
             with self.vlayout_right:
                 yield self.directory_tree
                 yield self.model_list
 
     async def on_mount(self) -> None:
-        self.terminal_output.wrap = True
-        self.terminal_output.markup = True
-        self.terminal_output.can_focus = False
-        self.terminal_output.border_title = "JrDev Terminal"
-        self.terminal_output.styles.border = ("round", Color.parse("#63f554"))
+        self.terminal_output_widget.styles = self.directory_tree.styles
+        self.terminal_output_widget.border_title = "JrDev Terminal"
+        self.terminal_output_widget.styles.border = ("round", Color.parse("#63f554"))
         self.terminal_input.focus()
         self.terminal_input.border_title = "Command Input"
         self.terminal_input.styles.border = ("round", Color.parse("#63f554"))
@@ -152,8 +158,8 @@ class JrDevUI(App[None]):
     @on(Input.Submitted, "#cmd_input")
     async def accept_input(self, event: Event) -> None:
         text = self.terminal_input.value
-        # mirror user input to richlog
-        self.terminal_output.write(f"[blue]>[/blue][green]{text}[/green]")
+        # mirror user input to text area
+        self.terminal_output_widget.terminal_output.insert(f"> {text}\n")
 
         # is this something that should be tracked as an active task?
         task_id = None
@@ -181,7 +187,7 @@ class JrDevUI(App[None]):
 
     @on(TextualEvents.PrintMessage)
     def handle_print_message(self, event: Any) -> None:
-        self.terminal_output.write(event.text)
+        self.terminal_output_widget.terminal_output.insert(event.text + "\n")
 
     @on(TextualEvents.ConfirmationRequest)
     def handle_confirmation_request(self, message: TextualEvents.ConfirmationRequest) -> None:
