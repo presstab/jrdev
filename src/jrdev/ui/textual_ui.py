@@ -15,6 +15,7 @@ from jrdev.ui.textual.api_key_entry import ApiKeyEntry
 from jrdev.ui.textual.model_selection_widget import ModelSelectionWidget
 from jrdev.ui.textual.task_monitor import TaskMonitor
 from jrdev.ui.textual.terminal_output_widget import TerminalOutputWidget
+from jrdev.ui.textual.input_widget import CommandInput
 
 logger = logging.getLogger("jrdev")
 
@@ -109,7 +110,7 @@ class JrDevUI(App[None]):
         self.vlayout_terminal = Vertical()
         self.vlayout_right = Vertical()
         self.terminal_output_widget = TerminalOutputWidget()
-        self.terminal_input = Input(placeholder="Enter Command", id="cmd_input")
+        self.terminal_input = CommandInput(placeholder="Enter Command", id="cmd_input")
         self.task_monitor = TaskMonitor()
         self.directory_tree = FilteredDirectoryTree("./", self.jrdev.state)
         self.model_list = ModelSelectionWidget(id="model_list")
@@ -159,7 +160,7 @@ class JrDevUI(App[None]):
     async def accept_input(self, event: Event) -> None:
         text = self.terminal_input.value
         # mirror user input to text area
-        self.terminal_output_widget.terminal_output.insert(f"> {text}\n")
+        self.terminal_output_widget.append_text(f"> {text}\n")
 
         # is this something that should be tracked as an active task?
         task_id = None
@@ -188,9 +189,9 @@ class JrDevUI(App[None]):
     @on(TextualEvents.PrintMessage)
     def handle_print_message(self, event: Any) -> None:
         if isinstance(event.text, list):
-            self.terminal_output_widget.terminal_output.insert("\n".join(event.text) + "\n")
+            self.terminal_output_widget.append_text("\n".join(event.text) + "\n")
         else:
-            self.terminal_output_widget.terminal_output.insert(event.text + "\n")
+            self.terminal_output_widget.append_text(event.text + "\n")
 
     @on(TextualEvents.ConfirmationRequest)
     def handle_confirmation_request(self, message: TextualEvents.ConfirmationRequest) -> None:

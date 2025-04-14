@@ -1,6 +1,7 @@
 from textual import events, on
 from textual.app import ComposeResult
 from textual.containers import Vertical
+from textual.document._document import Selection
 from textual.widget import Widget
 from textual.widgets import Label, Button, TextArea
 from textual.color import Color
@@ -8,7 +9,6 @@ from collections import defaultdict, OrderedDict
 from typing import Any, Dict, List, Optional
 import logging
 import pyperclip
-from textual.color import Color
 
 logger = logging.getLogger("jrdev")
 
@@ -51,3 +51,32 @@ class TerminalOutputWidget(Widget):
         pyperclip.copy(content)
         # Provide visual feedback
         self.notify("Text copied to clipboard", timeout=2)
+        
+    def append_text(self, text: str) -> None:
+        """Append text to the end of the terminal output regardless of cursor position.
+        
+        This method preserves the current selection and doesn't auto-scroll to the end.
+        
+        Args:
+            text: The text to append to the terminal output.
+        """
+        current_text = self.terminal_output.text
+        current_selection = self.terminal_output.selection
+        
+        # Remember scroll position
+        current_scroll = self.terminal_output.scroll_offset
+        
+        # Set the text with the new content appended
+        new_text = current_text + text
+        self.terminal_output.text = new_text
+        
+        # Restore the original selection if there was one
+        if current_selection.start != current_selection.end:
+            self.terminal_output.selection = current_selection
+        else:
+            # For an empty selection (just cursor), keep it where it was
+            self.terminal_output.selection = Selection(current_selection.start, current_selection.start)
+            
+        # Restore scroll position to prevent auto-scrolling to the end
+        self.terminal_output.scroll_to(x=current_scroll[0], y=current_scroll[1], animate=False)
+        logger.info(f"highlights:\n{self.terminal_output._highlights}")
