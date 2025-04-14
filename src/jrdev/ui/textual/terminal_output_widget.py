@@ -40,13 +40,13 @@ class TerminalOutputWidget(Widget):
 
     def copy_to_clipboard(self) -> None:
         # Logic to copy the selected text of the TextArea to the clipboard
-        if not self.terminal_output.value:
+        if not self.terminal_output.text:
             return
 
         if self.terminal_output.selected_text:
             content = self.terminal_output.selected_text
         else:
-            content = self.terminal_output.value
+            content = self.terminal_output.text
         # Use pyperclip to copy to clipboard
         pyperclip.copy(content)
         # Provide visual feedback
