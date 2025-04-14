@@ -148,8 +148,6 @@ def generate_compact_tree(
     gitignore_patterns: List[str] = []
     if use_gitignore:
         gitignore_patterns = parse_gitignore(directory)
-        if gitignore_patterns:
-            print(f"Using .gitignore patterns: {gitignore_patterns}")
 
     # Structure to hold paths in a nested dictionary
     file_dict: Dict[str, Any] = {}

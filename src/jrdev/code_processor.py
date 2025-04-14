@@ -20,6 +20,7 @@ class CodeProcessor:
         self.app = app
         self.profile_manager = app.profile_manager()
         self.worker_id = worker_id
+        self.sub_task_count = 0
 
     async def process(self, user_task: str) -> None:
         """
@@ -52,8 +53,20 @@ class CodeProcessor:
 
         model_name = self.profile_manager.get_model("advanced_reasoning")
         self.app.ui.print_text(f"\n{model_name} is processing the request... (advanced_reasoning profile)", PrintType.PROCESSING)
-        response_text = await stream_request(self.app, model_name, messages, task_id=self.worker_id)
-        self.app.ui.print_text("", PrintType.INFO)
+        sub_task_str = None
+        if self.worker_id:
+            # create a sub task id
+            self.sub_task_count += 1
+            sub_task_str = f"{self.worker_id}:{self.sub_task_count}"
+            self.app.ui.update_task_info(self.worker_id, update={"new_sub_task": sub_task_str, "description": "analyze request"})
+
+        # send request
+        response_text = await stream_request(self.app, model_name, messages, task_id=sub_task_str)
+
+        # mark sub_task complete
+        if self.worker_id:
+            self.app.ui.update_task_info(sub_task_str, update={"sub_task_finished": True})
+
         return response_text
 
     async def process_code_response(self, response_text: str, user_task: str) -> None:
@@ -174,7 +187,20 @@ class CodeProcessor:
         model = self.profile_manager.get_model("advanced_coding")
         self.app.logger.info(f"Sending code request to {model}")
         self.app.ui.print_text(f"\nSending code request to {model} (advanced_coding profile)...\n", PrintType.PROCESSING)
-        response = await stream_request(self.app, model, messages, task_id=self.worker_id, print_stream=True, json_output=True)
+
+        sub_task_str = None
+        if self.worker_id:
+            # create a sub task id
+            self.sub_task_count += 1
+            sub_task_str = f"{self.worker_id}:{self.sub_task_count }"
+            self.app.ui.update_task_info(self.worker_id, update={"new_sub_task": sub_task_str, "description": op_type})
+
+        response = await stream_request(self.app, model, messages, task_id=sub_task_str, print_stream=True, json_output=True)
+
+        # mark sub_task complete
+        if self.worker_id:
+            self.app.ui.update_task_info(sub_task_str, update={"sub_task_finished": True})
+
         return response
 
     async def check_and_apply_code_changes(self, response_text: str) -> Dict:
@@ -211,8 +237,20 @@ class CodeProcessor:
         model = self.profile_manager.get_model("advanced_reasoning")
         self.app.logger.info(f"Sending file contents to {model}")
         self.app.ui.print_text(f"\nSending requested files to {model} (advanced_reasoning profile)...", PrintType.PROCESSING)
-        response = await stream_request(self.app, model, messages, task_id=self.worker_id)
-        self.app.ui.print_text("", PrintType.INFO)
+
+        sub_task_str = None
+        if self.worker_id:
+            # create a sub task id
+            self.sub_task_count += 1
+            sub_task_str = f"{self.worker_id}:{self.sub_task_count}"
+            self.app.ui.update_task_info(self.worker_id, update={"new_sub_task": sub_task_str, "description": "create plan"})
+
+        response = await stream_request(self.app, model, messages, task_id=sub_task_str)
+
+        # mark sub_task complete
+        if self.worker_id:
+            self.app.ui.update_task_info(sub_task_str, update={"sub_task_finished": True})
+
         return response
 
     async def parse_steps(self, steps_text: str, filelist: List[str]) -> Dict:
@@ -252,9 +290,22 @@ class CodeProcessor:
         model = self.profile_manager.get_model("intermediate_reasoning")
         self.app.logger.info(f"Validating changed files with {model}")
         self.app.ui.print_text(f"\nValidating changed files with {model} (intermediate_reasoning profile)", PrintType.PROCESSING)
+
+        sub_task_str = None
+        if self.worker_id:
+            # create a sub task id
+            self.sub_task_count += 1
+            sub_task_str = f"{self.worker_id}:{self.sub_task_count}"
+            self.app.ui.update_task_info(self.worker_id, update={"new_sub_task": sub_task_str, "description": "validate"})
+
         validation_response = await stream_request(
-            self.app, model, messages, task_id=self.worker_id, print_stream=False
+            self.app, model, messages, task_id=sub_task_str, print_stream=False
         )
+
+        # mark sub_task complete
+        if self.worker_id:
+            self.app.ui.update_task_info(sub_task_str, update={"sub_task_finished": True})
+
         self.app.logger.info(f"Validation response: {validation_response}")
         if validation_response.strip().startswith("VALID"):
             self.app.ui.print_text("✓ Files validated successfully", PrintType.SUCCESS)

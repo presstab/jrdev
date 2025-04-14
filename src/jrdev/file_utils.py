@@ -176,30 +176,29 @@ def get_file_contents(file_list, file_alias=None):
 
 def cutoff_string(input_string, cutoff_before_match, cutoff_after_match):
     """
-    Removes all lines up to and including the line containing cutoff_before_match,
-    and all lines from (and including) the line containing cutoff_after_match.
-    Returns the lines in between.
+    Removes all text up to and including the first occurrence of cutoff_before_match,
+    and all text from the first occurrence of cutoff_after_match (after the first cutoff) onwards.
+    Returns the text between these cutoffs, stripped of leading/trailing whitespace.
     """
-    lines = input_string.splitlines()
-    start = 0
-    end = len(lines)
+    # Find the start index after cutoff_before_match
+    before_index = input_string.find(cutoff_before_match)
+    if before_index != -1:
+        start = before_index + len(cutoff_before_match)
+    else:
+        start = 0  # No cutoff_before found, start from beginning
 
-    # Find the line index for cutoff_before_match
-    for i, line in enumerate(lines):
-        if cutoff_before_match in line:
-            start = i + 1  # skip this line and everything before
-            break
+    # Get the substring after the cutoff_before section
+    substring_after_before = input_string[start:]
 
-    # Find the line index for cutoff_after_match, starting from 'start'
-    for j in range(start, len(lines)):
-        if cutoff_after_match in lines[j]:
-            end = j  # do not include this line or anything after
-            break
+    # Find the end index before cutoff_after_match
+    after_index = substring_after_before.find(cutoff_after_match)
+    if after_index != -1:
+        end = after_index
+    else:
+        end = len(substring_after_before)  # No cutoff_after found, take remaining text
 
-    # Return the lines in between, joined by newlines
-    return "\n".join(lines[start:end]).strip()
-
-
+    # Extract and return the desired portion
+    return substring_after_before[:end].strip()
 
 def write_string_to_file(filename: str, content: str):
     """

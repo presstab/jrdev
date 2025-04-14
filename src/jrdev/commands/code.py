@@ -15,5 +15,5 @@ async def handle_code(app: Any, args: List[str], worker_id: str) -> None:
         app.ui.print_text("Usage: /code <message>", print_type=PrintType.ERROR)
         return
     message = " ".join(args[1:])
-    code_processor = CodeProcessor(app)
+    code_processor = CodeProcessor(app, worker_id)
     await code_processor.process(message)

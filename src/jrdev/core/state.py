@@ -29,7 +29,6 @@ class AppState:
         self.context: List[str] = []
         self.use_project_context: bool = True
         self.project_files: Dict[str, str] = {
-            "filetree": f"{JRDEV_DIR}jrdev_filetree.txt",
             "overview": f"{JRDEV_DIR}jrdev_overview.md",
             "conventions": f"{JRDEV_DIR}jrdev_conventions.md",
         }

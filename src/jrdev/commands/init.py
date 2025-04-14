@@ -18,7 +18,6 @@ from jrdev.file_utils import (
 from jrdev.llm_requests import stream_request
 from jrdev.languages.utils import detect_language, is_headers_language
 from jrdev.prompts.prompt_utils import PromptManager
-from jrdev.treechart import generate_compact_tree
 from jrdev.string_utils import contains_chinese
 from jrdev.ui.ui import PrintType
 from jrdev.message_builder import MessageBuilder
@@ -94,24 +93,9 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
     profile_manager = app.profile_manager()
 
     try:
-        output_file = f"{JRDEV_DIR}jrdev_filetree.txt"
-        if len(args) > 1:
-            output_file = args[1]
-
         # Generate the tree structure using the token-efficient format
         current_dir = os.getcwd()
-        tree_output = generate_compact_tree(
-            current_dir, output_file, use_gitignore=True
-        )
-
-        app.ui.print_text(f"File tree generated and saved to {output_file}", PrintType.SUCCESS)
-
-        # Extract file paths from tree_output
-        tree_files = [
-            line.strip()
-            for line in tree_output.splitlines()
-            if line.strip() and not line.endswith("/")  # Skip directories
-        ]
+        tree_output = app.get_file_tree()
 
         # Switch the model to the advanced reasoning profile
         app.state.model = profile_manager.get_model("advanced_reasoning")
@@ -239,12 +223,13 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
                     conventions_builder.load_system_prompt("project_conventions")
                     
                     # Start building user content
-                    conventions_builder.start_user_section("FILE TREE:\n")
+                    conventions_builder.start_user_section(PromptManager.load("init/filetree_format"))
+                    conventions_builder.append_to_user_section("FILE TREE:\n")
                     conventions_builder.append_to_user_section(tree_output)
                     conventions_builder.append_to_user_section("\n\nFILE CONTENTS:\n")
                     
                     # Read the actual content of all files from the tree
-                    for file_path in tree_files:
+                    for file_path in cleaned_file_list:
                         try:
                             full_path = os.path.join(current_dir, file_path)
                             if os.path.exists(full_path):

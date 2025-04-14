@@ -18,9 +18,10 @@ from jrdev.model_list import ModelList
 from jrdev.model_profiles import ModelProfileManager
 from jrdev.model_utils import load_hardcoded_models
 from jrdev.models import fetch_venice_models
+from jrdev.projectcontext.contextmanager import ContextManager
+from jrdev.treechart import generate_compact_tree
 from jrdev.ui.ui import PrintType
 from jrdev.ui.ui_wrapper import UiWrapper
-from jrdev.projectcontext.contextmanager import ContextManager
 
 
 class Application:
@@ -339,6 +340,10 @@ class Application:
             self.logger.info(f"Gitignore check completed: {'pattern added' if result else 'pattern already exists'}")
         except Exception as e:
             self.logger.error(f"Error checking gitignore: {str(e)}")
+
+    def get_file_tree(self):
+        current_dir = os.getcwd()
+        return generate_compact_tree(current_dir, use_gitignore=True)
 
     async def task_monitor_callback(self):
         """Periodic callback to check on background tasks and handle any completed ones."""
