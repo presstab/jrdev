@@ -15,7 +15,7 @@ from jrdev.ui.textual.api_key_entry import ApiKeyEntry
 from jrdev.ui.textual.model_selection_widget import ModelSelectionWidget
 from jrdev.ui.textual.task_monitor import TaskMonitor
 from jrdev.ui.textual.terminal_output_widget import TerminalOutputWidget
-from jrdev.ui.textual.input_widget import CommandInput
+from jrdev.ui.textual.input_widget import CommandTextArea
 
 logger = logging.getLogger("jrdev")
 
@@ -110,7 +110,7 @@ class JrDevUI(App[None]):
         self.vlayout_terminal = Vertical()
         self.vlayout_right = Vertical()
         self.terminal_output_widget = TerminalOutputWidget()
-        self.terminal_input = CommandInput(placeholder="Enter Command", id="cmd_input")
+        self.terminal_input = CommandTextArea(placeholder="Enter Command", id="cmd_input")
         self.task_monitor = TaskMonitor()
         self.directory_tree = FilteredDirectoryTree("./", self.jrdev.state)
         self.model_list = ModelSelectionWidget(id="model_list")
@@ -145,6 +145,8 @@ class JrDevUI(App[None]):
         # Terminal Layout Splits
         self.task_monitor.styles.height = "25%"
 
+        self.terminal_input.styles.height = 5
+
         await self.jrdev.initialize_services()
 
         models = self.jrdev.get_models()
@@ -156,9 +158,9 @@ class JrDevUI(App[None]):
         if self.jrdev.state.model:
             self.model_list.set_model_selected(self.jrdev.state.model)
 
-    @on(Input.Submitted, "#cmd_input")
-    async def accept_input(self, event: Event) -> None:
-        text = self.terminal_input.value
+    @on(CommandTextArea.Submitted, "#cmd_input")
+    async def accept_input(self, event: CommandTextArea.Submitted) -> None:
+        text = event.value
         # mirror user input to text area
         self.terminal_output_widget.append_text(f"> {text}\n")
 
