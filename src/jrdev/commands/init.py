@@ -345,9 +345,8 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
                 app.ui.print_text("\nGenerating project overview...", PrintType.PROCESSING)
                 app.state.model = profile_manager.get_model("advanced_reasoning")
 
-                # Read the file tree
-                with open(output_file, "r") as f:
-                    file_tree_content = f.read()
+                # Use the tree output directly instead of reading from a file
+                file_tree_content = tree_output
 
                 # Get all file contexts from the context manager
                 file_context_content = app.context_manager.get_all_context()

@@ -187,7 +187,10 @@ class JrDevUI(App[None]):
 
     @on(TextualEvents.PrintMessage)
     def handle_print_message(self, event: Any) -> None:
-        self.terminal_output_widget.terminal_output.insert(event.text + "\n")
+        if isinstance(event.text, list):
+            self.terminal_output_widget.terminal_output.insert("\n".join(event.text) + "\n")
+        else:
+            self.terminal_output_widget.terminal_output.insert(event.text + "\n")
 
     @on(TextualEvents.ConfirmationRequest)
     def handle_confirmation_request(self, message: TextualEvents.ConfirmationRequest) -> None:
