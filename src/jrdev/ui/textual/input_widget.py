@@ -31,9 +31,11 @@ class CommandTextArea(TextArea):
     """
 
     BINDINGS: ClassVar[list] = [
-        # Retain most TextArea bindings but override enter behavior
-        *[binding for binding in TextArea.BINDINGS if "enter" not in binding.key],
+        # Retain most TextArea bindings but override enter/up/down behavior
+        *[binding for binding in TextArea.BINDINGS if "enter" not in binding.key and "up" not in binding.key and "down" not in binding.key],
         Binding("enter", "submit", "Submit", show=False),
+        Binding("up", "history_previous", "History Previous", show=False),
+        Binding("down", "history_next", "History Next", show=False),
     ]
 
     @dataclass
@@ -75,6 +77,10 @@ class CommandTextArea(TextArea):
         # Disable features we don't need
         self.show_line_numbers = False
 
+        self.submit_history = []
+        self.history_index = 0
+        self._draft = None
+
     def render_line(self, y: int) -> "Strip":
         """Render a line of the widget, adding placeholder text if empty."""
         # Get the normal strip from the TextArea
@@ -105,9 +111,31 @@ class CommandTextArea(TextArea):
             # don't submit anything if empty
             return
         self.post_message(self.Submitted(self, self.text))
-
+        self.submit_history.append(self.text)
+        self.history_index = len(self.submit_history)
         # Optionally clear the input after submission
         self.clear()
+
+    def action_history_previous(self) -> None:
+        """Handle moving to previous history entry."""
+        if not self.submit_history:
+            return
+        if self.history_index == len(self.submit_history):
+            # Save current text as draft when entering history
+            self._draft = self.text
+        self.history_index = max(0, self.history_index - 1)
+        self.text = self.submit_history[self.history_index]
+
+    def action_history_next(self) -> None:
+        """Handle moving to next history entry."""
+        if not self.submit_history:
+            return
+        if self.history_index < len(self.submit_history):
+            self.history_index += 1
+            if self.history_index == len(self.submit_history):
+                self.text = self._draft
+            else:
+                self.text = self.submit_history[self.history_index]
 
     async def _on_key(self, event: events.Key) -> None:
         """Intercept the key events to handle enter key for submission."""
