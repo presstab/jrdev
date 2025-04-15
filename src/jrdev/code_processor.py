@@ -404,9 +404,11 @@ class CodeProcessor:
         files_content = get_file_contents(list(changed_files))
         builder = MessageBuilder(self.app)
         builder.load_system_prompt("review_changes")
+
         builder.append_to_user_section(f"***User Request***: {initial_prompt}")
         for file in full_file_list:
             builder.add_file(file)
+
         messages = builder.build()
 
         # Validation Model
