@@ -76,7 +76,11 @@ class CodeProcessor:
         """
         files_to_send = requested_files(response_text)
         if not files_to_send:
-            raise Exception("Get files failed")
+            # use a fast model to parse response and see if it is salvageable
+            salvaged_response = await self.salvage_get_files(response_text)
+            files_to_send = requested_files(salvaged_response)
+            if not files_to_send:
+                raise Exception("Get files failed")
         if files_to_send:
             # Send requested files and request STEPS to be created
             self.app.logger.info(f"File request detected: {files_to_send}")
@@ -237,6 +241,36 @@ class CodeProcessor:
             return await apply_file_changes(self.app, changes)
         return {"success": False}
 
+    async def salvage_get_files(self, bad_message: str):
+        """
+        Occasionally, getfiles will fail because of bad formatting. Attempt to salvage the message.
+        """
+        builder = MessageBuilder(self.app)
+        builder.load_system_prompt("get_files_format")
+        builder.start_user_section()
+        builder.append_to_user_section(f"Parse the included message to see what files are being requested. You must only respond with the correct format of getfiles. Extract files from this message {bad_message}")
+        builder.add_tree()
+        messages = builder.build()
+
+        model = self.profile_manager.get_model("quick_reasoning")
+        self.app.logger.info(f"Attempting to reformat file request with {model}")
+        self.app.ui.print_text(f"\nAttempting to reformat file request with {model} (quick_reasoning profile)...", PrintType.PROCESSING)
+
+        sub_task_str = None
+        if self.worker_id:
+            # create a sub task id
+            self.sub_task_count += 1
+            sub_task_str = f"{self.worker_id}:{self.sub_task_count}"
+            self.app.ui.update_task_info(self.worker_id, update={"new_sub_task": sub_task_str, "description": "format file request"})
+
+        response = await stream_request(self.app, model, messages, task_id=sub_task_str)
+
+        # mark sub_task complete
+        if self.worker_id:
+            self.app.ui.update_task_info(sub_task_str, update={"sub_task_finished": True})
+
+        return response
+
     async def send_file_request(self, files_to_send: List[str], user_task: str, initial_response: str) -> str:
         """
         When the initial request detects file changes,
@@ -311,7 +345,9 @@ class CodeProcessor:
         files_content = get_file_contents(list(changed_files))
         builder = MessageBuilder(self.app)
         builder.load_system_prompt("review_changes")
-        builder.add_user_message(f"***User Request***: {initial_prompt}")
+        builder.append_to_user_section(f"***User Request***: {initial_prompt}")
+        for file in full_file_list:
+            builder.add_file(file)
         messages = builder.build()
 
         # Validation Model
