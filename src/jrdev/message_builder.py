@@ -149,11 +149,9 @@ class MessageBuilder:
 
     def finalize_user_section(self) -> None:
         """Finalize and add the complex user message to messages"""
-        if not self._current_user_content:
-            return
-
         full_content = f"{self._build_file_content()}"
-        full_content += "".join(self._current_user_content)
+        if self._current_user_content:
+            full_content += "".join(self._current_user_content)
 
         self.add_user_message(full_content)
         self._current_user_content = []

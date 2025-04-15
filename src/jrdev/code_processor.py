@@ -167,7 +167,7 @@ class CodeProcessor:
         Returns a list of files changed or an empty list if the step failed.
         """
         file_content = get_file_contents(files_to_send)
-        code_response = await self.request_code(step, file_content, retry_message)
+        code_response = await self.request_code(step, file_content, user_task, retry_message)
         try:
             result = await self.check_and_apply_code_changes(code_response)
             if result.get("success"):
