@@ -83,7 +83,7 @@ class JrDevUI(App[None]):
             }
         }
 
-        TaskMonitor {
+        TaskMonitor, ModelSelectionWidget {
             scrollbar-background: #1e1e1e;
             scrollbar-background-hover: #1e1e1e;
             scrollbar-background-active: #1e1e1e;
@@ -157,6 +157,8 @@ class JrDevUI(App[None]):
         # Set the current model as selected if available
         if self.jrdev.state.model:
             self.model_list.set_model_selected(self.jrdev.state.model)
+
+        self.model_list.styles.height = "50%"
 
     @on(CommandTextArea.Submitted, "#cmd_input")
     async def accept_input(self, event: CommandTextArea.Submitted) -> None:
