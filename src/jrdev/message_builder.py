@@ -15,6 +15,7 @@ class MessageBuilder:
         self.messages: List[Dict[str, str]] = []
         self.files: Set[str] = set()
         self.project_files: Set[str] = set()
+        self.include_tree: bool = False
         self.file_aliases: Dict[str, str] = {}
         self.embedded_files: Set[str] = set()
         self.context: List[Dict[str, str]] = []
@@ -80,6 +81,8 @@ class MessageBuilder:
                 for aliases in self.app.state.context_manager.get_index_paths():
                     self.add_index_file(aliases[0], aliases[1])
 
+    def add_tree(self):
+        self.include_tree = True
 
     def add_context(self, context: List[str]) -> None:
         """Add context file paths to include in the message
@@ -114,7 +117,7 @@ class MessageBuilder:
         """Generate formatted file content section"""
         content = []
         # Add project files, including file tree
-        if self.project_files:
+        if self.project_files or self.include_tree:
             # Load current file tree, with short explanation of how to read the format.
             tree_explanation = PromptManager.load("init/filetree_format")
             content.append(tree_explanation)

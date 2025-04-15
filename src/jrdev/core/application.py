@@ -57,7 +57,7 @@ class Application:
         if os.path.exists(env_path):
             load_dotenv(dotenv_path=env_path)
 
-        if not check_existing_keys():
+        if not check_existing_keys(self):
             self.state.need_first_time_setup = True
             self.state.need_api_keys = True
             self.ui.print_text("API keys not found. Setup will begin shortly...", PrintType.INFO)
@@ -414,19 +414,17 @@ class Application:
 
     def save_keys(self, keys):
         save_keys_to_env(keys)
-        self.state.need_api_keys = not check_existing_keys()
+        self.state.need_api_keys = not check_existing_keys(self)
+
+    def provider_list(self):
+        return self.state.clients.provider_list()
 
     async def _initialize_api_clients(self):
         """Initialize all API clients"""
         # Create a dictionary of environment variables
         self.logger.info("initializing api clients")
-        env = {
-            "VENICE_API_KEY": os.getenv("VENICE_API_KEY"),
-            "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
-            "ANTHROPIC_API_KEY": os.getenv("ANTHROPIC_API_KEY"),
-            "DEEPSEEK_API_KEY": os.getenv("DEEPSEEK_API_KEY"),
-            "OPEN_ROUTER_KEY": os.getenv("OPEN_ROUTER_KEY")
-        }
+        provider_env_keys = [provider["env_key"] for provider in self.state.clients.provider_list()]
+        env = {key: os.getenv(key) for key in provider_env_keys}
         
         # Initialize all clients using the APIClients class
         try:

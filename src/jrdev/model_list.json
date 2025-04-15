@@ -137,12 +137,12 @@
             "context_tokens": 131072
         },
         {
-            "name": "openrouter/optimus-alpha",
+            "name": "deepseek/deepseek-r1",
             "provider": "open_router",
-            "is_think": false,
-            "input_cost": 0,
-            "output_cost": 0,
-            "context_tokens": 1000000
+            "is_think": true,
+            "input_cost": 5,
+            "output_cost": 22,
+            "context_tokens": 164000
         }
     ]
 }

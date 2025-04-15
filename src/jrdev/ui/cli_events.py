@@ -54,7 +54,7 @@ class CliEvents(UiWrapper):
         if not setup_success:
             self.print_text("Failed to set up required API keys. Exiting...", PrintType.ERROR)
             sys.exit(1)
-        self.app.state.need_api_keys = not check_existing_keys()
+        self.app.state.need_api_keys = not check_existing_keys(self.app)
         await self.app.initialize_services()
                 
     async def signal_exit(self):
