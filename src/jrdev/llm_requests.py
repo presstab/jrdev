@@ -142,8 +142,8 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
                 # don't send too many updates
                 if chunk_count % 10 == 0:
                     elapsed_time = time.time() - stream_start_time
-                    tokens_per_second = (output_tokens_estimate*10) / elapsed_time
-                    tokens_per_second_fl = float(tokens_per_second)/10.0
+                    tokens_per_second = (output_tokens_estimate*10) / elapsed_time if elapsed_time > 0 else 0
+                    tokens_per_second_fl = float(tokens_per_second)/10.0 if elapsed_time > 0 else 0.0
                     app.ui.update_task_info(worker_id=task_id, update={"output_token_estimate": output_tokens_estimate, "tokens_per_second": tokens_per_second_fl})
 
             # For DeepSeek models, only print content that's not in <think> tags
@@ -338,6 +338,11 @@ async def stream_messages_format(app, model, messages, task_id=None, print_strea
                     chunks_per_second = round(chunk_count / elapsed_time, 2) if elapsed_time > 0 else 0
                     app.logger.info(f"Received {chunk_count} chunks from {model} ({chunks_per_second} chunks/sec)")
                 
+            # --- Ensure any remaining buffered output is sent to the UI ---
+            if print_stream:
+                if response_text and (not response_text.endswith("\n")):
+                    app.ui.print_stream(response_text[len(response_text.rstrip("\n")):] if response_text else response_text)
+
             # Get usage information after stream is complete
             # Use tiktoken for both input and output tokens
             input_tokens = 0
