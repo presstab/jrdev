@@ -208,6 +208,7 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
     else:
         return response_text
 
+# --- REWRITTEN FUNCTION BELOW ---
 async def stream_messages_format(app, model, messages, task_id=None, print_stream=True):
     # Start timing the response
     start_time = time.time()
@@ -256,18 +257,37 @@ async def stream_messages_format(app, model, messages, task_id=None, print_strea
         elif role == "assistant":
             anthropic_messages.append({"role": "assistant", "content": msg["content"]})
         # Don't include system messages in the anthropic_messages list
-    
+
     response_text = ""
     chunk_count = 0
     log_interval = 100  # Log every 100 chunks
-    
+
+    # tiktoken setup for token counting
+    token_encoder = tiktoken.get_encoding("cl100k_base")
+    input_token_estimate = 0
+    output_tokens_estimate = 0
+    stream_start_time = None
+    first_chunk = True
+
+    # Estimate input tokens and notify UI if task_id is provided
+    if task_id:
+        try:
+            input_chunk = ""
+            for msg in messages:
+                if "content" in msg:
+                    input_chunk += msg["content"]
+            input_token_estimate = len(token_encoder.encode(input_chunk))
+            app.ui.update_task_info(task_id, update={"input_token_estimate": input_token_estimate, "model": model})
+        except Exception:
+            pass
+
     try:
         # Create Claude streaming completion
         # Ensure system_message is passed correctly
         kwargs = {
             "model": model,
             "messages": anthropic_messages,
-            "max_tokens": 4096,
+            "max_tokens": 8192,
             "temperature": 0.0
         }
         
@@ -283,6 +303,8 @@ async def stream_messages_format(app, model, messages, task_id=None, print_strea
         app.logger.info(f"Started receiving response from {model}")
         stream_start_time = time.time()
         
+        output_tokens_estimate = 0
+        output_tokens = 0
         async with stream_manager as stream:
             # Process each event from the stream
             async for chunk in stream:
@@ -290,9 +312,23 @@ async def stream_messages_format(app, model, messages, task_id=None, print_strea
                     if hasattr(chunk.delta, 'text'):
                         chunk_text = chunk.delta.text
                         response_text += chunk_text
+                        # Count output tokens and send periodic updates
+                        if task_id:
+                            tokens = token_encoder.encode(chunk_text)
+                            output_tokens_estimate += len(tokens)
+                            if chunk_count % 10 == 0 and output_tokens_estimate > 0:
+                                elapsed_time = time.time() - stream_start_time
+                                tokens_per_second = (output_tokens_estimate*10) / elapsed_time if elapsed_time > 0 else 0
+                                tokens_per_second_fl = float(tokens_per_second)/10.0 if elapsed_time > 0 else 0.0
+                                app.ui.update_task_info(worker_id=task_id, update={"output_token_estimate": output_tokens_estimate, "tokens_per_second": tokens_per_second_fl})
                         if print_stream:
                             app.ui.print_stream(chunk_text)
-                
+                elif chunk.type == 'message_delta':
+                    if hasattr(chunk, "usage"):
+                        if hasattr(chunk.usage, "output_tokens"):
+                            tok_out = chunk.usage.output_tokens
+                            output_tokens += tok_out
+
                 # Count each chunk for logging
                 chunk_count += 1
                 if chunk_count % log_interval == 0:
@@ -303,35 +339,54 @@ async def stream_messages_format(app, model, messages, task_id=None, print_strea
                     app.logger.info(f"Received {chunk_count} chunks from {model} ({chunks_per_second} chunks/sec)")
                 
             # Get usage information after stream is complete
-            if hasattr(stream, 'usage'):
-                input_tokens = getattr(stream.usage, 'input_tokens', 0)
-                output_tokens = getattr(stream.usage, 'output_tokens', 0)
-                
-                # Calculate elapsed time
-                end_time = time.time()
-                elapsed_time = end_time - start_time
-                elapsed_seconds = round(elapsed_time, 2)
-                
-                # Calculate chunks per second over the entire response
-                stream_elapsed = end_time - stream_start_time
-                chunks_per_second = round(chunk_count / stream_elapsed, 2) if stream_elapsed > 0 else 0
-                
-                if print_stream:
-                    app.ui.print_text(
-                        f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens} | "
-                        f"Response Time: {elapsed_seconds}s | Avg: {chunks_per_second} chunks/sec",
-                        PrintType.WARNING
-                    )
-                
-                # Log completion stats
-                app.logger.info(
-                    f"Response completed: {model}, {input_tokens} input tokens, {output_tokens} output tokens, "
-                    f"{elapsed_seconds}s, {chunk_count} chunks, {chunks_per_second} chunks/sec"
+            # Use tiktoken for both input and output tokens
+            input_tokens = 0
+            try:
+                # Reconstruct input string for token counting
+                input_chunk = ""
+                for msg in messages:
+                    if "content" in msg:
+                        input_chunk += msg["content"]
+                input_tokens = len(token_encoder.encode(input_chunk))
+            except Exception:
+                input_tokens = input_token_estimate
+
+            if output_tokens == 0:
+                try:
+                    output_tokens = len(token_encoder.encode(response_text))
+                except Exception:
+                    output_tokens = output_tokens_estimate
+            
+            # Calculate elapsed time
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            elapsed_seconds = round(elapsed_time, 2)
+            
+            # Calculate chunks per second over the entire response
+            stream_elapsed = end_time - stream_start_time
+            chunks_per_second = round(chunk_count / stream_elapsed, 2) if stream_elapsed > 0 else 0
+            tokens_per_second = round(output_tokens / stream_elapsed, 2) if stream_elapsed > 0 else 0
+            
+            if print_stream:
+                app.ui.print_text(
+                    f"\nInput Tokens: {input_tokens} | Output Tokens: {output_tokens} | "
+                    f"Response Time: {elapsed_seconds}s | Avg: {chunks_per_second} chunks/sec",
+                    PrintType.WARNING
                 )
-                
-                # Track token usage
-                usage_tracker = get_instance()
-                await usage_tracker.add_use(model, input_tokens, output_tokens)
+            
+            # Log completion stats
+            app.logger.info(
+                f"Response completed: {model}, {input_tokens} input tokens, {output_tokens} output tokens, "
+                f"{elapsed_seconds}s, {chunk_count} chunks, {chunks_per_second} chunks/sec"
+            )
+            
+            # Track token usage
+            usage_tracker = get_instance()
+            await usage_tracker.add_use(model, input_tokens, output_tokens)
+
+            # Send final token usage to UI
+            if task_id:
+                app.ui.update_task_info(worker_id=task_id, update={"input_tokens": input_tokens, "output_tokens": output_tokens, "tokens_per_second": tokens_per_second})
             
             # Return the complete response text for Anthropic
             return response_text
