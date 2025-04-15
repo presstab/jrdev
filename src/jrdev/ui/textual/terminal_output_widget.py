@@ -1,6 +1,7 @@
 from textual import events, on
 from textual.app import ComposeResult
 from textual.containers import Vertical
+from textual.document._document import Selection
 from textual.widget import Widget
 from textual.widgets import Label, Button, TextArea
 from textual.color import Color
@@ -8,14 +9,15 @@ from collections import defaultdict, OrderedDict
 from typing import Any, Dict, List, Optional
 import logging
 import pyperclip
-from textual.color import Color
+
+from jrdev.ui.textual.terminal_text_area import TerminalTextArea
 
 logger = logging.getLogger("jrdev")
 
 class TerminalOutputWidget(Widget):
     def __init__(self, id: Optional[str] = None) -> None:
         super().__init__(id=id)
-        self.terminal_output = TextArea(id="terminal_output", language="plaintext")
+        self.terminal_output = TerminalTextArea(id="terminal_output", language="plaintext")
         self.copy_button = Button(label="Copy Selection", id="copy_button")
         self.copy_button.on_click = self.copy_to_clipboard
 
@@ -51,3 +53,15 @@ class TerminalOutputWidget(Widget):
         pyperclip.copy(content)
         # Provide visual feedback
         self.notify("Text copied to clipboard", timeout=2)
+        
+    def append_text(self, text: str) -> None:
+        """Append text to the end of the terminal output regardless of cursor position.
+        
+        This method preserves the current selection and scrolls to the bottom after appending,
+        but only if the user is already at or near the bottom. If the user has scrolled away
+        from the bottom, the scroll position is preserved.
+        
+        Args:
+            text: The text to append to the terminal output.
+        """
+        self.terminal_output.append_text(text)
