@@ -82,6 +82,11 @@ class CodeProcessor:
             if not files_to_send:
                 raise Exception("Get files failed")
         if files_to_send:
+            self.app.logger.info(f"File request detected: {files_to_send}")
+
+            # Check that included files are sufficient
+            files_to_send = await self.ask_files_sufficient(files_to_send, user_task)
+
             # Send requested files and request STEPS to be created
             self.app.logger.info(f"File request detected: {files_to_send}")
             file_response = await self.send_file_request(files_to_send, user_task, response_text)
@@ -100,7 +105,15 @@ class CodeProcessor:
                     f"Working on step {i + 1}: {step.get('operation_type')} for {step.get('filename')}",
                     PrintType.PROCESSING
                 )
-                new_changes = await self.complete_step(step, files_to_send)
+
+                # create list of files to send for the coding task
+                coding_files = files_to_send
+                for file in changed_files:
+                    if file not in coding_files:
+                        coding_files.append(file)
+
+                # send coding task to LLM
+                new_changes = await self.complete_step(step, user_task, coding_files)
                 if new_changes:
                     completed_steps.append(i)
                     changed_files.update(new_changes)
@@ -144,7 +157,7 @@ class CodeProcessor:
         else:
             self.app.logger.info("No file changes were requested by the LLM response.")
 
-    async def complete_step(self, step: Dict, files_to_send: List[str], retry_message: str = None) -> List[str]:
+    async def complete_step(self, step: Dict, user_task: str, files_to_send: List[str], retry_message: str = None) -> List[str]:
         """
         Process an individual step:
           - Obtain the current file content.
@@ -163,13 +176,13 @@ class CodeProcessor:
                 # Use change-request feedback to retry the step.
                 retry_message = result["change_requested"]
                 self.app.ui.print_text("Retrying step with additional feedback...", PrintType.WARNING)
-                return await self.complete_step(step, files_to_send, retry_message)
+                return await self.complete_step(step, user_task, files_to_send, retry_message)
             raise Exception("Failed to apply code changes in step.")
         except Exception as e:
             self.app.ui.print_text(f"Step failed: {str(e)}", PrintType.ERROR)
             return []
 
-    async def request_code(self, change_instruction: Dict, file_content: str, additional_prompt: str = None) -> str:
+    async def request_code(self, change_instruction: Dict, user_task: str, file_content: str, additional_prompt: str = None) -> str:
         """
         Construct and send a code change request.
         Uses an operation-specific prompt (loaded from a markdown file) and a template prompt.
@@ -179,6 +192,7 @@ class CodeProcessor:
         dev_msg_template = PromptManager.load("implement_step")
         if dev_msg_template:
             dev_msg = dev_msg_template.replace("{operation_prompt}", operation_prompt)
+            dev_msg = dev_msg.replace("{user_task}", user_task)
         else:
             dev_msg = operation_prompt
 
@@ -270,6 +284,51 @@ class CodeProcessor:
             self.app.ui.update_task_info(sub_task_str, update={"sub_task_finished": True})
 
         return response
+
+    async def ask_files_sufficient(self, files: List[str], user_task: str):
+        """
+        Is the current list of files sufficient to complete the task?
+        """
+        builder = MessageBuilder(self.app)
+        builder.load_system_prompt("get_files_check")
+        builder.start_user_section()
+        builder.append_to_user_section(f"***User Task***: {user_task}")
+        builder.add_tree()
+        for file in files:
+            builder.add_file(file)
+        messages = builder.build()
+
+        model = self.profile_manager.get_model("advanced_reasoning")
+        self.app.logger.info(f"Analyzing if more files are needed, using {model}")
+        self.app.ui.print_text(f"\nAnalyzing if more files are needed, using {model} (advanced_reasoning profile)...", PrintType.PROCESSING)
+
+        sub_task_str = None
+        if self.worker_id:
+            # create a sub task id
+            self.sub_task_count += 1
+            sub_task_str = f"{self.worker_id}:{self.sub_task_count}"
+            self.app.ui.update_task_info(self.worker_id, update={"new_sub_task": sub_task_str, "description": "files check"})
+
+        response = await stream_request(self.app, model, messages, task_id=sub_task_str)
+        self.app.logger.info(f"additional files response:\n {response}")
+
+        # mark sub_task complete
+        if self.worker_id:
+            self.app.ui.update_task_info(sub_task_str, update={"sub_task_finished": True})
+
+        json_content = cutoff_string(response, "```json", "```")
+        tool_calls = json.loads(json_content)
+        if tool_calls:
+            tool = tool_calls.get("tool")
+            if tool and tool == "read":
+                file_list = tool_calls.get("file_list", [])
+                if file_list:
+                    add_files = requested_files(f"get_files {str(file_list)}")
+                    for file in add_files:
+                        if file not in files:
+                            files.append(file)
+                            self.app.logger.info(f"Adding file {file}")
+        return files
 
     async def send_file_request(self, files_to_send: List[str], user_task: str, initial_response: str) -> str:
         """
