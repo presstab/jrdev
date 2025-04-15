@@ -111,6 +111,7 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
             pass
 
     output_tokens_estimate = 0
+    chunk = None
     async for chunk in stream:
         if first_chunk:
             # Update status message when first chunk arrives
@@ -168,8 +169,11 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
                 if print_stream:
                     app.ui.print_stream(chunk_text)
 
+    if print_stream:
+        app.ui.print_stream("\n")
+
     # Handle token usage statistics for final chunk
-    if "completion_tokens" in str(chunk):
+    if chunk and "completion_tokens" in str(chunk):
         # Handle OpenAI-compatible usage stats (Venice and OpenAI)
         input_tokens = chunk.usage.prompt_tokens
         output_tokens = chunk.usage.completion_tokens
@@ -205,8 +209,8 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
 
     if uses_think:
         return filter_think_tags(response_text)
-    else:
-        return response_text
+
+    return response_text
 
 # --- REWRITTEN FUNCTION BELOW ---
 async def stream_messages_format(app, model, messages, task_id=None, print_stream=True):

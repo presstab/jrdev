@@ -139,7 +139,7 @@
         {
             "name": "deepseek/deepseek-r1",
             "provider": "open_router",
-            "is_think": false,
+            "is_think": true,
             "input_cost": 5,
             "output_cost": 22,
             "context_tokens": 164000

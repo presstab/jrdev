@@ -216,7 +216,8 @@ class JrDevUI(App[None]):
                 # finish initialization now that keys are setup
                 self.run_worker(self.jrdev.initialize_services())
 
-        self.push_screen(ApiKeyEntry(), check_keys)
+        providers = self.jrdev.provider_list()
+        self.push_screen(ApiKeyEntry(providers), check_keys)
 
     @on(TextualEvents.ModelChanged)
     def handle_model_change(self, message: TextualEvents.ModelChanged):

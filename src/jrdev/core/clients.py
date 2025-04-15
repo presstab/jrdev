@@ -3,6 +3,8 @@ import logging
 from typing import Optional, Dict, Any
 from openai import AsyncOpenAI
 import anthropic
+import json
+from pathlib import Path
 from jrdev.ui.ui import PrintType
 
 # Get the global logger instance
@@ -13,90 +15,56 @@ class APIClients:
     """Manage API clients for different LLM providers"""
 
     def __init__(self):
-        self._clients: Dict[str, Any] = {
-            "venice": None,
-            "openai": None,
-            "anthropic": None,
-            "deepseek": None,
-            "open_router": None
-        }
+        self._clients: Dict[str, Any] = {}
         self._initialized = False
+        self._load_provider_config()
+
+    def _load_provider_config(self):
+        """Load provider configurations from api_providers.json"""
+        config_path = Path(__file__).parent.parent / "config" / "api_providers.json"
+        try:
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            self._providers = config.get("providers", [])
+            # Initialize clients dict with provider names
+            self._clients = {provider["name"]: None for provider in self._providers}
+        except Exception as e:
+            logger.error(f"Failed to load provider config: {e}")
+            sys.exit(1)
 
     async def initialize(self, env: Dict[str, str]) -> None:
         """Initialize all API clients with environment variables"""
         if self._initialized:
             return
 
-        await self._init_venice(env.get("VENICE_API_KEY"))
-        await self._init_openai(env.get("OPENAI_API_KEY"))
-        await self._init_anthropic(env.get("ANTHROPIC_API_KEY"))
-        await self._init_deepseek(env.get("DEEPSEEK_API_KEY"))
-        await self._init_open_router(env.get("OPEN_ROUTER_KEY"))
+        for provider in self._providers:
+            env_key = provider["env_key"]
+            api_key = env.get(env_key)
+            if provider["required"] and not api_key:
+                logger.error(f"Error: {env_key} not found")
+                sys.exit(1)
+            await self._init_client(provider["name"], api_key, provider["base_url"])
         self._initialized = True
 
-    async def _init_venice(self, api_key: Optional[str]) -> None:
-        """Initialize Venice client (required)"""
+    async def _init_client(self, name: str, api_key: Optional[str], base_url: Optional[str]) -> None:
+        """Initialize a client based on provider name"""
         if not api_key:
-            logger.error("Error: VENICE_API_KEY not found")
-            sys.exit(1)
+            return
 
-        self._clients["venice"] = AsyncOpenAI(
-            api_key=api_key,
-            base_url="https://api.venice.ai/api/v1",
-        )
+        if name == "anthropic":
+            self._clients[name] = anthropic.AsyncAnthropic(api_key=api_key)
+        else:
+            self._clients[name] = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
-    async def _init_openai(self, api_key: Optional[str]) -> None:
-        """Initialize OpenAI client (optional)"""
-        if api_key:
-            self._clients["openai"] = AsyncOpenAI(api_key=api_key)
+    def __getattr__(self, name: str):
+        """Dynamic property access for clients"""
+        if name in self._clients:
+            return self._clients[name]
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
-    async def _init_anthropic(self, api_key: Optional[str]) -> None:
-        """Initialize Anthropic client (optional)"""
-        if api_key:
-            self._clients["anthropic"] = anthropic.AsyncAnthropic(
-                api_key=api_key
-            )
-
-    async def _init_deepseek(self, api_key: Optional[str]) -> None:
-        """Initialize DeepSeek client (optional)"""
-        if api_key:
-            self._clients["deepseek"] = AsyncOpenAI(
-                api_key=api_key,
-                base_url="https://api.deepseek.com",
-            )
-            
-    async def _init_open_router(self, api_key: Optional[str]) -> None:
-        """Initialize OpenRouter client (optional)"""
-        if api_key:
-            self._clients["open_router"] = AsyncOpenAI(
-                api_key=api_key,
-                base_url="https://openrouter.ai/api/v1",
-            )
-
-    @property
-    def venice(self) -> AsyncOpenAI:
-        """Get Venice client"""
-        return self._clients["venice"]
-
-    @property
-    def openai(self) -> Optional[AsyncOpenAI]:
-        """Get OpenAI client"""
-        return self._clients["openai"]
-
-    @property
-    def anthropic(self) -> Optional[anthropic.AsyncAnthropic]:
-        """Get Anthropic client"""
-        return self._clients["anthropic"]
-
-    @property
-    def deepseek(self) -> Optional[AsyncOpenAI]:
-        """Get DeepSeek client"""
-        return self._clients["deepseek"]
-        
-    @property
-    def open_router(self) -> Optional[AsyncOpenAI]:
-        """Get OpenRouter client"""
-        return self._clients["open_router"]
+    def provider_list(self):
+        """A list of all provider names"""
+        return self._providers
 
     def get_all_clients(self) -> Dict[str, Any]:
         """Get all initialized clients"""

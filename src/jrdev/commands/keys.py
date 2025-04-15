@@ -75,24 +75,24 @@ async def handle_keys(app: Any, args: list[str], worker_id: str) -> None:
 
 async def _view_keys(app: Any) -> None:
     """Display configured API keys (masked for security)."""
-    keys = {
-        "VENICE_API_KEY": os.getenv("VENICE_API_KEY"),
-        "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
-        "ANTHROPIC_API_KEY": os.getenv("ANTHROPIC_API_KEY"),
-        "DEEPSEEK_API_KEY": os.getenv("DEEPSEEK_API_KEY")
-    }
+    keys = {}
+    for provider in app.state.clients._providers:
+        keys[provider["env_key"]] = os.getenv(provider["env_key"])
     
     app.ui.print_text("Configured API Keys:", PrintType.INFO)
-    for name, value in keys.items():
+    for provider in app.state.clients._providers:
+        key_name = provider["env_key"]
+        service_name = provider["name"].title()
+        value = keys.get(key_name)
         if value:
             # Mask the key for security, showing only first 4 and last 4 chars
             if len(value) > 10:
                 masked = value[:4] + "*" * (len(value) - 8) + value[-4:]
             else:
                 masked = "*" * len(value)
-            app.ui.print_text(f"{name}: {masked} (configured)", PrintType.SUCCESS)
+            app.ui.print_text(f"{key_name}: {masked} (configured)", PrintType.SUCCESS)
         else:
-            app.ui.print_text(f"{name}: Not configured", PrintType.WARNING)
+            app.ui.print_text(f"{key_name}: Not configured", PrintType.WARNING)
             
     # Wait for user acknowledgment before returning to the main menu
     await async_input("\nPress Enter to continue...")
@@ -101,21 +101,18 @@ async def _view_keys(app: Any) -> None:
 
 async def _add_update_key(app: Any) -> None:
     """Add or update an API key."""
-    services: Dict[str, Tuple[str, str]] = {
-        "1": ("VENICE_API_KEY", "Venice AI"),
-        "2": ("OPENAI_API_KEY", "OpenAI"),
-        "3": ("ANTHROPIC_API_KEY", "Anthropic"),
-        "4": ("DEEPSEEK_API_KEY", "DeepSeek"),
-        "5": ("", "Cancel/Back")
-    }
+    services = {}
+    for i, provider in enumerate(app.state.clients._providers, 1):
+        services[str(i)] = (provider["env_key"], provider["name"].title())
+    services[str(len(services) + 1)] = ("", "Cancel/Back")
     
     app.ui.print_text("Select service to add/update key for:", PrintType.INFO)
     for num, (_, name) in services.items():
         app.ui.print_text(f"{num}. {name}", PrintType.INFO)
     
-    service_choice = await async_input("Enter your choice (1-5): ")
+    service_choice = await async_input("Enter your choice (1-{}): ".format(len(services)))
     
-    if service_choice == "5" or service_choice.lower() in ["cancel", "back", "q", "quit", "exit"]:
+    if service_choice == str(len(services)) or service_choice.lower() in ["cancel", "back", "q", "quit", "exit"]:
         app.ui.print_text("Cancelled key update.", PrintType.INFO)
         return
         
@@ -124,7 +121,7 @@ async def _add_update_key(app: Any) -> None:
         return
     
     key_name, service_name = services[service_choice]
-    is_required = key_name == "VENICE_API_KEY"
+    is_required = any(provider["env_key"] == key_name and provider["required"] for provider in app.state.clients._providers)
     
     app.ui.print_text(f"Enter API key for {service_name} (or press Ctrl+C to cancel):", PrintType.INFO)
     try:
@@ -144,20 +141,18 @@ async def _add_update_key(app: Any) -> None:
 
 async def _remove_key(app: Any) -> None:
     """Remove an API key."""
-    services: Dict[str, Tuple[str, str]] = {
-        "1": ("OPENAI_API_KEY", "OpenAI"),
-        "2": ("ANTHROPIC_API_KEY", "Anthropic"),
-        "3": ("DEEPSEEK_API_KEY", "DeepSeek"),
-        "4": ("", "Cancel/Back")
-    }
+    services = {}
+    for i, provider in enumerate([p for p in app.state.clients._providers if not p["required"]], 1):
+        services[str(i)] = (provider["env_key"], provider["name"].title())
+    services[str(len(services) + 1)] = ("", "Cancel/Back")
     
     app.ui.print_text("Select key to remove:", PrintType.INFO)
     for num, (_, name) in services.items():
         app.ui.print_text(f"{num}. {name}", PrintType.INFO)
     
-    service_choice = await async_input("Enter your choice (1-4): ")
+    service_choice = await async_input("Enter your choice (1-{}): ".format(len(services)))
     
-    if service_choice == "4" or service_choice.lower() in ["cancel", "back", "q", "quit", "exit"]:
+    if service_choice == str(len(services)) or service_choice.lower() in ["cancel", "back", "q", "quit", "exit"]:
         app.ui.print_text("Cancelled key removal.", PrintType.INFO)
         return
         
@@ -266,14 +261,14 @@ def save_keys_to_env(keys: Dict[str, str]) -> None:
     add_to_gitignore(".gitignore", ".env", create_if_dne=True)
 
 
-def check_existing_keys() -> bool:
+def check_existing_keys(app: Any) -> bool:
     """
     Check if the required API keys exist in the environment or in the .env file.
     
     Returns:
         True if all required keys exist, False otherwise
     """
-    required = ["VENICE_API_KEY"]
+    required = [provider["env_key"] for provider in app.state.clients._providers if provider["required"]]
     
     # First check if keys are already in environment
     if all(os.getenv(key) for key in required):
@@ -304,8 +299,11 @@ async def run_first_time_setup(app: Any) -> bool:
         app.ui.print_text("Let's set up your API keys to get started.", PrintType.INFO)
         
         app.ui.print_text("API Key Requirements:", PrintType.SUBHEADER)
-        app.ui.print_text("- Venice AI API key is required", PrintType.WARNING)
-        app.ui.print_text("- OpenAI, Anthropic, and DeepSeek keys are optional", PrintType.INFO)
+        for provider in app.state.clients._providers:
+            if provider["required"]:
+                app.ui.print_text(f"- {provider['name'].title()} API key is required", PrintType.WARNING)
+            else:
+                app.ui.print_text(f"- {provider['name'].title()} key is optional", PrintType.INFO)
         
         # Instructions
         app.ui.print_text("Security Information:", PrintType.SUBHEADER)
@@ -317,12 +315,9 @@ async def run_first_time_setup(app: Any) -> bool:
 
         # Get the keys
         app.ui.print_text("API Key Configuration", PrintType.HEADER)
-        keys = {
-            "VENICE_API_KEY": await _prompt_key("Venice AI", required=True),
-            "OPENAI_API_KEY": await _prompt_key("OpenAI (optional)"),
-            "ANTHROPIC_API_KEY": await _prompt_key("Anthropic (optional)"),
-            "DEEPSEEK_API_KEY": await _prompt_key("DeepSeek (optional)")
-        }
+        keys = {}
+        for provider in app.state.clients._providers:
+            keys[provider["env_key"]] = await _prompt_key(f"{provider['name'].title()} {'(optional)' if not provider['required'] else ''}", required=provider["required"])
         
         save_keys_to_env(keys)
         
