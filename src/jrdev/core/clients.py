@@ -77,3 +77,6 @@ class APIClients:
     def set_dirty(self):
         """Set as not initialized"""
         self._initialized = False
+
+    def set_client_null(self, provider_name):
+        self._clients[provider_name] = None

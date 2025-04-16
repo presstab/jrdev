@@ -74,13 +74,14 @@ class ApiKeyEntry(Screen[dict]):
     }
     """
 
-    def __init__(self, providers, mode="first_run", existing_keys=None):
+    def __init__(self, core_app, providers, mode="first_run", existing_keys=None):
         """
         :param providers: List of provider dicts (with 'name', 'env_key', 'required')
         :param mode: 'first_run' or 'editor'
         :param existing_keys: Optional dict of {env_key: value} for editor mode
         """
         super().__init__()
+        self.core_app = core_app
         self.providers = providers
         self.mode = mode
         self.existing_keys = existing_keys or self._load_existing_keys()
@@ -208,6 +209,7 @@ class ApiKeyEntry(Screen[dict]):
                         input_widget = self.input_widgets.get(env_key)
                         if input_widget:
                             input_widget.value = ""
+                        self.core_app.state.clients.set_client_null(provider_name)
                         self.notify(f"Deleted API key for {env_key}", severity="info")
                     # Reset pending delete
                     self._pending_delete_env_key = None

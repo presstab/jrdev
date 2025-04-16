@@ -286,6 +286,8 @@ async def _remove_key(app: Any, service: Optional[str] = None, textual_mode: boo
         if provider["required"]:
             app.ui.print_text(f"Cannot remove required key: {provider['name']}", PrintType.ERROR)
             return
+
+        provider_name = provider["name"]
         key_name = provider["env_key"]
         keys = _load_current_keys()
         if key_name in keys:
@@ -295,6 +297,8 @@ async def _remove_key(app: Any, service: Optional[str] = None, textual_mode: boo
                 del os.environ[key_name]
             except KeyError:
                 logger.info(f"_remove_key(): No env var: {key_name}")
+
+            app.state.clients.set_client_null(provider_name)
 
             await app.reload_api_clients()
             load_dotenv(get_env_path(), override=True)

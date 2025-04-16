@@ -232,7 +232,7 @@ class JrDevUI(App[None]):
                 self.run_worker(self.jrdev.initialize_services())
 
         providers = self.jrdev.provider_list()
-        self.push_screen(ApiKeyEntry(providers), check_keys)
+        self.push_screen(ApiKeyEntry(core_app=self.jrdev, providers=providers), check_keys)
 
     @on(Button.Pressed, "#button_api_keys")
     def handle_edit_api_keys(self):
@@ -240,7 +240,7 @@ class JrDevUI(App[None]):
             self.jrdev.save_keys(keys)
 
         providers = self.jrdev.provider_list()
-        self.push_screen(ApiKeyEntry(providers, mode="editor"), save_keys)
+        self.push_screen(ApiKeyEntry(core_app=self.jrdev, providers=providers, mode="editor"), save_keys)
 
     @on(TextualEvents.ModelChanged)
     def handle_model_change(self, message: TextualEvents.ModelChanged):
