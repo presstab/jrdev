@@ -4,7 +4,7 @@ from textual.containers import Vertical, Horizontal
 from typing import Any, Generator, List, Optional, Tuple
 import asyncio
 
-class ConfirmationScreen(ModalScreen[Tuple[str, Optional[str]]]):
+class CodeConfirmationScreen(ModalScreen[Tuple[str, Optional[str]]]):
     """Modal screen for confirmation dialogs"""
     
     def __init__(self, prompt_text: str, diff_lines: Optional[List[str]] = None) -> None:
