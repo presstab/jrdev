@@ -89,6 +89,7 @@ def save_keys_to_env(keys: Dict[str, str]) -> None:
     with open(env_path, 'w') as f:
         for k, v in filter(lambda x: x[1], keys.items()):
             f.write(f"{k}={v}\n")
+            os.environ[k] = v
     
     # Set restrictive permissions (0o600 = read/write for owner only)
     try:

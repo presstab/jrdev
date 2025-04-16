@@ -238,6 +238,7 @@ class JrDevUI(App[None]):
     def handle_edit_api_keys(self):
         def save_keys(keys: dict):
             self.jrdev.save_keys(keys)
+            self.run_worker(self.jrdev.reload_api_clients())
 
         providers = self.jrdev.provider_list()
         self.push_screen(ApiKeyEntry(core_app=self.jrdev, providers=providers, mode="editor"), save_keys)
