@@ -73,3 +73,7 @@ class APIClients:
     def is_initialized(self) -> bool:
         """Check if clients have been initialized"""
         return self._initialized
+
+    def set_dirty(self):
+        """Set as not initialized"""
+        self._initialized = False

@@ -419,6 +419,10 @@ class Application:
     def provider_list(self):
         return self.state.clients.provider_list()
 
+    async def reload_api_clients(self):
+        self.state.clients.set_dirty()
+        await self._initialize_api_clients()
+
     async def _initialize_api_clients(self):
         """Initialize all API clients"""
         # Create a dictionary of environment variables
