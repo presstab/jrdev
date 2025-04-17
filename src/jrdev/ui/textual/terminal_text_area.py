@@ -13,6 +13,7 @@ class TerminalTextArea(TextArea):
 
     def __init__(self, id: str, language: str):
         super().__init__(id=id, language=language)
+        self.cursor_blink = False
         # start in auto‑scroll mode
         self._auto_scroll = True
 
