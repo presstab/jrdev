@@ -33,6 +33,9 @@ async def handle_cost(app: Any, cmd_parts: List[str], worker_id: str) -> None:
     total_output_cost_vcu = 0.0
     costs_by_model: Dict[str, Dict[str, Any]] = {}
     providers_by_model: Dict[str, str] = {}
+    models_used: List[str] = list(usage_data.keys())
+    venice_models_used = set()
+    non_venice_models_used = set()
 
     for model, tokens in usage_data.items():
         available_models = app.state.model_list.get_model_list()
@@ -43,6 +46,10 @@ async def handle_cost(app: Any, cmd_parts: List[str], worker_id: str) -> None:
             continue
         provider = model_entry.get("provider", "")
         providers_by_model[model] = provider
+        if provider == "venice":
+            venice_models_used.add(model)
+        else:
+            non_venice_models_used.add(model)
         model_cost = cast(Dict[str, float], get_model_cost(model, available_models))
         if not model_cost:
             app.ui.print_text(f"Warning: No cost data available for model {model}", PrintType.WARNING)
@@ -76,21 +83,22 @@ async def handle_cost(app: Any, cmd_parts: List[str], worker_id: str) -> None:
             "total_cost_dollars": total_cost_dollars
         }
 
-        # Add to totals (only for venice models for VCU)
-        if provider == "venice":
-            total_input_cost_vcu += input_cost_vcu
-            total_output_cost_vcu += output_cost_vcu
+        # Add to totals (for all models)
+        total_input_cost_vcu += input_cost_vcu
+        total_output_cost_vcu += output_cost_vcu
 
     total_cost_vcu = total_input_cost_vcu + total_output_cost_vcu
     total_cost_dollars = total_cost_vcu * cast(float, VCU_Value())
+
+    # Determine if all models used are Venice models
+    all_venice = len(non_venice_models_used) == 0 and len(venice_models_used) > 0
 
     # Display total cost information
     app.ui.print_text("\n=== TOTAL SESSION COST ===", PrintType.HEADER)
     app.ui.print_text(f"Tokens used: {total_input_tokens} input, {total_output_tokens} output",
                    PrintType.INFO)
-    # Only show VCU in total if there is at least one venice model
-    show_total_vcu = total_cost_vcu > 0
-    if show_total_vcu:
+    # Only show VCU in total if all models used are Venice models
+    if all_venice:
         app.ui.print_text(f"Total cost: ${total_cost_dollars:.4f} ({total_cost_vcu:.4f} VCU)", PrintType.INFO)
         app.ui.print_text(f"Input cost: ${(total_input_cost_vcu * cast(float, VCU_Value())):.4f} ({total_input_cost_vcu:.4f} VCU)", PrintType.INFO)
         app.ui.print_text(f"Output cost: ${(total_output_cost_vcu * cast(float, VCU_Value())):.4f} ({total_output_cost_vcu:.4f} VCU)", PrintType.INFO)
