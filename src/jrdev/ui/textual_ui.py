@@ -44,6 +44,19 @@ class JrDevUI(App[None]):
             background: #656565;
             border: none;
         }
+        .sidebar_button {
+            background: #2a2a2a;
+            border: none;
+            text-style: none;
+            color: #63f554;
+            text-align: center;
+            height: 1;
+            padding: 0 0 0 0;
+        }
+        .sidebar_button:hover {
+            background: #656565;
+            border: none;
+        }
         RadioSet {
             border: tall $border-blurred;
             background: #1e1e1e;
