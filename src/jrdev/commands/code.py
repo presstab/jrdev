@@ -8,6 +8,7 @@ from typing import Any, List
 
 from jrdev.ui.ui import PrintType
 from jrdev.code_processor import CodeProcessor
+from jrdev.file_operations.process_ops import CodeTaskCancelled
 
 
 async def handle_code(app: Any, args: List[str], worker_id: str) -> None:
@@ -16,4 +17,7 @@ async def handle_code(app: Any, args: List[str], worker_id: str) -> None:
         return
     message = " ".join(args[1:])
     code_processor = CodeProcessor(app, worker_id)
-    await code_processor.process(message)
+    try:
+        await code_processor.process(message)
+    except CodeTaskCancelled:
+        app.ui.print_text("Code Task Cancelled")

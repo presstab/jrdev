@@ -15,6 +15,11 @@ from jrdev.ui.ui import PrintType, display_diff
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
 
+class CodeTaskCancelled(Exception):
+    """
+    Exception to signal that the code task was cancelled by the user.
+    """
+    pass
 
 def apply_diff_to_content(original_content, diff_lines):
     """
@@ -395,6 +400,9 @@ async def apply_file_changes(app, changes_json):
        (more reliable for LLM-based edits)
     3. Using operation=NEW to create a new file
     4. Using operation=REPLACE to replace content in a file
+
+    If the user selects 'no' during confirmation, a CodeTaskCancelled exception is raised
+    to signal that the code task should be cancelled and no further processing should occur.
     """
     # Group changes by filename
     changes_by_file = {}
@@ -470,7 +478,8 @@ async def apply_file_changes(app, changes_json):
                 return {"success": False, "change_requested": user_message}
             else:
                 logger.info(f"Update to {filepath} was cancelled by user")
-                return {"success": False}
+                # Signal cancellation by raising a custom exception
+                raise CodeTaskCancelled(f"User cancelled code task while updating {filepath}")
 
     # Process new file creations
     for change in new_files:
@@ -502,9 +511,10 @@ async def apply_file_changes(app, changes_json):
                 return {"success": False, "change_requested": user_message}
             else:
                 logger.info(f"Creation of {filepath} was cancelled by user")
+                # Signal cancellation by raising a custom exception
+                raise CodeTaskCancelled(f"User cancelled code task while creating {filepath}")
 
     return {"success": True, "files_changed": files_changed}
-
 
 def process_operation_changes(lines, operation_changes, filepath):
     """
