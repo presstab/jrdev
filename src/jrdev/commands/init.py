@@ -157,7 +157,7 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
 
                 # Print the LLM's response
                 app.ui.print_text("\nLLM File Recommendations:", PrintType.HEADER)
-                app.ui.print_text(cleaned_file_list, PrintType.INFO)
+                app.ui.print_text(str(cleaned_file_list), PrintType.INFO)
 
                 app.ui.print_text(
                     f"requesting {len(recommended_files)} files", PrintType.PROCESSING
@@ -224,7 +224,12 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
                     for idx, file in enumerate(cleaned_file_list):
                         # limit the amount sent
                         if idx < 7:
-                            conventions_builder.add_file(file)
+                            #possible this is a list of files not a file
+                            if isinstance(file, list):
+                                for f in file:
+                                    conventions_builder.add_file(f)
+                            else:
+                                conventions_builder.add_file(file)
                     
                     # Finalize the user section
                     conventions_builder.finalize_user_section()
