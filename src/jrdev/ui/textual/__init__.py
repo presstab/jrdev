@@ -2,6 +2,6 @@
 Textual UI components for JrDev
 """
 
-from .confirmation_screen import ConfirmationScreen
+from .code_confirmation_screen import CodeConfirmationScreen
 
-__all__ = ["ConfirmationScreen", "TerminalOutputWidget"]
+__all__ = ["CodeConfirmationScreen", "TerminalOutputWidget"]

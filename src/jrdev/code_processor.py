@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Set
 from jrdev.llm_requests import stream_request
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.file_utils import requested_files, get_file_contents, cutoff_string
-from jrdev.file_operations.process_ops import apply_file_changes
+from jrdev.file_operations.process_ops import apply_file_changes, CodeTaskCancelled
 from jrdev.ui.ui import PrintType, print_steps
 from jrdev.message_builder import MessageBuilder
 
@@ -34,6 +34,8 @@ class CodeProcessor:
         try:
             initial_response = await self.send_initial_request(user_task)
             await self.process_code_response(initial_response, user_task)
+        except CodeTaskCancelled:
+            raise
         except Exception as e:
             self.app.logger.error(f"Error in CodeProcessor: {str(e)}")
             self.app.ui.print_text(f"Error processing code: {str(e)}", PrintType.ERROR)
@@ -124,7 +126,7 @@ class CodeProcessor:
             for idx, step in failed_steps:
                 self.app.ui.print_text(f"Retrying step {idx + 1}", PrintType.PROCESSING)
                 print_steps(self.app, steps, completed_steps, current_step=idx)
-                new_changes = await self.complete_step(step, files_to_send)
+                new_changes = await self.complete_step(step, user_task, files_to_send)
                 if new_changes:
                     completed_steps.append(idx)
                     changed_files.update(new_changes)
@@ -143,7 +145,10 @@ class CodeProcessor:
                         if reason and action:
                             change_request = (f"The user requested changes and an attempt was made to fulfill the change request. The reviewer determined that the changes "
                                               f"failed because {reason}. The reviewer requests that this action be taken to complete the task: {action}. This is the user task: {user_task}")
-                            await self.process(change_request)
+                            try:
+                                await self.process(change_request)
+                            except CodeTaskCancelled:
+                                raise
                         else:
                             logger.info(f"Malformed change request from reviewer:\n{review}")
 
@@ -167,7 +172,7 @@ class CodeProcessor:
         Returns a list of files changed or an empty list if the step failed.
         """
         file_content = get_file_contents(files_to_send)
-        code_response = await self.request_code(step, file_content, retry_message)
+        code_response = await self.request_code(step, file_content, user_task, retry_message)
         try:
             result = await self.check_and_apply_code_changes(code_response)
             if result.get("success"):
@@ -178,6 +183,9 @@ class CodeProcessor:
                 self.app.ui.print_text("Retrying step with additional feedback...", PrintType.WARNING)
                 return await self.complete_step(step, user_task, files_to_send, retry_message)
             raise Exception("Failed to apply code changes in step.")
+        except CodeTaskCancelled as e:
+            self.app.ui.print_text(f"Code task cancelled by user: {str(e)}", PrintType.WARNING)
+            raise
         except Exception as e:
             self.app.ui.print_text(f"Step failed: {str(e)}", PrintType.ERROR)
             return []
@@ -245,6 +253,7 @@ class CodeProcessor:
         """
         Extract and parse the JSON snippet for code changes from the LLM response,
         then apply the file changes.
+        If the user cancels the code task (selects 'no'), the code task is ended immediately.
         """
         try:
             json_block = cutoff_string(response_text, "```json", "```")
@@ -252,7 +261,12 @@ class CodeProcessor:
         except Exception as e:
             raise Exception(f"Parsing failed in code changes: {str(e)}\n Blob:{json_block}\n")
         if "changes" in changes:
-            return await apply_file_changes(self.app, changes)
+            try:
+                return await apply_file_changes(self.app, changes)
+            except CodeTaskCancelled as e:
+                # User selected 'no' during confirmation, end code task immediately
+                self.app.logger.warning(f"Code task cancelled by user: {str(e)}")
+                raise
         return {"success": False}
 
     async def salvage_get_files(self, bad_message: str):

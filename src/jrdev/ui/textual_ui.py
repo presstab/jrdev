@@ -1,7 +1,7 @@
 from textual import on
 from textual.app import App
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Input, RadioSet, TextArea
+from textual.widgets import Button, Input, RadioSet, TextArea
 from textual.worker import Worker, WorkerState
 from textual.events import Event
 from textual.color import Color
@@ -9,13 +9,14 @@ from typing import Any, Generator
 import logging
 from jrdev.core.application import Application
 from jrdev.ui.textual_events import TextualEvents
-from jrdev.ui.textual.confirmation_screen import ConfirmationScreen
+from jrdev.ui.textual.code_confirmation_screen import CodeConfirmationScreen
 from jrdev.ui.textual.filtered_directory_tree import FilteredDirectoryTree
 from jrdev.ui.textual.api_key_entry import ApiKeyEntry
 from jrdev.ui.textual.model_selection_widget import ModelSelectionWidget
 from jrdev.ui.textual.task_monitor import TaskMonitor
 from jrdev.ui.textual.terminal_output_widget import TerminalOutputWidget
 from jrdev.ui.textual.input_widget import CommandTextArea
+from jrdev.ui.textual.button_container import ButtonContainer
 
 logger = logging.getLogger("jrdev")
 
@@ -30,11 +31,29 @@ class JrDevUI(App[None]):
             scrollbar-color-active: #63f554;
             scrollbar-color-hover: #63f554 50%;
         }
-        #copy_button {
+        Button {
             background: #2a2a2a;
             border: none;
+            text-style: none;
+            color: #63f554;
+            text-align: center;
+            height: 1;
+            padding: 0 0 0 0;
         }
-        #copy_button:hover {
+        Button:hover {
+            background: #656565;
+            border: none;
+        }
+        .sidebar_button {
+            background: #2a2a2a;
+            border: none;
+            text-style: none;
+            color: #63f554;
+            text-align: center;
+            height: 1;
+            padding: 0 0 0 0;
+        }
+        .sidebar_button:hover {
             background: #656565;
             border: none;
         }
@@ -109,14 +128,18 @@ class JrDevUI(App[None]):
         self.jrdev.setup()
         self.vlayout_terminal = Vertical()
         self.vlayout_right = Vertical()
+        self.vlayout_left = Vertical()
         self.terminal_output_widget = TerminalOutputWidget()
         self.terminal_input = CommandTextArea(placeholder="Enter Command", id="cmd_input")
         self.task_monitor = TaskMonitor()
         self.directory_tree = FilteredDirectoryTree("./", self.jrdev.state)
         self.model_list = ModelSelectionWidget(id="model_list")
         self.task_count = 0
+        self.button_container = ButtonContainer()
 
         with Horizontal():
+            with self.vlayout_left:
+                yield self.button_container
             with self.vlayout_terminal:
                 yield self.task_monitor
                 yield self.terminal_output_widget
@@ -139,8 +162,13 @@ class JrDevUI(App[None]):
         # make aware of indexed paths
         self.directory_tree.update_indexed_paths()
 
+        self.button_container.styles = self.directory_tree.styles
+        self.button_container.border_title = "Settings"
+        self.button_container.styles.border = ("round", Color.parse("#63f554"))
+
         # Horizontal Layout Splits
-        self.vlayout_terminal.styles.width = "70%"
+        self.vlayout_terminal.styles.width = "65%"
+        self.vlayout_left.styles.width = "10%"
 
         # Terminal Layout Splits
         self.task_monitor.styles.height = "25%"
@@ -200,7 +228,7 @@ class JrDevUI(App[None]):
     @on(TextualEvents.ConfirmationRequest)
     def handle_confirmation_request(self, message: TextualEvents.ConfirmationRequest) -> None:
         """Handle a request for confirmation from the backend"""
-        screen = ConfirmationScreen(message.prompt_text, message.diff_lines)
+        screen = CodeConfirmationScreen(message.prompt_text, message.diff_lines)
         
         # Store the future so we can set the result when the screen is dismissed
         screen.future = message.future
@@ -217,7 +245,16 @@ class JrDevUI(App[None]):
                 self.run_worker(self.jrdev.initialize_services())
 
         providers = self.jrdev.provider_list()
-        self.push_screen(ApiKeyEntry(providers), check_keys)
+        self.push_screen(ApiKeyEntry(core_app=self.jrdev, providers=providers), check_keys)
+
+    @on(Button.Pressed, "#button_api_keys")
+    def handle_edit_api_keys(self):
+        def save_keys(keys: dict):
+            self.jrdev.save_keys(keys)
+            self.run_worker(self.jrdev.reload_api_clients())
+
+        providers = self.jrdev.provider_list()
+        self.push_screen(ApiKeyEntry(core_app=self.jrdev, providers=providers, mode="editor"), save_keys)
 
     @on(TextualEvents.ModelChanged)
     def handle_model_change(self, message: TextualEvents.ModelChanged):

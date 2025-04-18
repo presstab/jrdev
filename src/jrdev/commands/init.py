@@ -157,7 +157,7 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
 
                 # Print the LLM's response
                 app.ui.print_text("\nLLM File Recommendations:", PrintType.HEADER)
-                app.ui.print_text(cleaned_file_list, PrintType.INFO)
+                app.ui.print_text(str(cleaned_file_list), PrintType.INFO)
 
                 app.ui.print_text(
                     f"requesting {len(recommended_files)} files", PrintType.PROCESSING
@@ -179,8 +179,7 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
                 async def analyze_file(index: int, file_path: str, task_id: str = None) -> Optional[str]:
                     """Helper function to analyze a single file."""
                     # prevent rate limits
-                    if index > 0 and index % 5 == 0:
-                        await asyncio.sleep(2)  # Sleep for 1.5 second
+                    await asyncio.sleep(index)
 
                     sub_task_str = None
                     if task_id:
@@ -221,33 +220,16 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
                     # Use MessageBuilder for conventions
                     conventions_builder = MessageBuilder(app)
                     conventions_builder.load_system_prompt("project_conventions")
-                    
-                    # Start building user content
-                    conventions_builder.start_user_section(PromptManager.load("init/filetree_format"))
-                    conventions_builder.append_to_user_section("FILE TREE:\n")
-                    conventions_builder.append_to_user_section(tree_output)
-                    conventions_builder.append_to_user_section("\n\nFILE CONTENTS:\n")
-                    
-                    # Read the actual content of all files from the tree
-                    for file_path in cleaned_file_list:
-                        try:
-                            full_path = os.path.join(current_dir, file_path)
-                            if os.path.exists(full_path):
-                                with open(full_path, "r") as f:
-                                    content = f.read()
-                                    # Limit file size for analysis
-                                    if len(content) <= 2000 * 1024:
-                                        conventions_builder.append_to_user_section(f"## {file_path}\n\n{content}\n")
-                                    else:
-                                        size_mb = len(content) / (1024 * 1024)
-                                        error_msg = f"File {file_path} is too large ({size_mb:.2f} MB) for analysis (max: 2MB)"
-                                        app.logger.error(error_msg)
-                                        app.ui.print_text(error_msg, PrintType.ERROR)
-                        except Exception as e:
-                            app.ui.print_text(
-                                f"Error reading file {file_path}: {str(e)}",
-                                PrintType.ERROR,
-                            )
+                    conventions_builder.add_tree()
+                    for idx, file in enumerate(cleaned_file_list):
+                        # limit the amount sent
+                        if idx < 7:
+                            #possible this is a list of files not a file
+                            if isinstance(file, list):
+                                for f in file:
+                                    conventions_builder.add_file(f)
+                            else:
+                                conventions_builder.add_file(file)
                     
                     # Finalize the user section
                     conventions_builder.finalize_user_section()

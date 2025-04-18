@@ -177,28 +177,25 @@ def get_file_contents(file_list, file_alias=None):
 def cutoff_string(input_string, cutoff_before_match, cutoff_after_match):
     """
     Removes all text up to and including the first occurrence of cutoff_before_match,
-    and all text from the first occurrence of cutoff_after_match (after the first cutoff) onwards.
+    and all text from the last occurrence of cutoff_after_match onwards.
     Returns the text between these cutoffs, stripped of leading/trailing whitespace.
     """
-    # Find the start index after cutoff_before_match
+    # Find the start index after the first occurrence of cutoff_before_match
     before_index = input_string.find(cutoff_before_match)
     if before_index != -1:
         start = before_index + len(cutoff_before_match)
     else:
         start = 0  # No cutoff_before found, start from beginning
 
-    # Get the substring after the cutoff_before section
-    substring_after_before = input_string[start:]
-
-    # Find the end index before cutoff_after_match
-    after_index = substring_after_before.find(cutoff_after_match)
-    if after_index != -1:
+    # Find the last occurrence of cutoff_after_match after start
+    after_index = input_string.rfind(cutoff_after_match)
+    if after_index != -1 and after_index >= start:
         end = after_index
     else:
-        end = len(substring_after_before)  # No cutoff_after found, take remaining text
+        end = len(input_string)  # No cutoff_after found, take remaining text
 
     # Extract and return the desired portion
-    return substring_after_before[:end].strip()
+    return input_string[start:end].strip()
 
 def write_string_to_file(filename: str, content: str):
     """
