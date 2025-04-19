@@ -25,17 +25,18 @@ async def handle_viewcontext(app: Any, args: List[str], worker_id: str):
         except ValueError:
             app.ui.print_text(f"Invalid file number: {args[1]}. Please use a number.", PrintType.ERROR)
             return
-    if not app.context:
+    current_context = app.get_current_thread().context
+    if not current_context:
         app.ui.print_text("No context files have been added yet. Use /addcontext <file_path> to add files.", PrintType.INFO)
         return
 
     # If a specific file was requested
     if file_num is not None:
-        if file_num < 0 or file_num >= len(app.context):
-            app.ui.print_text(f"Invalid file number. Please use a number between 1 and {len(app.context)}.", PrintType.ERROR)
+        if file_num < 0 or file_num >= len(current_context):
+            app.ui.print_text(f"Invalid file number. Please use a number between 1 and {len(current_context)}.", PrintType.ERROR)
             return
 
-        file_path = app.context[file_num]
+        file_path = current_context[file_num]
         app.ui.print_text(f"Context File {file_num+1}: {file_path}", PrintType.HEADER)
         
         # Read the file content to display
@@ -51,11 +52,11 @@ async def handle_viewcontext(app: Any, args: List[str], worker_id: str):
 
     # Otherwise show a summary of all files
     app.ui.print_text("Current context content:", PrintType.HEADER)
-    app.ui.print_text(f"Total files in context: {len(app.context)}", PrintType.INFO)
+    app.ui.print_text(f"Total files in context: {len(current_context)}", PrintType.INFO)
 
     # Show a summary of files in the context
     app.ui.print_text("Files in context:", PrintType.INFO)
-    for i, file_path in enumerate(app.context):
+    for i, file_path in enumerate(current_context):
         # Try to read a preview of the content
         try:
             current_dir = os.getcwd()
