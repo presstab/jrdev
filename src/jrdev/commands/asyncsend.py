@@ -86,7 +86,7 @@ async def handle_asyncsend(app: Any, args: List[str], worker_id: str) -> None:
                     f"Background task #{job_id} sending message to model on message thread: {msg_thread.thread_id}"
                 )
                 response = await app.send_message(
-                    msg_thread, prompt, writepath=filepath, print_stream=False
+                    msg_thread, prompt, writepath=filepath, print_stream=False, worker_id=worker_id
                 )
                 if response:
                     app.logger.info(f"Background task #{job_id} completed successfully")
