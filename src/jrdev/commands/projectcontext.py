@@ -4,6 +4,7 @@
 Project context command implementation for the JrDev terminal.
 """
 
+import asyncio
 import os
 from typing import Any, Dict, List
 
@@ -20,6 +21,7 @@ async def handle_projectcontext(app: Any, args: List[str], worker_id: str) -> No
         /projectcontext status - Show current status of project context
         /projectcontext list - List all tracked files in context
         /projectcontext view <filepath> - View context for a specific file
+        /projectcontext update - Refresh context for all tracked files
         /projectcontext refresh <filepath> - Refresh context for a specific file
         /projectcontext add <filepath> - Add and index a file to the context
         /projectcontext remove <filepath> - Remove a file from the context
@@ -28,6 +30,7 @@ async def handle_projectcontext(app: Any, args: List[str], worker_id: str) -> No
     Args:
         app: The Application instance
         args: Command arguments
+        worker_id: Worker ID for task tracking
     """
     if len(args) < 2:
         _show_usage(app)
@@ -57,6 +60,9 @@ async def handle_projectcontext(app: Any, args: List[str], worker_id: str) -> No
 
     elif command == "view" and len(args) > 2:
         await _view_file_context(app, args[2])
+
+    elif command == "update":
+        await _update_all_context_files(app, worker_id)
 
     elif command == "refresh" and len(args) > 2:
         await _refresh_file_context(app, args[2])
@@ -144,6 +150,10 @@ def _show_usage(app: Any) -> None:
     )
     app.ui.print_text(
         "/projectcontext view <filepath> - View context for a specific file",
+        PrintType.INFO,
+    )
+    app.ui.print_text(
+        "/projectcontext update - Refresh context for all tracked files",
         PrintType.INFO,
     )
     app.ui.print_text(
@@ -297,6 +307,64 @@ async def _add_file_to_context(app: Any, file_path: str) -> None:
         app.ui.print_text(f"Successfully added {file_path} to project context", PrintType.SUCCESS)
     else:
         app.ui.print_text(f"Failed to add {file_path} to project context", PrintType.ERROR)
+
+
+async def _update_all_context_files(app: Any, worker_id: str) -> None:
+    """
+    Refresh context for all tracked files in the project context.
+
+    Args:
+        app: The Application instance
+        worker_id: Worker ID for task tracking
+    """
+    context_manager = app.state.context_manager
+    files = list(context_manager.index.get("files", {}).keys())
+
+    if not files:
+        app.ui.print_text("No files in project context to update", PrintType.WARNING)
+        return
+
+    app.ui.print_text(
+        f"Updating context for all {len(files)} tracked files...",
+        PrintType.PROCESSING
+    )
+
+    # Create a concurrent batch update task
+    update_task = context_manager.batch_update_contexts(app, files)
+
+    # Track progress
+    total_files = len(files)
+    updated_files = 0
+
+    while not update_task.done():
+        app.ui.print_text(
+            f"Updating file contexts: {updated_files}/{total_files}...",
+            PrintType.PROCESSING
+        )
+        await asyncio.sleep(1)
+        updated_files = min(updated_files + 1, total_files - 1)  # Estimate progress
+
+    # Get results
+    try:
+        results = await update_task
+        successful = sum(1 for r in results if r is not None)
+        failed = sum(1 for r in results if r is None)
+
+        if successful == total_files:
+            app.ui.print_text(
+                f"Successfully updated context for all {total_files} files",
+                PrintType.SUCCESS
+            )
+        else:
+            app.ui.print_text(
+                f"Updated {successful} files successfully, {failed} files failed",
+                PrintType.WARNING
+            )
+    except Exception as e:
+        app.ui.print_text(
+            f"Error updating contexts: {str(e)}",
+            PrintType.ERROR
+        )
 
 
 async def _remove_file_from_context(app: Any, file_path: str) -> None:
