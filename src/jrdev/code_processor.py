@@ -92,9 +92,14 @@ class CodeProcessor:
             # Send requested files and request STEPS to be created
             self.app.logger.info(f"File request detected: {files_to_send}")
             file_response = await self.send_file_request(files_to_send, user_task, response_text)
-            steps = await self.parse_steps(file_response, files_to_send)
-            if "steps" not in steps or not steps["steps"]:
-                raise Exception("No valid steps found in response.")
+            try:
+                steps = await self.parse_steps(file_response, files_to_send)
+                if "steps" not in steps or not steps["steps"]:
+                    raise Exception("No valid steps found in response.")
+            except Exception as e:
+                self.app.logger.error(f"Failed to parse steps\nerr: {e}\nsteps:\n{file_response}")
+                raise
+
             print_steps(self.app, steps)
 
             # Process each step (first pass)
