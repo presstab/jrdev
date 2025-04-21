@@ -1,4 +1,4 @@
-from textual.widgets import Button, Label, ListView, ListItem, Static
+from textual.widgets import Button, Label, ListView, ListItem, Static, RichLog
 from textual.containers import Vertical, Horizontal, Grid
 from textual.screen import ModalScreen
 from textual import on, events, work
@@ -8,9 +8,10 @@ from jrdev.model_profiles import ModelProfileManager
 from jrdev.ui.ui import PrintType, terminal_print
 from jrdev.ui.textual.model_selection_widget import ModelSelectionWidget
 import logging
+import json
+import os
 
 logger = logging.getLogger("jrdev")
-
 
 class ModelSelectionModal(ModalScreen[str]):
     """Modal screen for selecting a model"""
@@ -186,9 +187,10 @@ class ModelProfileScreen(ModalScreen):
         padding: 1;
     }
 
-    #profile-description {
-        height: auto;
+    #profile-info {
+        height: 1fr;
         margin-bottom: 1;
+        overflow-y: auto;
     }
 
     #model-info {
@@ -228,6 +230,7 @@ class ModelProfileScreen(ModalScreen):
         self.manager: ModelProfileManager = core_app.profile_manager()
         self.profiles: Dict[str, str] = {}
         self.selected_profile: Optional[str] = None
+        self.profile_richlog = RichLog(id="profile-info")
 
     def compose(self) -> Any:
         with Vertical(id="profile-container"):
@@ -241,7 +244,7 @@ class ModelProfileScreen(ModalScreen):
 
             # Content area
             with Vertical(id="content-area"):
-                yield Label("Select a profile from the sidebar", id="profile-description")
+                yield self.profile_richlog
                 
                 with Vertical(id="model-info"):
                     yield Label("Current Model", id="model-info-title")
@@ -257,6 +260,10 @@ class ModelProfileScreen(ModalScreen):
         
         # Initially hide the change button until a profile is selected
         self.query_one("#change-model-btn", Button).disabled = True
+
+        self.profile_richlog.wrap = True
+        self.profile_richlog.markup = True
+        self.profile_richlog.can_focus = False
 
     def load_profiles(self) -> None:
         """Load current profiles from the manager and populate the sidebar"""
@@ -293,9 +300,19 @@ class ModelProfileScreen(ModalScreen):
             
         model = self.profiles[profile_name]
         
-        # Update the description
-        description = self.query_one("#profile-description", Label)
-        description.update(f"Profile: {profile_name}\n\nInsert description here")
+        # Get profile string info from the ModelProfileManager
+        description = self.manager.get_profile_description(profile_name)
+        purpose = self.manager.get_profile_purpose(profile_name)
+        usage = self.manager.get_profile_usage(profile_name)
+        usage_str = ", ".join(usage) if usage else "None"
+        
+        # Update the rich log with profile information
+        profile_info = self.query_one("#profile-info", RichLog)
+        profile_info.clear()
+        profile_info.write(f"[bold]Profile:[/bold] {profile_name}\n")
+        profile_info.write(f"[bold]Description:[/bold] {description}\n")
+        profile_info.write(f"[bold]Purpose:[/bold] {purpose}\n")
+        profile_info.write(f"[bold]Used in:[/bold] {usage_str}\n")
         
         # Update the current model
         current_model = self.query_one("#current-model", Label)

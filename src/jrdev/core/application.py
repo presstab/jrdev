@@ -9,7 +9,7 @@ from jrdev.colors import Colors
 from jrdev.core.clients import APIClients
 from jrdev.core.commands import Command, CommandHandler
 from jrdev.core.state import AppState
-from jrdev.file_utils import add_to_gitignore, JRDEV_DIR, get_env_path
+from jrdev.file_utils import add_to_gitignore, JRDEV_DIR, JRDEV_PACKAGE_DIR, get_env_path
 from jrdev.commands.keys import check_existing_keys, save_keys_to_env, run_first_time_setup
 from jrdev.llm_requests import stream_request
 from jrdev.logger import setup_logger
@@ -49,7 +49,8 @@ class Application:
         self.state.model_list = ModelList()
         self.state.model_list.set_model_list(load_hardcoded_models())
         self.state.context_manager = ContextManager()
-        self.state.model_profile_manager = ModelProfileManager()
+        profile_config_path = f"{JRDEV_PACKAGE_DIR}/config/profile_strings.json"
+        self.state.model_profile_manager = ModelProfileManager(profile_strings_path=profile_config_path)
 
     def _load_environment(self):
         """Load environment variables"""
