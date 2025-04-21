@@ -91,6 +91,7 @@ async def handle_help(app: Any, args: List[str], worker_id: str):
     app.ui.print_text(f"  {cmd_format}{format_command_with_args('/viewcontext', '[number]')}{reset} - View the LLM context window content", print_type=None)
     app.ui.print_text(f"  {cmd_format}{format_command_with_args('/projectcontext', '<argument|help>')}{reset} - Manage project context for efficient LLM interactions", print_type=None)
     app.ui.print_text(f"  {cmd_format}/clearcontext{reset} - Clear context and conversation history", print_type=None)
+    app.ui.print_text(f"  {cmd_format}/compact{reset} - Compact conversation history to two essential messages", print_type=None)
     app.ui.print_text(f"  {cmd_format}/stateinfo{reset} - Display application state information", print_type=None)
     
     # Git Operations
@@ -143,6 +144,7 @@ async def handle_help_plain(app: Any, args: List[str]):
     app.ui.print_text("  /viewcontext [number] - View the LLM context window content", print_type=None)
     app.ui.print_text("  /projectcontext <argument|help> - Manage project context for efficient LLM interactions", print_type=None)
     app.ui.print_text("  /clearcontext - Clear context and conversation history", print_type=None)
+    app.ui.print_text("  /compact - Compact conversation history into a concise summary to reduce token use", print_type=None)
     app.ui.print_text("  /stateinfo - Display application state information", print_type=None)
     
     # Git Operations

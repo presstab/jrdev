@@ -28,6 +28,7 @@ class MessageThread:
         """Add a new file that will be embedded into the next sent message in this thread"""
         # this does not check if the file is already embedded!
         self.context.add(file_path)
+        self.metadata["last_modified"] = datetime.now()
 
     def add_embedded_files(self, files):
         """After a message is sent, the active context files become embedded into a previous message"""
@@ -35,7 +36,17 @@ class MessageThread:
             self.embedded_files.add(file)
             if file in self.context:
                 self.context.remove(file)
+        self.metadata["last_modified"] = datetime.now()
 
     def add_response(self, response):
         self.messages.append({"role": "assistant", "content": response})
+        self.metadata["last_modified"] = datetime.now()
+
+    def set_compacted(self, messages):
+        """Replace the exising messages list, set file states to default"""
+        self.messages = messages
+        self.context = set()
+        self.embedded_files = set()
+        self.metadata["last_modified"] = datetime.now()
+
 

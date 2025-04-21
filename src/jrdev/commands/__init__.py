@@ -9,6 +9,7 @@ from jrdev.commands.asyncsend import handle_asyncsend
 from jrdev.commands.cancel import handle_cancel
 from jrdev.commands.clearcontext import handle_clearcontext
 from jrdev.commands.code import handle_code
+from jrdev.commands.compact import handle_compact
 from jrdev.commands.cost import handle_cost
 from jrdev.commands.exit import handle_exit
 from jrdev.commands.git import handle_git
@@ -30,6 +31,7 @@ __all__ = [
     "handle_asyncsend",
     "handle_cancel",
     "handle_code",
+    "handle_compact",
     "handle_exit",
     "handle_git",
     "handle_git_pr_summary",
