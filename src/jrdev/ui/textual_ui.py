@@ -17,6 +17,7 @@ from jrdev.ui.textual.task_monitor import TaskMonitor
 from jrdev.ui.textual.terminal_output_widget import TerminalOutputWidget
 from jrdev.ui.textual.input_widget import CommandTextArea
 from jrdev.ui.textual.button_container import ButtonContainer
+from jrdev.ui.textual.model_profile_widget import ModelProfileScreen
 
 logger = logging.getLogger("jrdev")
 
@@ -255,6 +256,11 @@ class JrDevUI(App[None]):
 
         providers = self.jrdev.provider_list()
         self.push_screen(ApiKeyEntry(core_app=self.jrdev, providers=providers, mode="editor"), save_keys)
+
+    @on(Button.Pressed, "#button_profiles")
+    def handle_agents_pressed(self):
+        """Open the model profile management screen"""
+        self.app.push_screen(ModelProfileScreen(self.jrdev))
 
     @on(TextualEvents.ModelChanged)
     def handle_model_change(self, message: TextualEvents.ModelChanged):

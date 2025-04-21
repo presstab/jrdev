@@ -1,0 +1,34 @@
+{
+  "profiles": [
+    {
+      "name": "advanced_coding",
+      "description": "Generates code changes based on detailed step instructions.",
+      "purpose": "Executes coding operations in the `/code` command, applying modifications step by step.",
+      "usage": ["code"]
+    },
+    {
+      "name": "advanced_reasoning",
+      "description": "Performs deep reasoning for task analysis and planning.",
+      "purpose": "Used in both `/init` and `/code` to analyze user tasks, request files, generate plans, and build project overviews.",
+      "usage": ["init", "code"]
+    },
+    {
+      "name": "quick_reasoning",
+      "description": "Provides fast reformatting of malformed file‐request messages.",
+      "purpose": "Salvages and normalizes a bad get‑files response in the `/code` workflow so it can be parsed.",
+      "usage": ["code"]
+    },
+    {
+      "name": "intermediate_reasoning",
+      "description": "Handles intermediate‐level file summarization and validation.",
+      "purpose": "Used to summarize project files during `/init`. Performs final file structure validation `/code`.",
+      "usage": ["init", "code"]
+    },
+    {
+      "name": "intermediate_coding",
+      "description": "Handles intermediate‐level coding tasks.",
+      "purpose": "Currently not used.",
+      "usage": []
+    }
+  ]
+}

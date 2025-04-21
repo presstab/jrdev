@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from jrdev.file_utils import JRDEV_DIR
 from jrdev.ui.ui import PrintType
@@ -16,13 +16,15 @@ class ModelProfileManager:
     Profiles are stored in a JSON configuration file.
     """
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: Optional[str] = None, profile_strings_path: Optional[str] = None):
         """
         Initialize the profile manager with a path to the config file.
 
         Args:
             config_path: Optional path to the JSON configuration file.
                          If not provided, uses the default in JRDEV_DIR.
+            profile_strings_path: Optional path to the profile strings JSON file.
+                                  If not provided, uses the default in config directory.
         """
         # Initialize the configuration path
         self.config_path: str = os.path.join(JRDEV_DIR, "model_profiles.json")
@@ -33,7 +35,18 @@ class ModelProfileManager:
         # Create JRDEV_DIR if it doesn't exist
         os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
 
+        # Initialize profile strings path
+        self.profile_strings_path: str = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "config",
+            "profile_strings.json"
+        )
+
+        if profile_strings_path is not None:
+            self.profile_strings_path = profile_strings_path
+
         self.profiles = self._load_profiles()
+        self.profile_strings = self._load_profile_strings()
 
     def _load_profiles(self) -> Dict[str, Any]:
         """
@@ -86,6 +99,31 @@ class ModelProfileManager:
             logger.error(f"Error loading profile configuration: {str(e)}")
             # Error log only, UI feedback handled by caller
             return default_config
+
+    def _load_profile_strings(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Load profile strings from JSON configuration file.
+
+        Returns:
+            Dictionary mapping profile names to their metadata (description, purpose, usage)
+        """
+        default_strings: Dict[str, Dict[str, Any]] = {}
+
+        try:
+            if os.path.exists(self.profile_strings_path):
+                with open(self.profile_strings_path, "r") as f:
+                    data = json.load(f)
+                    profiles = data.get("profiles", [])
+                    return {p["name"]: p for p in profiles}
+            else:
+                logger.warning(
+                    f"Profile strings file {self.profile_strings_path} not found, using empty defaults"
+                )
+                return default_strings
+
+        except Exception as e:
+            logger.error(f"Error loading profile strings: {str(e)}")
+            return default_strings
 
     def get_model(self, profile_type: str) -> str:
         """
@@ -205,3 +243,55 @@ class ModelProfileManager:
         except Exception as e:
             logger.error(f"Error setting default profile: {str(e)}")
             return False
+
+    def get_profile_description(self, profile_name: str) -> str:
+        """
+        Get the description for a profile.
+
+        Args:
+            profile_name: The profile name to look up
+
+        Returns:
+            The description of the profile or empty string if not found
+        """
+        profile_data = self.profile_strings.get(profile_name, {})
+        return str(profile_data.get("description", ""))
+
+    def get_profile_purpose(self, profile_name: str) -> str:
+        """
+        Get the purpose for a profile.
+
+        Args:
+            profile_name: The profile name to look up
+
+        Returns:
+            The purpose of the profile or empty string if not found
+        """
+        profile_data = self.profile_strings.get(profile_name, {})
+        return str(profile_data.get("purpose", ""))
+
+    def get_profile_usage(self, profile_name: str) -> List[str]:
+        """
+        Get the usage list for a profile.
+
+        Args:
+            profile_name: The profile name to look up
+
+        Returns:
+            List of usage contexts for the profile or empty list if not found
+        """
+        profile_data = self.profile_strings.get(profile_name, {})
+        usage = profile_data.get("usage", [])
+        return [str(item) for item in usage] if isinstance(usage, list) else []
+
+    def get_profile_data(self, profile_name: str) -> Dict[str, Any]:
+        """
+        Get all metadata for a profile.
+
+        Args:
+            profile_name: The profile name to look up
+
+        Returns:
+            Dictionary containing all profile metadata or empty dict if not found
+        """
+        return self.profile_strings.get(profile_name, {})

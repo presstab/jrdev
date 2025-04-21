@@ -16,6 +16,14 @@ class ModelSelectionWidget(RadioSet):
         self._model_buttons = {}  # Dictionary to track model name to button mapping
         self.block_signals = False # block Changed signal
 
+    @property
+    def pressed_button(self) -> Optional[RadioButton]:
+        """Get the currently pressed button"""
+        for button in self._model_buttons.values():
+            if button.value:
+                return button
+        return None
+
     async def setup_models(self, models: List[Dict[str, Any]]) -> None:
         """Set up the model list with grouping by provider
         

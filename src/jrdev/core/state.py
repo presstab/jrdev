@@ -14,7 +14,7 @@ class AppState:
         # Model configuration
         self.model: str = "deepseek-r1-671b"
         self.model_list: Any = None  # Will be initialized with ModelList
-        self.model_profile_manager = ModelProfileManager()
+        self.model_profile_manager = None
 
         # API clients
         self.clients: Any = None  # Will be initialized with APIClients
