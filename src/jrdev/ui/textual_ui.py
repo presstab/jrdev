@@ -103,7 +103,7 @@ class JrDevUI(App[None]):
             }
         }
 
-        TaskMonitor, ModelSelectionWidget, CodeConfirmationScreen, FilteredDirectoryTree {
+        TaskMonitor, ModelSelectionWidget, FilteredDirectoryTree, #diff-display {
             scrollbar-background: #1e1e1e;
             scrollbar-background-hover: #1e1e1e;
             scrollbar-background-active: #1e1e1e;
