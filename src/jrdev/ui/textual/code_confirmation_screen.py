@@ -21,7 +21,7 @@ class CodeConfirmationScreen(ModalScreen[Tuple[str, Optional[str]]]):
             
             # Display the diff if we have it
             if self.diff_lines:
-                yield RichLog(id="diff-display", highlight=True, markup=True)
+                yield RichLog(id="diff-display", highlight=False, markup=True)
             
             with Horizontal(id="button-row"):
                 yield Button("Yes [y]", id="yes-button", variant="success")
@@ -42,14 +42,17 @@ class CodeConfirmationScreen(ModalScreen[Tuple[str, Optional[str]]]):
             diff_log = self.query_one("#diff-display")
             diff_log.height = min(15, len(self.diff_lines) + 2)  # Set a reasonable height
             
-            # Add each line with appropriate coloring
+            # Collect formatted lines in a list, then join and write once
+            formatted_lines = []
             for line in self.diff_lines:
                 if line.startswith('+'):
-                    diff_log.write(f"[green]{line}[/green]")
+                    formatted_lines.append(f"[green]{line}[/green]")
                 elif line.startswith('-'):
-                    diff_log.write(f"[red]{line}[/red]")
+                    formatted_lines.append(f"[red]{line}[/red]")
                 else:
-                    diff_log.write(line)
+                    formatted_lines.append(f"{line}")
+            diff_content = "".join(formatted_lines)
+            diff_log.write(diff_content)
     
     def on_button_pressed(self, event: Button.Pressed) -> None:
         button_id = event.button.id

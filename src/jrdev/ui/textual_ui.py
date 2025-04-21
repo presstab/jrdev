@@ -103,16 +103,7 @@ class JrDevUI(App[None]):
             }
         }
 
-        TaskMonitor, ModelSelectionWidget {
-            scrollbar-background: #1e1e1e;
-            scrollbar-background-hover: #1e1e1e;
-            scrollbar-background-active: #1e1e1e;
-            scrollbar-color: #63f554 30%;
-            scrollbar-color-active: #63f554;
-            scrollbar-color-hover: #63f554 50%;
-        }
-
-        FilteredDirectoryTree {
+        TaskMonitor, ModelSelectionWidget, CodeConfirmationScreen, FilteredDirectoryTree {
             scrollbar-background: #1e1e1e;
             scrollbar-background-hover: #1e1e1e;
             scrollbar-background-active: #1e1e1e;
