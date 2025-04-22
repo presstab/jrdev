@@ -180,6 +180,8 @@ class JrDevUI(App[None]):
 
         self.model_list.styles.height = "50%"
 
+        self.jrdev.setup_complete()
+
     @on(CommandTextArea.Submitted, "#cmd_input")
     async def accept_input(self, event: CommandTextArea.Submitted) -> None:
         text = event.value

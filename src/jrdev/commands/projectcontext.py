@@ -62,7 +62,7 @@ async def handle_projectcontext(app: Any, args: List[str], worker_id: str) -> No
         await _view_file_context(app, args[2])
 
     elif command == "update":
-        await _update_all_context_files(app, worker_id)
+        await _update_outdated_context_files(app, worker_id)
 
     elif command == "refresh" and len(args) > 2:
         await _refresh_file_context(app, args[2])
@@ -153,7 +153,7 @@ def _show_usage(app: Any) -> None:
         PrintType.INFO,
     )
     app.ui.print_text(
-        "/projectcontext update - Refresh context for all tracked files",
+        "/projectcontext update - Refresh context for tracked files that are out of date",
         PrintType.INFO,
     )
     app.ui.print_text(
@@ -309,7 +309,7 @@ async def _add_file_to_context(app: Any, file_path: str) -> None:
         app.ui.print_text(f"Failed to add {file_path} to project context", PrintType.ERROR)
 
 
-async def _update_all_context_files(app: Any, worker_id: str) -> None:
+async def _update_outdated_context_files(app: Any, worker_id: str) -> None:
     """
     Refresh context for all tracked files in the project context.
 
@@ -318,7 +318,7 @@ async def _update_all_context_files(app: Any, worker_id: str) -> None:
         worker_id: Worker ID for task tracking
     """
     context_manager = app.state.context_manager
-    files = list(context_manager.index.get("files", {}).keys())
+    files = context_manager.get_outdated_files()
 
     if not files:
         app.ui.print_text("No files in project context to update", PrintType.WARNING)

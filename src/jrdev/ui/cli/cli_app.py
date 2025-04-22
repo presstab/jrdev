@@ -23,6 +23,7 @@ class CliApp:
     async def _main_loop(self):
         """CLI Main application loop"""
         self._print_welcome_message()
+        self.core_app.setup_complete()
 
         while self.core_app.state.running:
             try:

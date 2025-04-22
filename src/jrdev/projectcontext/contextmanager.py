@@ -228,6 +228,7 @@ class ContextManager:
             file_path: Path to the file to analyze
             app: The Application instance
             additional_context: Optional additional context for the LLM
+            task_id: Optional task ID for UI tracking
 
         Returns:
             Generated context or None if an error occurred
@@ -385,7 +386,7 @@ class ContextManager:
 
     def get_file_paths(self) -> List[str]:
         obj_files = self.index.get("files", {})
-        return obj_files.keys()
+        return list(obj_files.keys())
 
     def get_index_paths(self) -> List[List[str]]:
         """
@@ -448,7 +449,7 @@ class ContextManager:
         return "\n\n".join(contexts)
 
     def batch_update_contexts(
-        self, app: Any, file_paths: List[str], concurrency: int = 5
+        self, app: Any, file_paths: List[str], concurrency: int = 5, worker_id: Optional[str] = None
     ) -> asyncio.Future[List[Optional[str]]]:
         """
         Update contexts for multiple files concurrently.
@@ -457,6 +458,7 @@ class ContextManager:
             app: The Application instance
             file_paths: List of file paths to update
             concurrency: Maximum number of concurrent updates
+            worker_id: Optional task ID for UI tracking
 
         Returns:
             Future that resolves when all updates are complete
@@ -465,13 +467,26 @@ class ContextManager:
         async def _process_batch() -> List[Optional[str]]:
             semaphore = asyncio.Semaphore(concurrency)
 
-            async def _process_file(file_path: str) -> Optional[str]:
+            async def _process_file(index: int, file_path: str, worker_id: Optional[str]) -> Optional[str]:
                 async with semaphore:
                     # Add a small delay to avoid rate limiting
                     await asyncio.sleep(0.5)
-                    return await self.generate_context(file_path, app)
 
-            tasks = [_process_file(file_path) for file_path in file_paths]
+                    sub_task_id = None
+                    if worker_id:
+                        sub_task_id = f"{worker_id}:{index}"
+                        app.ui.update_task_info(worker_id, update={"new_sub_task": sub_task_id, "description": f"Update: {file_path}"})
+                        logger.info(f"Starting context update for sub-task {sub_task_id}: {file_path}")
+
+                    result = await self.generate_context(file_path, app, task_id=sub_task_id)
+
+                    if worker_id and sub_task_id:
+                        app.ui.update_task_info(sub_task_id, update={"sub_task_finished": True})
+                        logger.info(f"Finished context update for sub-task {sub_task_id}: {file_path}")
+
+                    return result
+
+            tasks = [_process_file(i, file_path, worker_id) for i, file_path in enumerate(file_paths)]
             results = await asyncio.gather(*tasks)
             # Explicitly cast to ensure correct type
             return [result for result in results]

@@ -63,31 +63,92 @@ class Application:
             self.state.need_api_keys = True
             self.ui.print_text("API keys not found. Setup will begin shortly...", PrintType.INFO)
 
+    def _check_project_context_status(self):
+        """
+        Checks the status of the project context on startup and prints recommendations.
+        This is a local check and does not involve LLM calls.
+        """
+        self.logger.info("Checking project context status...")
+        try:
+            # Ensure context manager is initialized
+            if not hasattr(self.state, 'context_manager') or self.state.context_manager is None:
+                self.logger.warning("ContextManager not initialized, skipping context status check.")
+                # Check if the index file physically exists even if the manager isn't ready
+                if not os.path.exists(os.path.join(JRDEV_DIR, "contexts", "file_index.json")):
+                     self.ui.print_text(
+                        "Project context not found. Run '/init' to analyze your project "
+                        "for better AI understanding.",
+                        PrintType.INFO
+                    )
+                return
+
+            context_manager = self.state.context_manager
+            index_path = context_manager.index_path
+
+            # 1. Check if the index file exists
+            if not os.path.exists(index_path) or len(context_manager.get_file_paths()) == 0:
+                self.logger.info("Project context index file not found.")
+                self.ui.print_text(
+                    "Project context not found. Run '/init' to familiarize JrDev with important files the code.",
+                    PrintType.INFO
+                )
+            else:
+                # 2. Check for outdated files (this is the local check)
+                outdated_files = context_manager.get_outdated_files()
+                num_outdated = len(outdated_files)
+
+                if num_outdated > 0:
+                    self.logger.info(f"Found {num_outdated} outdated context files.")
+                    self.ui.print_text(
+                        f"Found {num_outdated} outdated project context file(s). "
+                        f"Run '/projectcontext update' to refresh summaries for more "
+                        f"accurate AI responses. To view outdate context file(s) run '/projectcontext status'",
+                        PrintType.WARNING # Use WARNING to make it more noticeable
+                    )
+                else:
+                    # Optional: Log that context is up-to-date
+                    self.logger.info("Project context is up-to-date.")
+                    # No message needed for the user if everything is okay.
+
+        except Exception as e:
+            # Log any unexpected errors during the check
+            self.logger.error(f"Error checking project context status: {e}", exc_info=True)
+            self.ui.print_text(
+                "Could not verify project context status due to an internal error.",
+                PrintType.ERROR
+            )
+
     async def initialize_services(self):
         """Initialize API clients and services"""
         self.logger.info("initialize services")
+
+        # First-time setup logic
         if hasattr(self.state, 'need_first_time_setup') and self.state.need_first_time_setup:
             success = await self._perform_first_time_setup()
-            # UI signalled that keys or other steps need to be taken
             if not success:
-                return False
+                return False # Exit if setup failed or needs user action
 
+        # API client initialization
         if not self.state.clients.is_initialized():
             self.logger.info("api clients not initialized")
             await self._initialize_api_clients()
-            
-        self.logger.info("Application services initialized")
 
+        self.logger.info("Application services initialized")
         return True
+
+    def setup_complete(self):
+        """This is run after UI is setup and can print welcome message etc"""
+        # Perform the local context status check after basic setup/potential first-time run
+        self._check_project_context_status()
 
     async def start_services(self):
         """Start background services"""
         # Start task monitor
         self.state.task_monitor = asyncio.create_task(self._schedule_task_monitor())
-        
+
         # Start model update service
         model_update_task = asyncio.create_task(self._schedule_model_updates())
-        
+
         self.logger.info("Background services started")
 
     async def handle_command(self, command: Command):
@@ -111,15 +172,15 @@ class Application:
             # Show help message for unknown commands
             if cmd not in self.command_handler.get_commands():
                 self.ui.print_text("Type /help for available commands", print_type=PrintType.INFO)
-        
+
     def get_current_thread(self):
         """Get the currently active thread"""
         return self.state.get_current_thread()
-        
+
     def switch_thread(self, thread_id):
         """Switch to a different thread"""
         return self.state.switch_thread(thread_id)
-        
+
     def create_thread(self, thread_id="") -> str:
         """Create a new thread"""
         return self.state.create_thread(thread_id)
@@ -224,7 +285,7 @@ class Application:
             self.logger.error(f"Error in send_message: {error_msg}")
             self.ui.print_text(f"Error: {error_msg}", PrintType.ERROR)
             return None
-    
+
     def profile_manager(self):
         return self.state.model_profile_manager
 
@@ -382,10 +443,10 @@ class Application:
     async def process_input(self, user_input, worker_id=None):
         """Process user input."""
         await asyncio.sleep(0.01)  # Brief yield to event loop
-        
+
         if not user_input:
             return
-            
+
         if user_input.startswith("/"):
             command = Command(user_input, worker_id)
             result = await self.handle_command(command)
@@ -406,7 +467,7 @@ class Application:
 
         if self.state.need_first_time_setup:
             self._load_environment()
-            
+
         env_path = get_env_path()
         load_dotenv(dotenv_path=env_path)
         await self._initialize_api_clients()
@@ -430,7 +491,7 @@ class Application:
         self.logger.info("initializing api clients")
         provider_env_keys = [provider["env_key"] for provider in self.state.clients.provider_list()]
         env = {key: os.getenv(key) for key in provider_env_keys}
-        
+
         # Initialize all clients using the APIClients class
         try:
             await self.state.clients.initialize(env)
@@ -447,27 +508,27 @@ class Application:
     def venice_client(self):
         """Return the Venice client for backward compatibility"""
         return self.state.clients.venice if self.state.clients else None
-        
+
     @property
     def openai_client(self):
         """Return the OpenAI client for backward compatibility"""
         return self.state.clients.openai if self.state.clients else None
-        
+
     @property
     def anthropic_client(self):
         """Return the Anthropic client for backward compatibility"""
         return self.state.clients.anthropic if self.state.clients else None
-        
+
     @property
     def deepseek_client(self):
         """Return the DeepSeek client for backward compatibility"""
         return self.state.clients.deepseek if self.state.clients else None
-    
+
     @property
     def context_manager(self):
         """Return the context manager for backward compatibility"""
         return self.state.context_manager if hasattr(self.state, 'context_manager') else None
-    
+
     @property
     def context(self):
         """Return the context list for backward compatibility"""
