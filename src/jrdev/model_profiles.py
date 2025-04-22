@@ -64,6 +64,7 @@ class ModelProfileManager:
                 "quick_reasoning": "qwen-2.5-coder-32b",
             },
             "default_profile": "advanced_coding",
+            "chat_model": "deepseek-r1-671b",
         }
 
         try:
@@ -86,7 +87,7 @@ class ModelProfileManager:
                 config: Dict[str, Any] = json.load(f)
 
             # Validate loaded config has required fields
-            if not all(key in config for key in ["profiles", "default_profile"]):
+            if not all(key in config for key in ["profiles", "default_profile", "chat_model"]):
                 logger.warning(
                     "Profile configuration missing required fields, using defaults"
                 )

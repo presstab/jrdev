@@ -300,11 +300,25 @@ class Application:
         model_names = self.get_model_names()
         if model in model_names:
             self.state.model = model
+            # Persist the selected model to JRDEV_DIR/model_profiles.json
+            config_path = os.path.join(JRDEV_DIR, "model_profiles.json")
+            try:
+                data = {}
+                if os.path.exists(config_path):
+                    with open(config_path, "r") as f:
+                        data = json.load(f)
+                data['chat_model'] = model
+                os.makedirs(os.path.dirname(config_path), exist_ok=True)
+                with open(config_path, "w") as f:
+                    json.dump(data, f, indent=2)
+            except Exception as e:
+                self.logger.error(f"Error saving chat_model to config: {e}")
             if send_to_ui:
                 self.ui.model_changed(model)
 
     async def update_model_names_cache(self):
         """Update the model names cache in the background."""
+
         try:
             # Get current models from API
             models = await fetch_venice_models(client=self.state.clients.venice)

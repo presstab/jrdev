@@ -1,18 +1,31 @@
 import asyncio
 import uuid
-from typing import Any, Dict, List, Set, Optional
+import os
+import json
+from typing import Any, Dict, List, Optional
 
 from jrdev.file_utils import JRDEV_DIR
 from jrdev.messages.thread import MessageThread
-from jrdev.model_profiles import ModelProfileManager
 
 
 class AppState:
     """Central class for managing application state"""
 
     def __init__(self) -> None:
-        # Model configuration
-        self.model: str = "deepseek-r1-671b"
+        # Load persisted chat model or fallback to default
+        config_path = os.path.join(JRDEV_DIR, "model_profiles.json")
+        loaded_model = None
+        try:
+            if os.path.exists(config_path):
+                with open(config_path, "r") as f:
+                    data = json.load(f)
+                    loaded_model = data.get("chat_model")
+        except Exception:
+            loaded_model = None
+        # Use loaded model or default
+        self.model: str = loaded_model if loaded_model else "deepseek-r1-671b"
+
+        # Model list and profiles (initialized later)
         self.model_list: Any = None  # Will be initialized with ModelList
         self.model_profile_manager = None
 
@@ -54,7 +67,6 @@ class AppState:
             thread_id = f"thread_{uuid.uuid4().hex[:8]}"
         if thread_id not in self.threads:
             self.threads[thread_id] = MessageThread(thread_id)
-
         return thread_id
 
     def switch_thread(self, thread_id: str) -> bool:
@@ -88,13 +100,4 @@ class AppState:
 
     def __repr__(self) -> str:
         thread = self.get_current_thread()
-        return f"""<AppState:
-Model: {self.model}
-Active thread: {self.active_thread}
-Thread count: {len(self.threads)}
-Messages in thread: {len(thread.messages)}
-Context files: {len(self.context)}
-Active tasks: {len(self.active_tasks)}
-Clients initialized: {self.clients.is_initialized() if self.clients else False}
-Running: {self.running}
->"""
+        return f"<AppState:\nModel: {self.model}\nActive thread: {self.active_thread}\nThread count: {len(self.threads)}\nMessages in thread: {len(thread.messages)}\nContext files: {len(self.context)}\nActive tasks: {len(self.active_tasks)}\nClients initialized: {self.clients.is_initialized() if self.clients else False}\nRunning: {self.running}\n>"
