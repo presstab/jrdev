@@ -3,6 +3,7 @@ from jrdev.ui.ui_wrapper import UiWrapper
 from jrdev.commands.keys import check_existing_keys, run_first_time_setup
 from typing import Any, List, Optional, Tuple
 import sys
+import json
 
 class CliEvents(UiWrapper):
     def __init__(self, app):  # Add app reference
@@ -48,6 +49,155 @@ class CliEvents(UiWrapper):
                 return 'edit', None
             else:
                 self.print_text("Please enter 'y', 'n', 'r', or 'e'", PrintType.ERROR)
+
+    async def prompt_steps(self, steps: Any) -> Any:
+        """
+        Prompt the user to confirm, edit, reprompt, or cancel the steps.
+        Mirrors the behavior of the textual StepsScreen modal.
+        Args:
+            steps: The steps JSON object (dict)
+        Returns:
+            dict with keys: choice (accept/edit/reprompt/cancel), and steps or prompt as appropriate
+        """
+        explainer = (
+            "These steps have been generated as a task list for your prompt.\n"
+            "- Press continue to proceed with generating code for each step\n"
+            "- Edit the steps and press 'Save Edits' to manually alter the steps. Ensure that you retain the current JSON format.\n"
+            "- Use Re-Prompt to add additional prompt information and send it back to have new steps generated.\n"
+            "- Press cancel to exit the current /code command.\n"
+        )
+        while True:
+            self.print_text("\n===== Steps Review =====", PrintType.INFO)
+            self.print_text(explainer, PrintType.INFO)
+            try:
+                steps_json_str = json.dumps(steps, indent=2)
+            except Exception:
+                steps_json_str = str(steps)
+            self.print_text(steps_json_str, PrintType.LLM)
+            self.print_text("\nWhat would you like to do?", PrintType.INFO)
+            self.print_text("[c] Continue | [e] Edit | [r] Re-Prompt | [x] Cancel", PrintType.INFO)
+            choice = input("Enter choice: ").strip().lower()
+            if choice in ("c", "continue", "accept"):
+                return {"choice": "accept", "steps": steps}
+            elif choice in ("e", "edit"):
+                # Check if curses is available for a better editing experience
+                try:
+                    from jrdev.ui.cli.curses_editor import is_curses_available, edit_text
+                    if is_curses_available():
+                        self.print_text("\nOpening curses editor. Alt+S to save, Alt+Q or ESC to cancel.", PrintType.INFO)
+                        try:
+                            success, edited_text = edit_text(steps_json_str)
+                            if not success or edited_text is None:
+                                self.print_text("Editing cancelled. Returning to menu.", PrintType.WARNING)
+                                continue
+                            
+                            try:
+                                edited_steps = json.loads(edited_text)
+                                # Validate structure
+                                if "steps" not in edited_steps:
+                                    raise ValueError("Failed to parse steps object: missing 'steps' key.")
+                                if not isinstance(edited_steps["steps"], list):
+                                    raise ValueError("Steps must be a list of dictionaries.")
+                                for step in edited_steps["steps"]:
+                                    if "operation_type" not in step:
+                                        raise ValueError("Missing operation_type in a step.")
+                                    if "filename" not in step:
+                                        raise ValueError("Missing filename in a step.")
+                                    if "target_location" not in step:
+                                        raise ValueError("Missing target_location in a step.")
+                                    if "description" not in step:
+                                        raise ValueError("Missing description in a step.")
+                                return {"choice": "edit", "steps": edited_steps}
+                            except Exception as e:
+                                self.print_text(f"Invalid JSON or structure: {e}", PrintType.ERROR)
+                                continue
+                        except Exception as e:
+                            self.print_text(f"Error using curses editor: {e}", PrintType.ERROR)
+                            # Fall back to standard input method
+                except ImportError:
+                    # Curses not available, fall back to standard input method
+                    pass
+                
+                # Standard input method (fallback)
+                self.print_text("\nEnter the edited steps JSON below. Press Alt+S to submit, Alt+Q to cancel, or press Enter twice to finish:", PrintType.INFO)
+                import termios
+                import tty
+                fd = sys.stdin.fileno()
+                old_settings = termios.tcgetattr(fd)
+                edited_lines = []
+                current_line = ""
+                cancel_edit = False
+                try:
+                    tty.setraw(fd)
+                    while True:
+                        ch = sys.stdin.read(1)
+                        if ch == '\x1b':  # ESC (potential Alt sequence)
+                            # Try to read another char to see if it's Alt+S or Alt+Q
+                            next_ch = sys.stdin.read(1)
+                            if next_ch == 's' or next_ch == 'S':  # Alt+S
+                                if current_line:
+                                    edited_lines.append(current_line)
+                                break
+                            elif next_ch == 'q' or next_ch == 'Q':  # Alt+Q
+                                cancel_edit = True
+                                break
+                            # If it was just ESC key, cancel
+                            cancel_edit = True
+                            break
+                        elif ch == '\x11':  # Ctrl+Q
+                            cancel_edit = True
+                            break
+                        elif ch in ('\r', '\n'):
+                            # Enter key
+                            if current_line == "":
+                                # Detect double enter
+                                if edited_lines and edited_lines[-1] == "":
+                                    edited_lines.pop()
+                                    break
+                                edited_lines.append("")
+                            else:
+                                edited_lines.append(current_line)
+                            current_line = ""
+                        else:
+                            current_line += ch
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                if cancel_edit:
+                    self.print_text("Editing cancelled. Returning to menu.", PrintType.WARNING)
+                    continue
+                edited_text = "\n".join(edited_lines).strip()
+                try:
+                    edited_steps = json.loads(edited_text)
+                    # Validate structure
+                    if "steps" not in edited_steps:
+                        raise ValueError("Failed to parse steps object: missing 'steps' key.")
+                    if not isinstance(edited_steps["steps"], list):
+                        raise ValueError("Steps must be a list of dictionaries.")
+                    for step in edited_steps["steps"]:
+                        if "operation_type" not in step:
+                            raise ValueError("Missing operation_type in a step.")
+                        if "filename" not in step:
+                            raise ValueError("Missing filename in a step.")
+                        if "target_location" not in step:
+                            raise ValueError("Missing target_location in a step.")
+                        if "description" not in step:
+                            raise ValueError("Missing description in a step.")
+                    return {"choice": "edit", "steps": edited_steps}
+                except Exception as e:
+                    self.print_text(f"Invalid JSON or structure: {e}", PrintType.ERROR)
+                    continue
+            elif choice in ("r", "reprompt"):
+                self.print_text("\nEnter additional instructions for the prompt:", PrintType.INFO)
+                user_text = input("> ").strip()
+                if user_text:
+                    return {"choice": "reprompt", "prompt": user_text}
+                else:
+                    self.print_text("No instructions entered. Returning to menu.", PrintType.WARNING)
+                    continue
+            elif choice in ("x", "cancel", "q", "quit"):
+                return {"choice": "cancel"}
+            else:
+                self.print_text("Invalid choice. Please enter c, e, r, or x.", PrintType.ERROR)
 
     async def signal_no_keys(self):
         setup_success = await run_first_time_setup(self.app)

@@ -17,6 +17,7 @@ class TextualEvents(UiWrapper):
         self.app = app  # Store reference to Textual app
         self.word_stream = ""
         self.confirmation_future = None
+        self.steps_future = None
 
     class PrintMessage(Message):
         def __init__(self, text):
@@ -48,7 +49,13 @@ class TextualEvents(UiWrapper):
             super().__init__()
             self.response = response
             self.message = message
-            
+
+    class StepsRequest(Message):
+        def __init__(self, steps: Any, future: asyncio.Future):
+            super().__init__()
+            self.steps = steps
+            self.future = future
+
     class ExitRequest(Message):
         """Signal to the Textual UI app that it should exit"""
         pass
@@ -92,6 +99,12 @@ class TextualEvents(UiWrapper):
         
         # Wait for the confirmation response
         result = await self.confirmation_future
+        return result
+
+    async def prompt_steps(self, steps: Any) -> Any:
+        self.steps_future = asyncio.Future()
+        self.app.post_message(self.StepsRequest(steps, self.steps_future))
+        result = await self.steps_future
         return result
 
     async def signal_no_keys(self):

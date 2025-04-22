@@ -29,6 +29,17 @@ class UiWrapper:
                           or edited content when editing, None otherwise
         """
         raise NotImplementedError("Subclasses must implement prompt_for_confirmation()")
+
+    async def prompt_steps(self, steps: Any) -> Any:
+        """
+        Prompt the user to confirm, edit, reprompt, cancel the steps
+        Args:
+            steps:
+
+        Returns: steps
+
+        """
+        raise NotImplementedError("Subclasses must implement prompt_steps")
         
     async def signal_exit(self):
         """

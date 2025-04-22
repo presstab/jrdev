@@ -9,6 +9,11 @@ from jrdev.file_operations.process_ops import apply_file_changes, CodeTaskCancel
 from jrdev.ui.ui import PrintType, print_steps
 from jrdev.message_builder import MessageBuilder
 
+class Reprompt(Exception):
+    """
+    Exception to signal that the user has sent a new prompt
+    """
+    pass
 
 class CodeProcessor:
     def __init__(self, app: Any, worker_id=None):
@@ -36,6 +41,8 @@ class CodeProcessor:
             await self.process_code_response(initial_response, user_task)
         except CodeTaskCancelled:
             raise
+        except Reprompt as additional_prompt:
+            await self.process(f"{user_task} {additional_prompt}")
         except Exception as e:
             self.app.logger.error(f"Error in CodeProcessor: {str(e)}")
             self.app.ui.print_text(f"Error processing code: {str(e)}", PrintType.ERROR)
@@ -92,6 +99,7 @@ class CodeProcessor:
             # Send requested files and request STEPS to be created
             self.app.logger.info(f"File request detected: {files_to_send}")
             file_response = await self.send_file_request(files_to_send, user_task, response_text)
+            steps = None
             try:
                 steps = await self.parse_steps(file_response, files_to_send)
                 if "steps" not in steps or not steps["steps"]:
@@ -99,6 +107,17 @@ class CodeProcessor:
             except Exception as e:
                 self.app.logger.error(f"Failed to parse steps\nerr: {e}\nsteps:\n{file_response}")
                 raise
+
+            # Prompt user to accept or edit steps
+            user_result = await self.app.ui.prompt_steps(steps)
+            user_choice = user_result.get("choice")
+            if user_choice == "edit" or user_result == "accept":
+                steps = user_result.get("steps")
+            elif user_choice == "cancel":
+                raise CodeTaskCancelled()
+            elif user_choice == "reprompt":
+                additional_prompt = user_result.get("prompt")
+                raise Reprompt(additional_prompt)
 
             print_steps(self.app, steps)
 
@@ -155,7 +174,7 @@ class CodeProcessor:
                             except CodeTaskCancelled:
                                 raise
                         else:
-                            logger.info(f"Malformed change request from reviewer:\n{review}")
+                            self.app.logger.info(f"Malformed change request from reviewer:\n{review}")
 
                 except Exception as e:
                     # todo try again?
