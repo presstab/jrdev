@@ -87,7 +87,7 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
             kwargs["response_format"] = {"type": "json_object"}
     elif model_provider == "venice":
         kwargs["extra_body"] = {"venice_parameters": {"include_venice_system_prompt": False}}
-    elif model_provider == "open_router":
+    elif model_provider == "open_router" and "deepseek" in model:
         kwargs["extra_body"] = {"provider": {"order": ["Lambda"], "allow_fallbacks": False, "require_parameters": True}}
 
     stream = await client.chat.completions.create(**kwargs)
