@@ -38,39 +38,90 @@ class ApiKeyEntry(Screen[dict]):
       - 'editor': For editing existing keys, loads and masks current values.
     """
     CSS = """
-    Vertical {
-        margin: 0;
-        padding: 0 4;
+    ApiKeyEntry {
+        align: center middle; /* Center the modal */
+    }
+
+    #api-key-container {
+        width: 80%; /* Adjusted width */
+        height: auto; /* Auto height based on content */
+        max-height: 90%; /* Limit max height */
+        background: $surface;
+        border: round $accent;
+        padding: 0; /* No padding on container, handled by header/content/footer */
+        layout: vertical;
+    }
+
+    #header {
+        dock: top;
+        height: 3;
+        padding: 0 1;
+        border-bottom: solid $accent;
+        content-align: center middle; /* Center content horizontally and vertically */
+    }
+
+    #title {
+        width: 100%; /* Ensure title takes full width for centering */
+        text-align: center;
+        text-style: bold;
+        color: $accent;
+    }
+
+    #content-area {
+        /* height: 1fr; /* Take remaining vertical space - removed for auto height */
+        padding: 1;
+        overflow-y: auto; /* Add scrollbar if needed */
         height: auto;
     }
 
-    Horizontal {
-        margin: 0 0 1 0;
-        padding: 0;
-        height: auto;
+    /* Grid for inputs */
+    #input-grid {
+        grid-size: 3; /* Label, Input, Button/Placeholder */
+        grid-gutter: 1 2; /* Row gutter, Column gutter */
+        grid-columns: 16 1fr auto;
+        margin-top: 1;
+        height: auto; /* Grid height based on content */
     }
 
-    Label {
+    /* Style for Labels within the grid */
+    #input-grid > Label {
         margin: 0;
         padding: 0;
-        width: 16;
+        text-align: right;
+        height: 1; /* Match input height */
+        align-vertical: middle;
     }
 
-    Input {
+    /* Style for Inputs within the grid */
+    #input-grid > Input {
         margin: 0;
         padding: 0;
         height: 1;
+        border: none; /* Remove default input border */
+    }
+
+    /* Style for Delete Buttons within the grid */
+    #input-grid > .delete-button {
+        height: 1;
+        min-width: 3;
+        max-width: 3;
         border: none;
+        margin: 0;
+        padding: 0;
+        align-vertical: middle;
     }
-    
-    #title {
-        text-align: center;
-        margin-bottom: 1;
+
+    #footer {
+        dock: bottom;
+        height: 3;
+        padding: 0 1;
+        border-top: solid $accent;
+        align: left middle;
     }
-    #mode-label {
-        text-align: center;
-        color: $secondary;
-        margin-bottom: 1;
+
+    #footer Button {
+        margin-left: 1;
+        border: none;
     }
     """
 
@@ -88,7 +139,7 @@ class ApiKeyEntry(Screen[dict]):
         self._masked_keys = {}
         self.delete_buttons = []
         self.input_widgets = {}  # Map env_key to Input widget
-        self.button_to_env_key = {}  # Map Button to env_key
+        self.button_to_env_key = {}  # Map Button ID to env_key
         self._pending_delete_env_key = None  # Track which key is pending delete confirmation
         self._pending_delete_provider_name = None
 
@@ -113,55 +164,57 @@ class ApiKeyEntry(Screen[dict]):
         return "*" * (len(value) - 4) + value[-4:]
 
     def compose(self) -> ComposeResult:
-        with Vertical():
-            if self.mode == "first_run":
-                yield Label("Enter API Keys", id="title")
-                yield Label("First-time setup: Please enter all required API keys.", id="mode-label")
-            else:
-                yield Label("Edit API Keys", id="title")
-                yield Label("Editor mode: Existing keys are masked. Edit and save as needed.", id="mode-label")
-            for provider in self.providers:
-                with Horizontal():
-                    yield Label(f"{provider['name'].title()} Key:")
-                    # In editor mode, prefill with masked value if exists
-                    env_key = provider["env_key"]
-                    existing_value = self.existing_keys.get(env_key, "") if self.mode == "editor" else ""
-                    masked = self._mask_key(existing_value) if self.mode == "editor" and existing_value else ""
-                    input_widget = Input(id=f"{provider['name']}_key", password=True)
-                    input_widget.styles.width = "60%"
-                    input_widget.styles.min_width = 5
-                    if masked:
-                        input_widget.value = masked
-                        self._masked_keys[env_key] = masked
-                    self.input_widgets[env_key] = input_widget
-                    yield input_widget
-                    if self.mode == "editor":
-                        button_delete = Button("X", id=f"delete_{env_key}")
-                        button_delete.styles.height = 1
-                        button_delete.styles.max_width = 3
-                        button_delete.styles.min_width = 3
-                        self.delete_buttons.append(button_delete)
-                        self.button_to_env_key[button_delete.id] = env_key
-                        yield button_delete
-            with Horizontal():
-                yield Button("Save", id="save")
-                yield Button("Exit", id="exit")
-            spacer = Static()
-            spacer.styles.height = "1fr"
-            yield spacer
+        with Vertical(id="api-key-container"):
+            with Horizontal(id="header"):
+                if self.mode == "first_run":
+                    yield Label("Enter API Keys", id="title")
+                else:
+                    yield Label("Edit API Keys", id="title")
 
-    def _on_mount(self, event: events.Mount) -> None:
-        super()._on_mount(event)
-        for button in self.delete_buttons:
-            button.styles.border = "none"
-            button.styles.height = 1
+            with Vertical(id="content-area"):
+                with Grid(id="input-grid"):
+                    for provider in self.providers:
+                        # Provider Label
+                        yield Label(f"{provider['name'].title()} Key:")
+
+                        # Input Field
+                        env_key = provider["env_key"]
+                        existing_value = self.existing_keys.get(env_key, "") if self.mode == "editor" else ""
+                        masked = self._mask_key(existing_value) if self.mode == "editor" and existing_value else ""
+                        input_widget = Input(id=f"{provider['name']}_key", password=True)
+                        if masked:
+                            input_widget.value = masked
+                            self._masked_keys[env_key] = masked
+                        self.input_widgets[env_key] = input_widget
+                        yield input_widget
+
+                        # Delete Button (Editor Mode Only)
+                        if self.mode == "editor":
+                            button_delete = Button("X", id=f"delete_{env_key}", classes="delete-button")
+                            self.delete_buttons.append(button_delete)
+                            self.button_to_env_key[button_delete.id] = env_key
+                            yield button_delete
+                        else:
+                            # Add a placeholder Static if not in editor mode to keep grid alignment
+                            yield Static() # Placeholder
+
+            with Horizontal(id="footer"):
+                yield Button("Save", id="save", variant="success")
+                yield Button("Exit", id="exit", variant="error")
+
+    # _on_mount removed as styling is handled by CSS
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "save":
             ret = {}
             for provider in self.providers:
                 env_key = provider["env_key"]
-                input_widget = self.query_one(f"#{provider['name']}_key", Input)
+                # Use the stored input widget reference
+                input_widget = self.input_widgets.get(env_key)
+                if not input_widget:
+                    logger.warning(f"Could not find input widget for {env_key}")
+                    continue # Should not happen
+
                 value = input_widget.value.strip()
                 # In editor mode, if the value is still masked, keep the old value
                 if self.mode == "editor":
@@ -179,7 +232,11 @@ class ApiKeyEntry(Screen[dict]):
             self.app.pop_screen()
         elif event.button.id and event.button.id.startswith("delete_"):
             # Handle delete button for a specific provider, but ask for confirmation first
-            env_key = event.button.id[len("delete_"):]
+            env_key = self.button_to_env_key.get(event.button.id)
+            if not env_key:
+                self.notify(f"Could not map button {event.button.id} to env_key", severity="error")
+                return
+
             provider_name = None
             for provider in self.providers:
                 if provider["env_key"] == env_key:
@@ -210,12 +267,12 @@ class ApiKeyEntry(Screen[dict]):
                         if input_widget:
                             input_widget.value = ""
                         self.core_app.state.clients.set_client_null(provider_name)
-                        self.notify(f"Deleted API key for {env_key}", severity="info")
+                        self.notify(f"Deleted API key for {provider_name.title()}", severity="info") # Use title case for provider name
                     # Reset pending delete
                     self._pending_delete_env_key = None
                     self._pending_delete_provider_name = None
 
             self._pending_delete_env_key = env_key
             self._pending_delete_provider_name = provider_name
-            prompt = f"Are you sure you want to delete API key for {provider_name}?"
+            prompt = f"Are you sure you want to delete API key for {provider_name.title()}?" # Use title case
             self.app.push_screen(YesNoScreen(prompt), handle_key_delete)

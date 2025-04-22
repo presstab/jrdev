@@ -14,35 +14,107 @@ These steps have been generated as a task list for your prompt.
 
 class StepsScreen(ModalScreen):
     """Modal screen for editing steps JSON"""
+
+    DEFAULT_CSS = """
+    StepsScreen {
+        align: center middle;
+    }
+
+    #steps-container {
+        width: 90%;
+        height: 90%;
+        background: $surface;
+        border: round $accent;
+        padding: 1;
+        layout: vertical;
+    }
+
+    #header {
+        height: 3;
+        padding: 0 1;
+        border-bottom: solid $accent;
+    }
+
+    #header-title {
+        width: 100%;
+        content-align: center middle;
+        text-style: bold;
+        color: $accent;
+    }
+
+    #content-area {
+        height: 1fr; /* Take remaining space */
+        padding: 1; /* Changed */
+        overflow-y: auto;
+    }
+
+    #steps-description {
+        height: auto;
+        margin-bottom: 1;
+        border: round $panel;
+        padding: 0 1; /* Reduced vertical padding */
+    }
+
+    #steps-editor {
+        height: 1fr; /* Take remaining space in content area */
+        margin-bottom: 1;
+        border: round $panel;
+    }
+
+    #reprompt-label {
+        margin-top: 1;
+        text-style: bold;
+    }
+
+    #reprompt-input {
+        height: 5;
+        border: round $panel;
+    }
+
+    #footer {
+        height: 3;
+        padding: 0 1; /* Changed */
+        border-top: solid $accent;
+        align: left middle; /* Align buttons to the left */
+    }
+
+    #footer Button {
+        margin-left: 1;
+    }
+    """
     
     def __init__(self, steps: List[dict]) -> None:
         super().__init__()
         self.steps = steps
         self.future = None
+        self.label_title = Label("Generated Steps", id="header-title")
         self.label_reprompt = Label("Additional Instructions", id="reprompt-label")
         self.textarea_reprompt = TextArea("", id="reprompt-input", language="text")
         self.button_continue = Button("Continue", id="continue-button")
         self.button_save = Button("Save Edits", id="save-button", variant="success")
         self.button_reprompt = Button("Re-Prompt", id="reprompt-button")
         self.button_cancel = Button("Cancel", id="cancel-button", variant="error")
-        self.richlog_description = RichLog(id="steps-dialog")
+        self.richlog_description = RichLog(id="steps-description")
         self.steps_display = TextArea(
                 json.dumps(self.steps, indent=2),
                 id="steps-editor",
                 language="json"
             )
-        self.button_layout = Horizontal(id="button-row")
     
     def compose(self) -> Generator[Any, None, None]:
-        with Vertical(id="steps-dialog"):
-            yield self.richlog_description
-            yield self.steps_display
+        with Vertical(id="steps-container"):
+            with Horizontal(id="header"):
+                yield self.label_title
             
-            # Additional instructions input, hidden by default
-            yield self.label_reprompt
-            yield self.textarea_reprompt
+            with Vertical(id="content-area"):
+                yield self.richlog_description
+                yield self.steps_display
+                
+                # Additional instructions input, hidden by default
+                yield self.label_reprompt
+                yield self.textarea_reprompt
             
-            with self.button_layout:
+            with Horizontal(id="footer"):
                 yield self.button_continue
                 yield self.button_save
                 yield self.button_reprompt
@@ -50,15 +122,10 @@ class StepsScreen(ModalScreen):
     
     def on_mount(self) -> None:
         """Setup the screen on mount"""
-        #self.query_one("#steps-editor").can_focus = False
         self.label_reprompt.display = False
         self.textarea_reprompt.display = False
         self.richlog_description.write(explainer)
         self.richlog_description.wrap = True
-        self.richlog_description.styles.height = "30%"
-        self.steps_display.styles.height = "auto"
-        self.button_layout.styles.height = 1
-
     
     def on_button_pressed(self, event: Button.Pressed) -> None:
         button_id = event.button.id
@@ -98,26 +165,14 @@ class StepsScreen(ModalScreen):
         steps_text = self.query_one("#steps-editor").text
         try:
             edited_steps = json.loads(steps_text)
-            if "steps" not in edited_steps:
-                raise ValueError("Failed to parse steps object")
-            if not isinstance(edited_steps["steps"], list):
-                raise ValueError("Steps must be a list of dictionaries")
-            for step in edited_steps["steps"]:
-                if "operation_type" not in step:
-                    raise ValueError("Missing operation_type")
-                if "filename" not in step:
-                    raise ValueError("Missing filename")
-                if "target_location" not in step:
-                    raise ValueError("Missing target_location")
-                if "description" not in step:
-                    raise ValueError("Missing description")
+            # Basic validation of steps
+            self.validate_steps(edited_steps)
 
             ret = {"choice": "edit", "steps": edited_steps}
             if self.future:
                 self.future.set_result(ret)
             self.dismiss()
         except json.JSONDecodeError:
-            # Could add a popup or error display in future
             self.notify("Invalid JSON format", severity="error")
         except ValueError as e:
             self.notify(str(e), severity="error")
@@ -131,10 +186,29 @@ class StepsScreen(ModalScreen):
 
     def _continue(self) -> None:
         """Continue with existing steps with no changes"""
-        ret = {"choice": "accept", "steps": self.steps}
-        if self.future:
-            self.future.set_result(ret)
-        self.dismiss()
+        # Re-parse the potentially edited steps before continuing
+        steps_text = self.query_one("#steps-editor").text
+        try:
+            current_steps = json.loads(steps_text)
+            self.validate_steps(current_steps)
+            ret = {"choice": "accept", "steps": current_steps}
+            if self.future:
+                self.future.set_result(ret)
+            self.dismiss()
+        except json.JSONDecodeError:
+            self.notify("Invalid JSON format. Cannot continue.", severity="error")
+        except ValueError as e:
+             self.notify(f"Invalid steps format: {e}. Cannot continue.", severity="error")
+
+    def validate_steps(self, current_steps):
+        if "steps" not in current_steps:
+            raise ValueError("Failed to parse steps object")
+        # Perform the same validation as _process_steps
+        if not isinstance(current_steps["steps"], list):
+            raise ValueError("Steps must be a list of dictionaries")
+        for step in current_steps["steps"]:
+            if not all(k in step for k in ["operation_type", "filename", "description"]):
+                raise ValueError("Each step must contain 'operation_type', 'filename', and 'description'")
 
     def _reprompt(self, user_text) -> None:
         """Send an additional prompt back to regenerate new steps"""
