@@ -3,13 +3,13 @@ from textual.app import App
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Input, RadioSet, TextArea
 from textual.worker import Worker, WorkerState
-from textual.events import Event
 from textual.color import Color
 from typing import Any, Generator
 import logging
 from jrdev.core.application import Application
 from jrdev.ui.textual_events import TextualEvents
 from jrdev.ui.textual.code_confirmation_screen import CodeConfirmationScreen
+from jrdev.ui.textual.steps_screen import StepsScreen
 from jrdev.ui.textual.filtered_directory_tree import FilteredDirectoryTree
 from jrdev.ui.textual.api_key_entry import ApiKeyEntry
 from jrdev.ui.textual.model_selection_widget import ModelSelectionWidget
@@ -103,16 +103,7 @@ class JrDevUI(App[None]):
             }
         }
 
-        TaskMonitor, ModelSelectionWidget {
-            scrollbar-background: #1e1e1e;
-            scrollbar-background-hover: #1e1e1e;
-            scrollbar-background-active: #1e1e1e;
-            scrollbar-color: #63f554 30%;
-            scrollbar-color-active: #63f554;
-            scrollbar-color-hover: #63f554 50%;
-        }
-
-        FilteredDirectoryTree {
+        TaskMonitor, ModelSelectionWidget, FilteredDirectoryTree, #diff-display {
             scrollbar-background: #1e1e1e;
             scrollbar-background-hover: #1e1e1e;
             scrollbar-background-active: #1e1e1e;
@@ -228,13 +219,19 @@ class JrDevUI(App[None]):
 
     @on(TextualEvents.ConfirmationRequest)
     def handle_confirmation_request(self, message: TextualEvents.ConfirmationRequest) -> None:
-        """Handle a request for confirmation from the backend"""
+        """Handle a request for code confirmation from the backend"""
         screen = CodeConfirmationScreen(message.prompt_text, message.diff_lines)
         
         # Store the future so we can set the result when the screen is dismissed
         screen.future = message.future
         
         # When the screen is dismissed, the on_screen_resume will be called with the result
+        self.push_screen(screen)
+
+    @on(TextualEvents.StepsRequest)
+    def handle_steps_request(self, message: TextualEvents.StepsRequest):
+        screen = StepsScreen(message.steps)
+        screen.future = message.future
         self.push_screen(screen)
 
     @on(TextualEvents.EnterApiKeys)

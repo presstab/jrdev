@@ -21,7 +21,7 @@ class CodeConfirmationScreen(ModalScreen[Tuple[str, Optional[str]]]):
             
             # Display the diff if we have it
             if self.diff_lines:
-                yield RichLog(id="diff-display", highlight=True, markup=True)
+                yield RichLog(id="diff-display", highlight=False, markup=True)
             
             with Horizontal(id="button-row"):
                 yield Button("Yes [y]", id="yes-button", variant="success")
@@ -31,26 +31,41 @@ class CodeConfirmationScreen(ModalScreen[Tuple[str, Optional[str]]]):
             
             # Create the input but we'll hide it in on_mount
             yield Input(placeholder="Enter your requested changes...", id="request-input")
-    
+
     def on_mount(self) -> None:
         """Setup the screen on mount"""
         # Hide the input field initially
         self.query_one("#request-input").display = False
-        
+
         # Add the diff lines to the RichLog if we have them
         if self.diff_lines:
             diff_log = self.query_one("#diff-display")
             diff_log.height = min(15, len(self.diff_lines) + 2)  # Set a reasonable height
-            
-            # Add each line with appropriate coloring
+
+            # Format each line, stripping existing newlines and escaping Rich markup
+            formatted_lines = []
             for line in self.diff_lines:
+                # Skip None values
+                if line is None:
+                    continue
+
+                # Strip trailing newlines
+                line = line.rstrip('\n\r')
+
+                # Escape Rich markup characters to prevent formatting issues
+                escaped_line = line.replace("[", "\\[").replace("]", "\\]")
+
+                # Format based on line prefix
                 if line.startswith('+'):
-                    diff_log.write(f"[green]{line}[/green]")
+                    formatted_lines.append(f"[green]{escaped_line}[/green]")
                 elif line.startswith('-'):
-                    diff_log.write(f"[red]{line}[/red]")
+                    formatted_lines.append(f"[red]{escaped_line}[/red]")
                 else:
-                    diff_log.write(line)
-    
+                    formatted_lines.append(escaped_line)
+
+            # Join with newlines and write once
+            diff_log.write("\n".join(formatted_lines))
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         button_id = event.button.id
         
