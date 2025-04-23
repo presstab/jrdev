@@ -130,9 +130,13 @@ class JrDevUI(App[None]):
         /* Style the copy button */
         #copy_button {
             height: 1;
-            margin-top: 1;
+            margin-top: 0;
             dock: bottom;
             background: #2a2a2a;
+        }
+        
+        #add_chat_context_button, #add_code_context_button {
+            min-width: 3;
         }
         
         /* Ensure consistent background for all containers and widgets */
