@@ -21,15 +21,60 @@ logger = logging.getLogger("jrdev")
 
 CHAT_ADD_TOOLTIP = "Add file to chat context"
 CHAT_REMOVE_TOOLTIP = "Remove file to chat context"
+CODE_ADD_TOOLTIP = "Add file to code context"
+CODE_REMOVE_TOOLTIP = "Remove file from code context"
+
+class ContextButton(Button):
+    """Custom button for context actions with toggle capability"""
+    def __init__(
+        self,
+        add_label: str,
+        remove_label: str,
+        add_tooltip: str,
+        remove_tooltip: str,
+        *args,
+        **kwargs
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.add_label = add_label
+        self.remove_label = remove_label
+        self.add_tooltip = add_tooltip
+        self.remove_tooltip = remove_tooltip
+        self.is_add_mode = True
+        self._update_display()
+
+    def _update_display(self) -> None:
+        """Update button appearance based on current mode"""
+        self.label = self.add_label if self.is_add_mode else self.remove_label
+        self.tooltip = self.add_tooltip if self.is_add_mode else self.remove_tooltip
+
+    def set_mode(self, is_add_mode: bool) -> None:
+        """Explicitly set the button mode"""
+        self.is_add_mode = is_add_mode
+        self._update_display()
+
+    def toggle_mode(self) -> None:
+        """Flip the current button mode"""
+        self.is_add_mode = not self.is_add_mode
+        self._update_display()
 
 class DirectoryWidget(Widget):
     def __init__(self, core_app: Application, id: Optional[str] = None) -> None:
         super().__init__(id=id)
         self.core_app = core_app
         self.directory_tree = FilteredDirectoryTree("./", core_app)
-        self.button_add_chat_context = Button("+ Chat Ctx", id="add_chat_context_button", classes="sidebar_button", tooltip=CHAT_ADD_TOOLTIP)
-        self.button_add_chat_context.is_add_mode = True
-        self.button_add_code_context = Button("+ Code Ctx", id="add_code_context_button", classes="sidebar_button", tooltip="Add file to code context")
+        self.button_add_chat_context = ContextButton(
+            "+ Chat Ctx", "- Chat Ctx",
+            CHAT_ADD_TOOLTIP, CHAT_REMOVE_TOOLTIP,
+            id="add_chat_context_button",
+            classes="sidebar_button"
+        )
+        self.button_add_code_context = ContextButton(
+            "+ Code Ctx", "- Code Ctx",
+            CODE_ADD_TOOLTIP, CODE_REMOVE_TOOLTIP,
+            id="add_code_context_button",
+            classes="sidebar_button"
+        )
         self.ctx_buttons_active = False
 
     def compose(self) -> ComposeResult:
@@ -51,7 +96,7 @@ class DirectoryWidget(Widget):
         self.directory_tree.styles.width = "100%" # Fill available horizontal space
 
         # Apply consistent styling to buttons within this widget
-        for button in self.query(Button):
+        for button in self.query(ContextButton):
             button.styles.width = "1fr"
             button.styles.height = 1
             button.styles.border = None
@@ -87,9 +132,7 @@ class DirectoryWidget(Widget):
         self.button_add_code_context.disabled = True
 
         if not self.button_add_chat_context.is_add_mode:
-            self.button_add_chat_context.label = "+ Chat Ctx"
-            self.button_add_chat_context.tooltip = CHAT_ADD_TOOLTIP
-            self.button_add_chat_context.is_add_mode = True
+            self.button_add_chat_context.set_mode(True)
 
     @on(DirectoryTree.FileSelected)
     def handle_file_selected(self):
@@ -107,13 +150,9 @@ class DirectoryWidget(Widget):
             return
 
         if rel_path in self.directory_tree.chat_context_paths:
-            self.button_add_chat_context.label = "- Chat Ctx"
-            self.button_add_chat_context.tooltip = CHAT_REMOVE_TOOLTIP
-            self.button_add_chat_context.is_add_mode = False
+            self.button_add_chat_context.set_mode(False)
         else:
-            self.button_add_chat_context.label = "+ Chat Ctx"
-            self.button_add_chat_context.tooltip = CHAT_ADD_TOOLTIP
-            self.button_add_chat_context.is_add_mode = True
+            self.button_add_chat_context.set_mode(True)
 
     @on(Button.Pressed, "#add_chat_context_button")
     def handle_chat_context_button(self):
@@ -137,6 +176,7 @@ class DirectoryWidget(Widget):
                 self.update_highlights()
                 return
             msg = f"Removed {rel_path} from message thread: {chat_thread.thread_id}"
+            self.button_add_chat_context.set_mode(is_add_mode=True)
 
         # Update highlights
         self.update_highlights()
@@ -144,7 +184,6 @@ class DirectoryWidget(Widget):
         # Show notification
         logger.info(msg)
         self.notify(msg, timeout=2)
-
         self.directory_tree.reload()
 
     @on(Button.Pressed, "#add_code_context_button")
@@ -189,20 +228,20 @@ class FilteredDirectoryTree(DirectoryTree):
         try:
             sub_paths = []
             if node.data and node.data.path:
-                # climb the tree to create relative path
-                n = node
-                while n:
-                    sub_paths.insert(0, n.data.path.name)
-                    n = n.parent
-                relative_path = node.data.path.name
-                if sub_paths:
-                    relative_path = f"{os.path.join(*sub_paths)}"
+                try:
+                    current_dir = os.getcwd()
+                    abs_path = str(node.data.path)
+                    relative_path = os.path.relpath(abs_path, current_dir)
+                    # Normalize path separators if necessary (optional, depends on context)
+                    relative_path = relative_path.replace(os.sep, '/')
 
-                # add styling for indexed files
-                if relative_path in self.indexed_paths:
-                    label.stylize("italic green")
-                if relative_path in self.chat_context_paths:
-                    label.stylize("italic blue")
+                    if relative_path in self.indexed_paths:
+                        label.stylize("italic green")
+                    if relative_path in self.chat_context_paths:
+                        label.stylize("italic blue")
+                except ValueError:
+                    # todo Handle cases where paths are on different drives (Windows)
+                    pass
         except ValueError:
             pass
         return label
