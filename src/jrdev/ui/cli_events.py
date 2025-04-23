@@ -220,3 +220,6 @@ class CliEvents(UiWrapper):
 
     def update_task_info(self, worker_id: str, update: dict = None) -> None:
         pass
+
+    def chat_thread_update(self, thread_id):
+        pass

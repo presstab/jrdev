@@ -210,6 +210,9 @@ async def _handle_new_thread(app: Any, args: argparse.Namespace) -> None:
     
     app.ui.print_text(f"Created and switched to new thread: {thread_id}", PrintType.SUCCESS)
 
+    # notify ui of thread change
+    app.ui.chat_thread_update(thread_id)
+
 
 async def _handle_list_threads(app: Any) -> None:
     """List all message threads
@@ -273,6 +276,9 @@ async def _handle_switch_thread(app: Any, args: argparse.Namespace) -> None:
             f"Embedded Files: {len(new_thread.embedded_files)}",
             PrintType.INFO
         )
+
+        # notify ui of thread change
+        app.ui.chat_thread_update(new_thread.thread_id)
     else:
         app.ui.print_text(
             f"{COLORS['RED']}Failed to switch to thread {COLORS['BRIGHT_WHITE']}{thread_id}{COLORS['RESET']}",
@@ -280,6 +286,8 @@ async def _handle_switch_thread(app: Any, args: argparse.Namespace) -> None:
         )
         app.switch_thread(previous_thread)  # Revert to previous thread
 
+        # notify ui of thread change
+        app.ui.chat_thread_update(previous_thread.thread_id)
 
 async def _handle_thread_info(app: Any) -> None:
     """Show information about the current thread

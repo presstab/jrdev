@@ -308,6 +308,11 @@ class JrDevUI(App[None]):
     def handle_model_selected(self, event: RadioSet.Changed):
         self.jrdev.set_model(str(event.pressed.label), send_to_ui=False)
 
+    @on(TextualEvents.ChatThreadUpdate)
+    def handle_chat_update(self, message: TextualEvents.ChatThreadUpdate):
+        """a chat thread has been updated, notify the directory widget to check for context changes"""
+        self.directory_widget.reload_highlights()
+
     @on(TextualEvents.TaskUpdate)
     def handle_task_update(self, message: TextualEvents.TaskUpdate):
         if "input_token_estimate" in message.update:

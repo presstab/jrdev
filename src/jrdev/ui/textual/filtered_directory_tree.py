@@ -64,6 +64,10 @@ class DirectoryWidget(Widget):
         self.directory_tree.update_indexed_paths()
         self.directory_tree.update_chat_context_paths()
 
+    def reload_highlights(self):
+        self.update_highlights()
+        self.directory_tree.reload()
+
     def get_selected_file_rel_path(self):
         # get selected file from directory tree
         if not self.directory_tree.cursor_node.data or not self.directory_tree.cursor_node.data.path:
@@ -81,6 +85,11 @@ class DirectoryWidget(Widget):
         self.ctx_buttons_active = False
         self.button_add_chat_context.disabled = True
         self.button_add_code_context.disabled = True
+
+        if not self.button_add_chat_context.is_add_mode:
+            self.button_add_chat_context.label = "+ Chat Ctx"
+            self.button_add_chat_context.tooltip = CHAT_ADD_TOOLTIP
+            self.button_add_chat_context.is_add_mode = True
 
     @on(DirectoryTree.FileSelected)
     def handle_file_selected(self):

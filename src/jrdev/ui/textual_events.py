@@ -36,6 +36,11 @@ class TextualEvents(UiWrapper):
         def __init__(self, model):
             super().__init__()
             self.text = model
+
+    class ChatThreadUpdate(Message):
+        def __init__(self, thread_id: str):
+            super().__init__()
+            self.thread_id = thread_id
             
     class ConfirmationRequest(Message):
         def __init__(self, prompt_text: str, future: asyncio.Future, diff_lines: Optional[List[str]] = None):
@@ -127,3 +132,9 @@ class TextualEvents(UiWrapper):
             model: llm model selected in state
         """
         self.app.post_message(self.ModelChanged(model))
+
+    def chat_thread_update(self, thread_id):
+        """
+        Signal to UI that a chat thread has been updated
+        """
+        self.app.post_message(self.ChatThreadUpdate(thread_id))
