@@ -2,10 +2,9 @@ import asyncio
 import json
 import os
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Set
 from dotenv import load_dotenv
 
-from jrdev.colors import Colors
 from jrdev.core.clients import APIClients
 from jrdev.core.commands import Command, CommandHandler
 from jrdev.core.state import AppState
@@ -184,6 +183,23 @@ class Application:
     def create_thread(self, thread_id="") -> str:
         """Create a new thread"""
         return self.state.create_thread(thread_id)
+
+    def stage_code_context(self, file_path) -> None:
+        """Stage files that will be added as context to the next /code command"""
+        self.state.stage_code_context(file_path)
+
+    def remove_staged_code_context(self, file_path) -> bool:
+        """Remove staged files"""
+        return self.state.remove_staged_code_context(file_path)
+
+    def get_code_context(self) -> List[str]:
+        """Files that are staged for code command"""
+        return list(self.state.get_code_context())
+
+    def clear_code_context(self) -> None:
+        """Clear staged code context"""
+        self.state.clear_code_context()
+        self.ui.code_context_update()
 
     async def send_message(self, msg_thread, content, writepath=None, print_stream=True, worker_id=None):
         """

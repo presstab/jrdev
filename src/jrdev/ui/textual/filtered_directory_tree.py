@@ -108,6 +108,7 @@ class DirectoryWidget(Widget):
     def update_highlights(self):
         self.directory_tree.update_indexed_paths()
         self.directory_tree.update_chat_context_paths()
+        self.directory_tree.update_code_context_paths()
 
     def reload_highlights(self):
         self.update_highlights()
@@ -119,6 +120,11 @@ class DirectoryWidget(Widget):
             return None
 
         full_path = self.directory_tree.cursor_node.data.path
+
+        if not full_path.is_file():
+            # not a valid path shouldn't have gotten this far
+            logger.error(f"get_selected_file_rel_path: {full_path} is not a valid file")
+            return None
 
         # Get the relative path
         current_dir = os.getcwd()
@@ -149,15 +155,18 @@ class DirectoryWidget(Widget):
         if not rel_path:
             return
 
-        if rel_path in self.directory_tree.chat_context_paths:
-            self.button_add_chat_context.set_mode(False)
-        else:
-            self.button_add_chat_context.set_mode(True)
+        # toggle button state
+        self.button_add_chat_context.set_mode(is_add_mode=rel_path not in self.directory_tree.chat_context_paths)
+        self.button_add_code_context.set_mode(is_add_mode=rel_path not in self.directory_tree.code_context_paths)
 
     @on(Button.Pressed, "#add_chat_context_button")
     def handle_chat_context_button(self):
         if not self.ctx_buttons_active:
             return
+
+        # selection will clear after this so disable buttons
+        self.button_add_code_context.disabled = True
+        self.button_add_chat_context.disabled = True
 
         rel_path = self.get_selected_file_rel_path()
         if not rel_path:
@@ -191,17 +200,45 @@ class DirectoryWidget(Widget):
         if not self.ctx_buttons_active:
             return
 
+        # selection will clear after this so disable buttons
+        self.button_add_code_context.disabled = True
+        self.button_add_chat_context.disabled = True
+
         rel_path = self.get_selected_file_rel_path()
         if not rel_path:
             return
 
-        # todo no current way to add context to code command yet
+        msg = f"Staged {rel_path} for next /code operation."
+        if self.button_add_code_context.is_add_mode:
+            self.core_app.stage_code_context(rel_path)
+        else:
+            success = self.core_app.remove_staged_code_context(rel_path)
+            if success:
+                msg = f"Removed {rel_path} from staged code context"
+            else:
+                msg = f"Failed to remove {rel_path} from staged code context"
+                logger.info(msg)
+                self.notify(msg, timeout=2)
+                self.update_highlights()
+                return
+
+        # update button mode - should always be add mode after this
+        self.button_add_code_context.set_mode(is_add_mode=True)
+
+        # Update highlights
+        self.update_highlights()
+
+        # Show notification
+        logger.info(msg)
+        self.notify(msg, timeout=2)
+        self.directory_tree.reload()
 
 class FilteredDirectoryTree(DirectoryTree):
     def __init__(self, path: str, core_app: Application):
         super().__init__(path)
         self.indexed_paths = []
         self.chat_context_paths = []
+        self.code_context_paths = []
         self.core_app = core_app
         self.state = core_app.state
 
@@ -222,6 +259,9 @@ class FilteredDirectoryTree(DirectoryTree):
         chat_thread:MessageThread = self.core_app.get_current_thread()
         self.chat_context_paths = chat_thread.get_context_paths()
 
+    def update_code_context_paths(self):
+        self.code_context_paths = self.core_app.get_code_context()
+
     def render_label(self, node: TreeNode[DirEntry], base_style: Style, style: Style) -> Text:
         label = super().render_label(node, base_style, style)
         root_path = self.PATH(self.path)
@@ -239,6 +279,9 @@ class FilteredDirectoryTree(DirectoryTree):
                         label.stylize("italic green")
                     if relative_path in self.chat_context_paths:
                         label.stylize("italic blue")
+                    if relative_path in self.code_context_paths:
+                        label.stylize("italic red")
+
                 except ValueError:
                     # todo Handle cases where paths are on different drives (Windows)
                     pass

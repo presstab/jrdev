@@ -70,6 +70,12 @@ class UiWrapper:
         """
         raise NotImplementedError("Subclasses must implement chat_thread_update")
 
+    def code_context_update(self):
+        """
+        Signal to the UI that code context has been updated
+        """
+        raise NotImplementedError("Subclasses must implement code_context_update")
+
     def update_task_info(self, worker_id: str, update: dict = None) -> None:
         """
         Send updates to the UI about worker task

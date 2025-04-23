@@ -2,7 +2,7 @@ import asyncio
 import uuid
 import os
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from jrdev.file_utils import JRDEV_DIR
 from jrdev.messages.thread import MessageThread
@@ -39,7 +39,7 @@ class AppState:
         }
 
         # Context management
-        self.context: List[str] = []
+        self.context_code: Set[str] = set()
         self.use_project_context: bool = True
         self.project_files: Dict[str, str] = {
             "overview": f"{JRDEV_DIR}jrdev_overview.md",
@@ -76,6 +76,26 @@ class AppState:
             return True
         return False
 
+    # Code Command Context
+    def stage_code_context(self, file_path) -> None:
+        """Stage files that will be added as context to the next /code command"""
+        self.context_code.add(file_path)
+
+    def get_code_context(self) -> Set[str]:
+        """Files that are staged for code command"""
+        return self.context_code
+
+    def clear_code_context(self) -> None:
+        """Clear staged code context"""
+        self.context_code.clear()
+
+    def remove_staged_code_context(self, file_path) -> bool:
+        """Remove staged code context"""
+        if file_path not in self.context_code:
+            return False
+        self.context_code.remove(file_path)
+        return True
+
     # Task management
     def add_task(self, task_id: str, task_info: Dict[str, Any]) -> None:
         """Register a background task"""
@@ -100,4 +120,4 @@ class AppState:
 
     def __repr__(self) -> str:
         thread = self.get_current_thread()
-        return f"<AppState:\nModel: {self.model}\nActive thread: {self.active_thread}\nThread count: {len(self.threads)}\nMessages in thread: {len(thread.messages)}\nContext files: {len(self.context)}\nActive tasks: {len(self.active_tasks)}\nClients initialized: {self.clients.is_initialized() if self.clients else False}\nRunning: {self.running}\n>"
+        return f"<AppState:\nModel: {self.model}\nActive thread: {self.active_thread}\nThread count: {len(self.threads)}\nMessages in thread: {len(thread.messages)}\nContext files: {len(self.context_code)}\nActive tasks: {len(self.active_tasks)}\nClients initialized: {self.clients.is_initialized() if self.clients else False}\nRunning: {self.running}\n>"

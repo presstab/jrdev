@@ -223,3 +223,6 @@ class CliEvents(UiWrapper):
 
     def chat_thread_update(self, thread_id):
         pass
+
+    def code_context_update(self):
+        pass

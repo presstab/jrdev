@@ -313,6 +313,11 @@ class JrDevUI(App[None]):
         """a chat thread has been updated, notify the directory widget to check for context changes"""
         self.directory_widget.reload_highlights()
 
+    @on(TextualEvents.CodeContextUpdate)
+    def handle_code_context_update(self, message: TextualEvents.CodeContextUpdate):
+        """The staged code context has been updated, notify directory widget to check for context changes"""
+        self.directory_widget.reload_highlights()
+
     @on(TextualEvents.TaskUpdate)
     def handle_task_update(self, message: TextualEvents.TaskUpdate):
         if "input_token_estimate" in message.update:
