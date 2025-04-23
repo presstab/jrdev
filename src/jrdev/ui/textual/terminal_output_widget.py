@@ -1,12 +1,8 @@
 from textual import events, on
 from textual.app import ComposeResult
-from textual.containers import Vertical
-from textual.document._document import Selection
 from textual.widget import Widget
-from textual.widgets import Label, Button, TextArea
-from textual.color import Color
-from collections import defaultdict, OrderedDict
-from typing import Any, Dict, List, Optional
+from textual.widgets import Button
+from typing import Optional
 import logging
 import pyperclip
 
@@ -15,11 +11,30 @@ from jrdev.ui.textual.terminal_text_area import TerminalTextArea
 logger = logging.getLogger("jrdev")
 
 class TerminalOutputWidget(Widget):
+    # Default compose stacks vertically, which is fine.
+    # Using Vertical explicitly offers more control if needed later.
+    DEFAULT_CSS = """
+    TerminalOutputWidget {
+        /* Layout for children: Text Area grows, Button stays at bottom */
+        layout: vertical;
+    }
+    #terminal_output {
+        height: 1fr; /* Ensure text area takes available vertical space */
+        width: 100%;
+        border: none; /* Confirm no border */
+    }
+    #copy_button {
+        height: 1; /* Fixed height */
+        width: auto;
+        align-horizontal: left;
+        dock: bottom; /* Keep button at the bottom */
+    }
+    """
+
     def __init__(self, id: Optional[str] = None) -> None:
         super().__init__(id=id)
         self.terminal_output = TerminalTextArea(id="terminal_output", language="plaintext")
         self.copy_button = Button(label="Copy Selection", id="copy_button")
-        self.copy_button.on_click = self.copy_to_clipboard
 
     def compose(self) -> ComposeResult:
         yield self.terminal_output
@@ -27,11 +42,8 @@ class TerminalOutputWidget(Widget):
 
     async def on_mount(self) -> None:
         self.can_focus = False
-        self.terminal_output.can_focus = False
-        self.copy_button.can_focus = False
-
-        self.terminal_output.styles.border = "none"
-
+        self.terminal_output.can_focus = True
+        self.copy_button.can_focus = True
         self.terminal_output.soft_wrap = True
         self.terminal_output.read_only = True
         self.terminal_output.show_line_numbers = False
