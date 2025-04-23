@@ -2,10 +2,9 @@ import asyncio
 import json
 import os
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Set
 from dotenv import load_dotenv
 
-from jrdev.colors import Colors
 from jrdev.core.clients import APIClients
 from jrdev.core.commands import Command, CommandHandler
 from jrdev.core.state import AppState
@@ -185,6 +184,23 @@ class Application:
         """Create a new thread"""
         return self.state.create_thread(thread_id)
 
+    def stage_code_context(self, file_path) -> None:
+        """Stage files that will be added as context to the next /code command"""
+        self.state.stage_code_context(file_path)
+
+    def remove_staged_code_context(self, file_path) -> bool:
+        """Remove staged files"""
+        return self.state.remove_staged_code_context(file_path)
+
+    def get_code_context(self) -> List[str]:
+        """Files that are staged for code command"""
+        return list(self.state.get_code_context())
+
+    def clear_code_context(self) -> None:
+        """Clear staged code context"""
+        self.state.clear_code_context()
+        self.ui.code_context_update()
+
     async def send_message(self, msg_thread, content, writepath=None, print_stream=True, worker_id=None):
         """
         Send a message to the LLM with default behavior.
@@ -300,11 +316,25 @@ class Application:
         model_names = self.get_model_names()
         if model in model_names:
             self.state.model = model
+            # Persist the selected model to JRDEV_DIR/model_profiles.json
+            config_path = os.path.join(JRDEV_DIR, "model_profiles.json")
+            try:
+                data = {}
+                if os.path.exists(config_path):
+                    with open(config_path, "r") as f:
+                        data = json.load(f)
+                data['chat_model'] = model
+                os.makedirs(os.path.dirname(config_path), exist_ok=True)
+                with open(config_path, "w") as f:
+                    json.dump(data, f, indent=2)
+            except Exception as e:
+                self.logger.error(f"Error saving chat_model to config: {e}")
             if send_to_ui:
                 self.ui.model_changed(model)
 
     async def update_model_names_cache(self):
         """Update the model names cache in the background."""
+
         try:
             # Get current models from API
             models = await fetch_venice_models(client=self.state.clients.venice)

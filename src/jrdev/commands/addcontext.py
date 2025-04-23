@@ -71,8 +71,7 @@ async def handle_addcontext(app: Any, args: List[str], worker_id: str) -> None:
                 continue
 
             # Add the relative path to the app's context array
-            msg_thread = app.get_current_thread()
-            msg_thread.add_new_context(rel_path)
+            current_thread.add_new_context(rel_path)
 
             app.ui.print_text(f"Added: {rel_path}", PrintType.SUCCESS)
             files_added += 1
@@ -86,5 +85,6 @@ async def handle_addcontext(app: Any, args: List[str], worker_id: str) -> None:
         if files_skipped > 0:
             app.ui.print_text(f"Skipped {files_skipped} file(s)", PrintType.WARNING)
         app.ui.print_text(f"Total files in context: {len(app.get_current_thread().context)}", PrintType.INFO)
+        app.ui.chat_thread_update(current_thread.thread_id)
     else:
         app.ui.print_text("No files were added to context", PrintType.ERROR)

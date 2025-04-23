@@ -30,6 +30,22 @@ class MessageThread:
         self.context.add(file_path)
         self.metadata["last_modified"] = datetime.now()
 
+    def remove_context(self, file_path) -> bool:
+        if file_path not in self.context:
+            return False
+        self.context.remove(file_path)
+        return True
+
+    def get_context_paths(self):
+        """Returns current relative file paths in the thread's context (including embedded)"""
+        context_paths = []
+        for p in self.context:
+            context_paths.append(p)
+        for p in self.embedded_files:
+            if p not in context_paths:
+                context_paths.append(p)
+        return context_paths
+
     def add_embedded_files(self, files):
         """After a message is sent, the active context files become embedded into a previous message"""
         for file in files:

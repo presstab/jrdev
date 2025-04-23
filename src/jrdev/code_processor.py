@@ -27,6 +27,10 @@ class CodeProcessor:
         self.worker_id = worker_id
         self.sub_task_count = 0
 
+        # get custom user set code context, which should be cleared from app state after fetching
+        self.user_context = app.get_code_context()
+        app.clear_code_context()
+
     async def process(self, user_task: str) -> None:
         """
         The main orchestration method.
@@ -54,6 +58,8 @@ class CodeProcessor:
         """
         # Use MessageBuilder for consistent message construction
         builder = MessageBuilder(self.app)
+        for file in self.user_context:
+            builder.add_file(file)
         builder.start_user_section(f"The user is seeking guidance for this task to complete: {user_task}")
         builder.load_user_prompt("analyze_task_return_getfiles")
         builder.add_project_files()
@@ -88,103 +94,104 @@ class CodeProcessor:
             # use a fast model to parse response and see if it is salvageable
             salvaged_response = await self.salvage_get_files(response_text)
             files_to_send = requested_files(salvaged_response)
-            if not files_to_send:
+            if not files_to_send and not self.user_context:
                 raise Exception("Get files failed")
-        if files_to_send:
-            self.app.logger.info(f"File request detected: {files_to_send}")
+        if self.user_context:
+            self.app.logger.info(f"User context added: {self.user_context}")
+        for file in self.user_context:
+            if file not in files_to_send:
+                files_to_send.append(file)
 
-            # Check that included files are sufficient
-            files_to_send = await self.ask_files_sufficient(files_to_send, user_task)
+        # Check that included files are sufficient
+        files_to_send = await self.ask_files_sufficient(files_to_send, user_task)
 
-            # Send requested files and request STEPS to be created
-            self.app.logger.info(f"File request detected: {files_to_send}")
-            file_response = await self.send_file_request(files_to_send, user_task, response_text)
-            steps = None
-            try:
-                steps = await self.parse_steps(file_response, files_to_send)
-                if "steps" not in steps or not steps["steps"]:
-                    raise Exception("No valid steps found in response.")
-            except Exception as e:
-                self.app.logger.error(f"Failed to parse steps\nerr: {e}\nsteps:\n{file_response}")
-                raise
+        # Send requested files and request STEPS to be created
+        self.app.logger.info(f"File request detected: {files_to_send}")
+        file_response = await self.send_file_request(files_to_send, user_task, response_text)
+        steps = None
+        try:
+            steps = await self.parse_steps(file_response, files_to_send)
+            if "steps" not in steps or not steps["steps"]:
+                raise Exception("No valid steps found in response.")
+        except Exception as e:
+            self.app.logger.error(f"Failed to parse steps\nerr: {e}\nsteps:\n{file_response}")
+            raise
 
-            # Prompt user to accept or edit steps
-            user_result = await self.app.ui.prompt_steps(steps)
-            user_choice = user_result.get("choice")
-            if user_choice == "edit" or user_result == "accept":
-                steps = user_result.get("steps")
-            elif user_choice == "cancel":
-                raise CodeTaskCancelled()
-            elif user_choice == "reprompt":
-                additional_prompt = user_result.get("prompt")
-                raise Reprompt(additional_prompt)
+        # Prompt user to accept or edit steps
+        user_result = await self.app.ui.prompt_steps(steps)
+        user_choice = user_result.get("choice")
+        if user_choice == "edit" or user_result == "accept":
+            steps = user_result.get("steps")
+        elif user_choice == "cancel":
+            raise CodeTaskCancelled()
+        elif user_choice == "reprompt":
+            additional_prompt = user_result.get("prompt")
+            raise Reprompt(additional_prompt)
 
-            print_steps(self.app, steps)
+        print_steps(self.app, steps)
 
-            # Process each step (first pass)
-            completed_steps = []
-            changed_files: Set[str] = set()
-            failed_steps = []
-            for i, step in enumerate(steps["steps"]):
-                print_steps(self.app, steps, completed_steps, current_step=i)
-                self.app.ui.print_text(
-                    f"Working on step {i + 1}: {step.get('operation_type')} for {step.get('filename')}",
-                    PrintType.PROCESSING
-                )
+        # Process each step (first pass)
+        completed_steps = []
+        changed_files: Set[str] = set()
+        failed_steps = []
+        for i, step in enumerate(steps["steps"]):
+            print_steps(self.app, steps, completed_steps, current_step=i)
+            self.app.ui.print_text(
+                f"Working on step {i + 1}: {step.get('operation_type')} for {step.get('filename')}",
+                PrintType.PROCESSING
+            )
 
-                # create list of files to send for the coding task
-                coding_files = files_to_send
-                for file in changed_files:
-                    if file not in coding_files:
-                        coding_files.append(file)
+            # create list of files to send for the coding task
+            coding_files = files_to_send
+            for file in changed_files:
+                if file not in coding_files:
+                    coding_files.append(file)
 
-                # send coding task to LLM
-                new_changes = await self.complete_step(step, user_task, coding_files)
-                if new_changes:
-                    completed_steps.append(i)
-                    changed_files.update(new_changes)
-                else:
-                    failed_steps.append((i, step))
-
-            # Second pass for any steps that did not succeed on the first try.
-            for idx, step in failed_steps:
-                self.app.ui.print_text(f"Retrying step {idx + 1}", PrintType.PROCESSING)
-                print_steps(self.app, steps, completed_steps, current_step=idx)
-                new_changes = await self.complete_step(step, user_task, files_to_send)
-                if new_changes:
-                    completed_steps.append(idx)
-                    changed_files.update(new_changes)
-
-            print_steps(self.app, steps, completed_steps)
-            if changed_files:
-                review_response = await self.review_changes(user_task, files_to_send, changed_files)
-                try:
-                    json_content = cutoff_string(review_response, "```json", "```")
-                    review = json.loads(json_content)
-                    review_passed = review.get("success", False)
-                    if not review_passed:
-                        # send review comments back to the analysis
-                        reason = review.get("reason", None)
-                        action = review.get("action", None)
-                        if reason and action:
-                            change_request = (f"The user requested changes and an attempt was made to fulfill the change request. The reviewer determined that the changes "
-                                              f"failed because {reason}. The reviewer requests that this action be taken to complete the task: {action}. This is the user task: {user_task}")
-                            try:
-                                await self.process(change_request)
-                            except CodeTaskCancelled:
-                                raise
-                        else:
-                            self.app.logger.info(f"Malformed change request from reviewer:\n{review}")
-
-                except Exception as e:
-                    # todo try again?
-                    self.app.logger.error(f"failed to parse review: {review_response}")
-
-                await self.validate_changed_files(changed_files)
+            # send coding task to LLM
+            new_changes = await self.complete_step(step, user_task, coding_files)
+            if new_changes:
+                completed_steps.append(i)
+                changed_files.update(new_changes)
             else:
-                self.app.logger.info("No files were changed during processing.")
+                failed_steps.append((i, step))
+
+        # Second pass for any steps that did not succeed on the first try.
+        for idx, step in failed_steps:
+            self.app.ui.print_text(f"Retrying step {idx + 1}", PrintType.PROCESSING)
+            print_steps(self.app, steps, completed_steps, current_step=idx)
+            new_changes = await self.complete_step(step, user_task, files_to_send)
+            if new_changes:
+                completed_steps.append(idx)
+                changed_files.update(new_changes)
+
+        print_steps(self.app, steps, completed_steps)
+        if changed_files:
+            review_response = await self.review_changes(user_task, files_to_send, changed_files)
+            try:
+                json_content = cutoff_string(review_response, "```json", "```")
+                review = json.loads(json_content)
+                review_passed = review.get("success", False)
+                if not review_passed:
+                    # send review comments back to the analysis
+                    reason = review.get("reason", None)
+                    action = review.get("action", None)
+                    if reason and action:
+                        change_request = (f"The user requested changes and an attempt was made to fulfill the change request. The reviewer determined that the changes "
+                                          f"failed because {reason}. The reviewer requests that this action be taken to complete the task: {action}. This is the user task: {user_task}")
+                        try:
+                            await self.process(change_request)
+                        except CodeTaskCancelled:
+                            raise
+                    else:
+                        self.app.logger.info(f"Malformed change request from reviewer:\n{review}")
+
+            except Exception as e:
+                # todo try again?
+                self.app.logger.error(f"failed to parse review: {review_response}")
+
+            await self.validate_changed_files(changed_files)
         else:
-            self.app.logger.info("No file changes were requested by the LLM response.")
+            self.app.logger.info("No files were changed during processing.")
 
     async def complete_step(self, step: Dict, user_task: str, files_to_send: List[str], retry_message: str = None) -> List[str]:
         """

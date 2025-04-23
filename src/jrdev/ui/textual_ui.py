@@ -1,3 +1,5 @@
+import copy
+
 from textual import on
 from textual.app import App
 from textual.containers import Horizontal, Vertical
@@ -10,7 +12,7 @@ from jrdev.core.application import Application
 from jrdev.ui.textual_events import TextualEvents
 from jrdev.ui.textual.code_confirmation_screen import CodeConfirmationScreen
 from jrdev.ui.textual.steps_screen import StepsScreen
-from jrdev.ui.textual.filtered_directory_tree import FilteredDirectoryTree
+from jrdev.ui.textual.filtered_directory_tree import DirectoryWidget, FilteredDirectoryTree
 from jrdev.ui.textual.api_key_entry import ApiKeyEntry
 from jrdev.ui.textual.model_selection_widget import ModelSelectionWidget
 from jrdev.ui.textual.task_monitor import TaskMonitor
@@ -24,13 +26,8 @@ logger = logging.getLogger("jrdev")
 
 class JrDevUI(App[None]):
     CSS = """
-        TextArea {
-            scrollbar-background: #1e1e1e;
-            scrollbar-background-hover: #1e1e1e;
-            scrollbar-background-active: #1e1e1e;
-            scrollbar-color: #63f554 30%;
-            scrollbar-color-active: #63f554;
-            scrollbar-color-hover: #63f554 50%;
+        Screen {
+            background: #1e1e1e;
         }
         Button {
             background: #2a2a2a;
@@ -42,6 +39,10 @@ class JrDevUI(App[None]):
             padding: 0 0 0 0;
         }
         Button:hover {
+            background: #656565;
+            border: none;
+        }
+        #copy_button:hover {
             background: #656565;
             border: none;
         }
@@ -61,6 +62,7 @@ class JrDevUI(App[None]):
         RadioSet {
             border: tall $border-blurred;
             background: #1e1e1e;
+            border-title-background: #1e1e1e;
             padding: 0;
             height: auto;
             width: auto;
@@ -103,13 +105,56 @@ class JrDevUI(App[None]):
             }
         }
 
-        TaskMonitor, ModelSelectionWidget, FilteredDirectoryTree, #diff-display {
+        /* Apply consistent scrollbar styling */
+        TaskMonitor, ModelSelectionWidget, #diff-display, TerminalTextArea, #cmd_input, DirectoryTree {
             scrollbar-background: #1e1e1e;
             scrollbar-background-hover: #1e1e1e;
             scrollbar-background-active: #1e1e1e;
             scrollbar-color: #63f554 30%;
             scrollbar-color-active: #63f554;
             scrollbar-color-hover: #63f554 50%;
+        }
+        /* Make the container widget flexible */
+        TerminalOutputWidget {
+            height: 1fr;
+            background: #1e1e1e;
+            border-title-background: #1e1e1e;
+        }
+        /* Make the inner text area fill its parent and remove border */
+        #terminal_output {
+             height: 1fr;
+             border: none;
+             background: #1e1e1e;
+             border-title-background: #1e1e1e;
+        }
+        /* Style the copy button */
+        #copy_button {
+            height: 1;
+            margin-top: 0;
+            dock: bottom;
+            background: #2a2a2a;
+        }
+        
+        #add_chat_context_button, #add_code_context_button {
+            min-width: 3;
+        }
+        
+        /* Ensure consistent background for all containers and widgets */
+        Vertical, Horizontal, DirectoryWidget, FilteredDirectoryTree, TaskMonitor, 
+        ModelSelectionWidget, ButtonContainer, DirectoryTree {
+            background: #1e1e1e;
+            border-title-background: #1e1e1e;
+        }
+        
+        /* Ensure consistent background for directory widget components */
+        #directory_widget_container, #directory_widget_buttons {
+            background: #1e1e1e;
+            border-title-background: #1e1e1e;
+        }
+        
+        /* Ensure all widgets with borders have matching border backgrounds */
+        #task_monitor, #cmd_input, #model_list, #directory_widget, #button_container {
+            border-title-background: #1e1e1e;
         }
     """
     def compose(self) -> Generator[Any, None, None]:
@@ -121,10 +166,11 @@ class JrDevUI(App[None]):
         self.vlayout_terminal = Vertical()
         self.vlayout_right = Vertical()
         self.vlayout_left = Vertical()
-        self.terminal_output_widget = TerminalOutputWidget()
+        # Give the widget an ID for easier CSS targeting
+        self.terminal_output_widget = TerminalOutputWidget(id="terminal_output_container")
         self.terminal_input = CommandTextArea(placeholder="Enter Command", id="cmd_input")
         self.task_monitor = TaskMonitor()
-        self.directory_tree = FilteredDirectoryTree("./", self.jrdev.state)
+        self.directory_widget = DirectoryWidget(core_app=self.jrdev, id="directory_widget")
         self.model_list = ModelSelectionWidget(id="model_list")
         self.task_count = 0
         self.button_container = ButtonContainer()
@@ -132,29 +178,27 @@ class JrDevUI(App[None]):
         with Horizontal():
             with self.vlayout_left:
                 yield self.button_container
-            with self.vlayout_terminal:
+            with self.vlayout_terminal: # Manages vertical distribution
                 yield self.task_monitor
-                yield self.terminal_output_widget
+                yield self.terminal_output_widget # Takes flexible space (1fr)
                 yield self.terminal_input
             with self.vlayout_right:
-                yield self.directory_tree
+                yield self.directory_widget
                 yield self.model_list
 
     async def on_mount(self) -> None:
-        self.terminal_output_widget.styles = self.directory_tree.styles
         self.terminal_output_widget.border_title = "JrDev Terminal"
         self.terminal_output_widget.styles.border = ("round", Color.parse("#63f554"))
         self.terminal_input.focus()
         self.terminal_input.border_title = "Command Input"
         self.terminal_input.styles.border = ("round", Color.parse("#63f554"))
 
-        # directory tree
-        self.directory_tree.border_title = "Project Files"
-        self.directory_tree.styles.border = ("round", Color.parse("#63f554"))
-        # make aware of indexed paths
-        self.directory_tree.update_indexed_paths()
+        # directory widget styling
+        self.directory_widget.border_title = "Project Files"
+        self.directory_widget.styles.border = ("round", Color.parse("#63f554"))
+        self.directory_widget.styles.height = "50%"
+        self.directory_widget.update_highlights()
 
-        self.button_container.styles = self.directory_tree.styles
         self.button_container.border_title = "Settings"
         self.button_container.styles.border = ("round", Color.parse("#63f554"))
 
@@ -162,23 +206,22 @@ class JrDevUI(App[None]):
         self.vlayout_terminal.styles.width = "65%"
         self.vlayout_left.styles.width = "10%"
 
-        # Terminal Layout Splits
-        self.task_monitor.styles.height = "25%"
-
-        self.terminal_input.styles.height = 5
+        # --- Vertical Layout Splits within vlayout_terminal ---
+        self.task_monitor.styles.height = "25%" # Fixed percentage
+        self.terminal_input.styles.height = 5   # Fixed rows
 
         await self.jrdev.initialize_services()
 
         models = self.jrdev.get_models()
-        
+
         # Set up the model list widget with the models
         await self.model_list.setup_models(models)
-        
+
         # Set the current model as selected if available
         if self.jrdev.state.model:
             self.model_list.set_model_selected(self.jrdev.state.model)
 
-        self.model_list.styles.height = "50%"
+        self.model_list.styles.height = "50%" # Relative to parent vlayout_right
 
         self.jrdev.setup_complete()
 
@@ -223,10 +266,10 @@ class JrDevUI(App[None]):
     def handle_confirmation_request(self, message: TextualEvents.ConfirmationRequest) -> None:
         """Handle a request for code confirmation from the backend"""
         screen = CodeConfirmationScreen(message.prompt_text, message.diff_lines)
-        
+
         # Store the future so we can set the result when the screen is dismissed
         screen.future = message.future
-        
+
         # When the screen is dismissed, the on_screen_resume will be called with the result
         self.push_screen(screen)
 
@@ -269,6 +312,16 @@ class JrDevUI(App[None]):
     def handle_model_selected(self, event: RadioSet.Changed):
         self.jrdev.set_model(str(event.pressed.label), send_to_ui=False)
 
+    @on(TextualEvents.ChatThreadUpdate)
+    def handle_chat_update(self, message: TextualEvents.ChatThreadUpdate):
+        """a chat thread has been updated, notify the directory widget to check for context changes"""
+        self.directory_widget.reload_highlights()
+
+    @on(TextualEvents.CodeContextUpdate)
+    def handle_code_context_update(self, message: TextualEvents.CodeContextUpdate):
+        """The staged code context has been updated, notify directory widget to check for context changes"""
+        self.directory_widget.reload_highlights()
+
     @on(TextualEvents.TaskUpdate)
     def handle_task_update(self, message: TextualEvents.TaskUpdate):
         if "input_token_estimate" in message.update:
@@ -296,7 +349,7 @@ class JrDevUI(App[None]):
             self.task_monitor.set_task_finished(message.worker_id)
 
 
-        
+
     @on(TextualEvents.ExitRequest)
     def handle_exit_request(self, message: TextualEvents.ExitRequest) -> None:
         """Handle a request to exit the application"""

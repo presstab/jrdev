@@ -129,6 +129,9 @@ async def handle_compact(app: Any, args: List[str], worker_id: str) -> None:
                 chat_thread.set_compacted(new_messages)
                 app.ui.print_text("Conversation successfully compacted to two messages.", PrintType.SUCCESS)
 
+                # notify ui of thread change
+                app.ui.chat_thread_update(chat_thread.thread_id)
+
             except json.JSONDecodeError:
                 app.ui.print_text(
                     "Error: Response is not valid JSON. Unable to compact conversation.",
