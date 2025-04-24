@@ -204,9 +204,7 @@ async def _handle_git_pr_common(
             PrintType.PROCESSING,
         )
         # mypy: ignore[no-untyped-call]
-        response = await stream_request(
-            app, app.state.model, messages, print_stream=True
-        )
+        response = await stream_request(app, app.state.model, messages, task_id=worker_id, print_stream=True)
         return str(response) if response is not None else None
     except Exception as e:
         # Log detailed error context with traceback
