@@ -26,6 +26,7 @@ class CodeProcessor:
         self.profile_manager = app.profile_manager()
         self.worker_id = worker_id
         self.sub_task_count = 0
+        self._accept_all_active = False  # Track if 'Accept All' is active for this instance
 
         # get custom user set code context, which should be cleared from app state after fetching
         self.user_context = app.get_code_context()
@@ -117,17 +118,31 @@ class CodeProcessor:
             self.app.logger.error(f"Failed to parse steps\nerr: {e}\nsteps:\n{file_response}")
             raise
 
-        # Prompt user to accept or edit steps
-        user_result = await self.app.ui.prompt_steps(steps)
-        user_choice = user_result.get("choice")
-        if user_choice == "edit" or user_result == "accept":
-            steps = user_result.get("steps")
-        elif user_choice == "cancel":
-            raise CodeTaskCancelled()
-        elif user_choice == "reprompt":
-            additional_prompt = user_result.get("prompt")
-            raise Reprompt(additional_prompt)
+        # Prompt user to accept or edit steps, unless accept_all is active
+        if self._accept_all_active:
+            self.app.ui.print_text("Accept All is active, skipping steps confirmation.", PrintType.INFO)
+            # Keep existing steps, proceed as if accepted
+        else:
+            user_result = await self.app.ui.prompt_steps(steps)
+            user_choice = user_result.get("choice")
 
+            if user_choice == "edit":
+                steps = user_result.get("steps") # Update steps if edited
+            elif user_choice == "accept":
+                steps = user_result.get("steps") # Update steps if edited (though unlikely for accept)
+            elif user_choice == "accept_all":
+                steps = user_result.get("steps") # Update steps if edited
+                self._accept_all_active = True # Set the flag for future operations
+                # Proceed as if accepted
+            elif user_choice == "cancel":
+                raise CodeTaskCancelled()
+            elif user_choice == "reprompt":
+                additional_prompt = user_result.get("prompt")
+                raise Reprompt(additional_prompt)
+            else: # Handle unexpected choice
+                 raise Exception(f"Unexpected choice from prompt_steps: {user_choice}")
+
+        # If we reach here, it means the choice was accept, edit, or accept_all (or skipped due to flag)
         print_steps(self.app, steps)
 
         # Process each step (first pass)
@@ -293,7 +308,8 @@ class CodeProcessor:
             raise Exception(f"Parsing failed in code changes: {str(e)}\n Blob:{json_block}\n")
         if "changes" in changes:
             try:
-                return await apply_file_changes(self.app, changes)
+                # Pass self (CodeProcessor instance) to manage accept_all state
+                return await apply_file_changes(self.app, changes, self)
             except CodeTaskCancelled as e:
                 # User selected 'no' during confirmation, end code task immediately
                 self.app.logger.warning(f"Code task cancelled by user: {str(e)}")

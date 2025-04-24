@@ -90,10 +90,11 @@ class StepsScreen(ModalScreen):
         self.label_title = Label("Generated Steps", id="header-title")
         self.label_reprompt = Label("Additional Instructions", id="reprompt-label")
         self.textarea_reprompt = TextArea("", id="reprompt-input", language="text")
-        self.button_continue = Button("Continue", id="continue-button")
-        self.button_save = Button("Save Edits", id="save-button", variant="success")
-        self.button_reprompt = Button("Re-Prompt", id="reprompt-button")
-        self.button_cancel = Button("Cancel", id="cancel-button", variant="error")
+        self.button_continue = Button("Continue", id="continue-button", tooltip="Proceed with the suggested steps")
+        self.button_accept_all = Button("Auto Accept", id="accept-all-button", variant="success", tooltip="Automatically accepts all prompts for this code task") # New Button
+        self.button_save = Button("Save Edits", id="save-button", variant="success", tooltip="Save the edited steps and proceed")
+        self.button_reprompt = Button("Re-Prompt", id="reprompt-button", tooltip="Send an additional prompt that gives more guidance to the AI model")
+        self.button_cancel = Button("Cancel", id="cancel-button", variant="error", tooltip="Stop the current coding operation")
         self.richlog_description = RichLog(id="steps-description")
         self.steps_display = TextArea(
                 json.dumps(self.steps, indent=2),
@@ -116,6 +117,7 @@ class StepsScreen(ModalScreen):
             
             with Horizontal(id="footer"):
                 yield self.button_continue
+                yield self.button_accept_all # Yield new button
                 yield self.button_save
                 yield self.button_reprompt
                 yield self.button_cancel
@@ -148,6 +150,8 @@ class StepsScreen(ModalScreen):
                 self.button_continue.display = False
                 self.button_reprompt.label = "Send"
                 self.button_cancel.label = "Cancel Re-Prompt"
+        elif button_id == "accept-all-button": # Handle Accept All
+            self._accept_all()
         elif button_id == "cancel-button":
             if self.label_reprompt.display:
                 # in reprompt mode, this is cancelling reprompt, so return items to "normal"
@@ -200,9 +204,24 @@ class StepsScreen(ModalScreen):
         except ValueError as e:
              self.notify(f"Invalid steps format: {e}. Cannot continue.", severity="error")
 
+    def _accept_all(self) -> None:
+        """Accept all steps and set accept_all flag"""
+        steps_text = self.query_one("#steps-editor").text
+        try:
+            current_steps = json.loads(steps_text)
+            self.validate_steps(current_steps)
+            ret = {"choice": "accept_all", "steps": current_steps}
+            if self.future:
+                self.future.set_result(ret)
+            self.dismiss()
+        except json.JSONDecodeError:
+            self.notify("Invalid JSON format. Cannot accept all.", severity="error")
+        except ValueError as e:
+            self.notify(f"Invalid steps format: {e}. Cannot accept all.", severity="error")
+
     def validate_steps(self, current_steps):
         if "steps" not in current_steps:
-            raise ValueError("Failed to parse steps object")
+            raise ValueError("Failed to parse steps object: missing 'steps' key.")
         # Perform the same validation as _process_steps
         if not isinstance(current_steps["steps"], list):
             raise ValueError("Steps must be a list of dictionaries")

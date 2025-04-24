@@ -16,7 +16,7 @@ class UiWrapper:
     async def prompt_for_confirmation(self, prompt_text: str = "Apply these changes?", diff_lines: Optional[List[str]] = None) -> Tuple[str, Optional[str]]:
         """
         Prompt the user for confirmation with options to apply, reject, request changes,
-        or edit the changes.
+        edit the changes, or accept all subsequent changes.
         
         Args:
             prompt_text: The text to display when prompting the user
@@ -24,7 +24,7 @@ class UiWrapper:
             
         Returns:
             Tuple of (response, message):
-                - response: 'yes', 'no', 'request_change', or 'edit'
+                - response: 'yes', 'no', 'request_change', 'edit', or 'accept_all'
                 - message: User's feedback message when requesting changes,
                           or edited content when editing, None otherwise
         """
@@ -32,12 +32,14 @@ class UiWrapper:
 
     async def prompt_steps(self, steps: Any) -> Any:
         """
-        Prompt the user to confirm, edit, reprompt, cancel the steps
+        Prompt the user to confirm, edit, reprompt, accept all, or cancel the steps.
         Args:
-            steps:
-
-        Returns: steps
-
+            steps: The steps JSON object (dict)
+        Returns:
+            dict with keys:
+                - 'choice': One of 'accept', 'edit', 'reprompt', 'accept_all', 'cancel'.
+                - 'steps': The (potentially edited) steps JSON object (if choice is 'accept', 'edit', or 'accept_all').
+                - 'prompt': The user's additional prompt text (if choice is 'reprompt').
         """
         raise NotImplementedError("Subclasses must implement prompt_steps")
         

@@ -86,7 +86,7 @@ def apply_diff_to_content(original_content, diff_lines):
     return '\n'.join(result_lines)
 
 
-async def write_with_confirmation(app, filepath, content):
+async def write_with_confirmation(app, filepath, content, code_processor):
     """
     Writes content to a temporary file, shows diff, and asks for user confirmation
     before writing to the actual file.
@@ -95,10 +95,11 @@ async def write_with_confirmation(app, filepath, content):
         app: The Application instance
         filepath (str): Path to the file to write to
         content (list or str): Content to write to the file
+        code_processor: The CodeProcessor instance managing the task
 
     Returns:
         Tuple of (result, message):
-            - result: True if write was confirmed and successful, False otherwise
+            - result: 'yes', 'no', 'request_change', 'edit', or 'accept_all'
             - message: User feedback if they requested changes, None otherwise
     """
     # Convert content to string if it's a list of lines
@@ -146,13 +147,23 @@ async def write_with_confirmation(app, filepath, content):
                     os.makedirs(directory)
                 shutil.copy2(temp_file_path, filepath)
                 logger.info(f"Changes applied to {filepath}")
-                return True, None
+                return 'yes', None
             elif response == 'no':
                 logger.info(f"Changes to {filepath} discarded")
-                return False, None
+                return 'no', None
             elif response == 'request_change':
                 logger.info(f"Changes to {filepath} not applied, feedback requested")
-                return False, message
+                return 'request_change', message
+            elif response == 'accept_all':
+                # Set the flag on the code processor
+                code_processor._accept_all_active = True
+                # Copy temp file to destination
+                directory = os.path.dirname(filepath)
+                if directory and not os.path.exists(directory):
+                    os.makedirs(directory)
+                shutil.copy2(temp_file_path, filepath)
+                logger.info(f"Changes applied to {filepath} (Accept All)")
+                return 'accept_all', None
             elif response == 'edit':
 
                 # Display the full file content instead of just the diff
@@ -385,24 +396,23 @@ async def write_with_confirmation(app, filepath, content):
         # Clean up the temporary file
         os.unlink(temp_file_path)
 
-    return False, None
+    return 'no', None # Default return if loop exits unexpectedly
 
 
-async def apply_file_changes(app, changes_json):
+async def apply_file_changes(app, changes_json, code_processor):
     """
     Apply changes to files based on the provided JSON.
 
-    The function supports multiple ways to specify changes:
-    1. Using operation=ADD/DELETE with start_line
-    2. Using insert_location object with options:
-       - after_line: to specify a line of code after which to insert
-       - after_function: to specify a function after which to insert new code
-       (more reliable for LLM-based edits)
-    3. Using operation=NEW to create a new file
-    4. Using operation=REPLACE to replace content in a file
+    Args:
+        app: The Application instance
+        changes_json: The JSON object containing changes
+        code_processor: The CodeProcessor instance managing the task
 
-    If the user selects 'no' during confirmation, a CodeTaskCancelled exception is raised
-    to signal that the code task should be cancelled and no further processing should occur.
+    Returns:
+        Dict: {'success': bool, 'files_changed': list, 'change_requested': Optional[str]}
+
+    Raises:
+        CodeTaskCancelled: If the user cancels the task during confirmation.
     """
     # Group changes by filename
     changes_by_file = {}
@@ -466,20 +476,46 @@ async def apply_file_changes(app, changes_json):
             logger.info(f"failed to process_operation_changes {e}")
             return {"success": False}
 
-        # Write the updated lines to a temp file, show diff, and ask for confirmation
-        result, user_message = await write_with_confirmation(app, filepath, new_lines)
-        if result:
-            files_changed.append(filepath)
-            message = f"Updated {filepath}"
-            logger.info(message)
+        # Check if 'Accept All' is active
+        if code_processor._accept_all_active:
+            try:
+                # Apply change directly without confirmation
+                content_str = ''.join(new_lines)
+                directory = os.path.dirname(filepath)
+                if directory and not os.path.exists(directory):
+                    os.makedirs(directory)
+                # Write directly to the file
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(content_str)
+                files_changed.append(filepath)
+                message = f"Updated {filepath} (Accept All)"
+                logger.info(message)
+                app.ui.print_text(message, PrintType.SUCCESS)
+            except Exception as e:
+                logger.error(f"Error applying change directly to {filepath}: {e}")
+                app.ui.print_text(f"Error applying change to {filepath}: {e}", PrintType.ERROR)
+                # Decide if we should stop or continue? For now, continue.
         else:
-            if user_message:
+            # Write the updated lines to a temp file, show diff, and ask for confirmation
+            result, user_message = await write_with_confirmation(app, filepath, new_lines, code_processor)
+
+            if result == 'yes':
+                files_changed.append(filepath)
+                message = f"Updated {filepath}"
+                logger.info(message)
+            elif result == 'accept_all':
+                code_processor._accept_all_active = True # Ensure flag is set for subsequent steps
+                files_changed.append(filepath)
+                message = f"Updated {filepath} (Accept All activated)"
+                logger.info(message)
+                app.ui.print_text(message, PrintType.SUCCESS)
+            elif result == 'no':
+                logger.info(f"Update to {filepath} was cancelled by user")
+                raise CodeTaskCancelled(f"User cancelled code task while updating {filepath}")
+            elif result == 'request_change':
                 logger.info(f"Update to {filepath} was not applied. User requested changes: {user_message}")
                 return {"success": False, "change_requested": user_message}
-            else:
-                logger.info(f"Update to {filepath} was cancelled by user")
-                # Signal cancellation by raising a custom exception
-                raise CodeTaskCancelled(f"User cancelled code task while updating {filepath}")
+            # 'edit' case is handled within write_with_confirmation, which loops until another choice is made
 
     # Process new file creations
     for change in new_files:
@@ -499,20 +535,40 @@ async def apply_file_changes(app, changes_json):
             app.ui.print_text(message, PrintType.INFO)
             logger.info(message)
 
-        # Write the new file with confirmation
-        result, user_message = await write_with_confirmation(app, filepath, new_content)
-        if result:
-            files_changed.append(filepath)
-            message = f"Created new file: {filepath}"
-            logger.info(message)
+        # Check if 'Accept All' is active
+        if code_processor._accept_all_active:
+            try:
+                # Write the new file directly
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(new_content)
+                files_changed.append(filepath)
+                message = f"Created new file: {filepath} (Accept All)"
+                logger.info(message)
+                app.ui.print_text(message, PrintType.SUCCESS)
+            except Exception as e:
+                logger.error(f"Error creating file directly {filepath}: {e}")
+                app.ui.print_text(f"Error creating file {filepath}: {e}", PrintType.ERROR)
         else:
-            if user_message:
+            # Write the new file with confirmation
+            result, user_message = await write_with_confirmation(app, filepath, new_content, code_processor)
+
+            if result == 'yes':
+                files_changed.append(filepath)
+                message = f"Created new file: {filepath}"
+                logger.info(message)
+            elif result == 'accept_all':
+                code_processor._accept_all_active = True # Ensure flag is set for subsequent steps
+                files_changed.append(filepath)
+                message = f"Created new file: {filepath} (Accept All activated)"
+                logger.info(message)
+                app.ui.print_text(message, PrintType.SUCCESS)
+            elif result == 'no':
+                logger.info(f"Creation of {filepath} was cancelled by user")
+                raise CodeTaskCancelled(f"User cancelled code task while creating {filepath}")
+            elif result == 'request_change':
                 logger.info(f"Creation of {filepath} was not applied. User requested changes: {user_message}")
                 return {"success": False, "change_requested": user_message}
-            else:
-                logger.info(f"Creation of {filepath} was cancelled by user")
-                # Signal cancellation by raising a custom exception
-                raise CodeTaskCancelled(f"User cancelled code task while creating {filepath}")
+            # 'edit' case handled within write_with_confirmation
 
     return {"success": True, "files_changed": files_changed}
 

@@ -22,7 +22,7 @@ class CliEvents(UiWrapper):
     async def prompt_for_confirmation(self, prompt_text: str = "Apply these changes?", diff_lines: Optional[List[str]] = None) -> Tuple[str, Optional[str]]:
         """
         Prompt the user for confirmation with options to apply, reject, request changes,
-        or edit the changes in a text editor.
+        edit the changes in a text editor, or accept all subsequent changes.
         
         Args:
             prompt_text: The text to display when prompting the user
@@ -30,12 +30,12 @@ class CliEvents(UiWrapper):
             
         Returns:
             Tuple of (response, message):
-                - response: 'yes', 'no', 'request_change', or 'edit'
+                - response: 'yes', 'no', 'request_change', 'edit', or 'accept_all'
                 - message: User's feedback message when requesting changes,
                           or edited content when editing, None otherwise
         """
         while True:
-            response = input(f"\n{prompt_text} ✅ Yes [y] | ❌ No [n] | 🔄 Request Change [r] | ✏️  Edit [e]: ").lower().strip()
+            response = input(f"\n{prompt_text} ✅ Yes [y] | ❌ No [n] | ✨ Accept All [a] | 🔄 Request Change [r] | ✏️  Edit [e]: ").lower().strip()
             if response in ('y', 'yes'):
                 return 'yes', None
             elif response in ('n', 'no'):
@@ -47,8 +47,10 @@ class CliEvents(UiWrapper):
             elif response in ('e', 'edit'):
                 self.print_text("Opening editor... (Ctrl+S/Alt+W to save, Ctrl+Q/Alt+Q/ESC to quit)", PrintType.INFO)
                 return 'edit', None
+            elif response in ('a', 'accept_all'):
+                return 'accept_all', None
             else:
-                self.print_text("Please enter 'y', 'n', 'r', or 'e'", PrintType.ERROR)
+                self.print_text("Please enter 'y', 'n', 'r', 'e', or 'a'", PrintType.ERROR)
 
     async def prompt_steps(self, steps: Any) -> Any:
         """
@@ -75,10 +77,12 @@ class CliEvents(UiWrapper):
                 steps_json_str = str(steps)
             self.print_text(steps_json_str, PrintType.LLM)
             self.print_text("\nWhat would you like to do?", PrintType.INFO)
-            self.print_text("[c] Continue | [e] Edit | [r] Re-Prompt | [x] Cancel", PrintType.INFO)
+            self.print_text("[c] Continue | [a] Accept All | [e] Edit | [r] Re-Prompt | [x] Cancel", PrintType.INFO)
             choice = input("Enter choice: ").strip().lower()
             if choice in ("c", "continue", "accept"):
                 return {"choice": "accept", "steps": steps}
+            elif choice in ("a", "accept_all"):
+                return {"choice": "accept_all", "steps": steps}
             elif choice in ("e", "edit"):
                 # Check if curses is available for a better editing experience
                 try:
@@ -197,7 +201,7 @@ class CliEvents(UiWrapper):
             elif choice in ("x", "cancel", "q", "quit"):
                 return {"choice": "cancel"}
             else:
-                self.print_text("Invalid choice. Please enter c, e, r, or x.", PrintType.ERROR)
+                self.print_text("Invalid choice. Please enter c, e, r, a, or x.", PrintType.ERROR)
 
     async def signal_no_keys(self):
         setup_success = await run_first_time_setup(self.app)
