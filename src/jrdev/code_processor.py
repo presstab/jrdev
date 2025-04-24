@@ -2,6 +2,8 @@ import json
 import os
 from typing import Any, Dict, List, Set
 
+from statsmodels.stats.libqsturng.make_tbls import success
+
 from jrdev.llm_requests import stream_request
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.file_utils import requested_files, get_file_contents, cutoff_string
@@ -127,12 +129,13 @@ class CodeProcessor:
             user_choice = user_result.get("choice")
 
             if user_choice == "edit":
-                steps = user_result.get("steps") # Update steps if edited
+                steps = user_result.get("steps")
             elif user_choice == "accept":
-                steps = user_result.get("steps") # Update steps if edited (though unlikely for accept)
+                steps = user_result.get("steps")
             elif user_choice == "accept_all":
-                steps = user_result.get("steps") # Update steps if edited
-                self._accept_all_active = True # Set the flag for future operations
+                steps = user_result.get("steps")
+                # Set the flag for future operations
+                self._accept_all_active = True
                 # Proceed as if accepted
             elif user_choice == "cancel":
                 raise CodeTaskCancelled()
@@ -306,6 +309,11 @@ class CodeProcessor:
             changes = json.loads(json_block)
         except Exception as e:
             raise Exception(f"Parsing failed in code changes: {str(e)}\n Blob:{json_block}\n")
+        if "cancel_step" in changes:
+            # AI model has determined this step is already completed
+            reason = changes["cancel_step"]
+            self.app.logger.warning(f"Model determined step was already complete. Reason:{reason}")
+            return {"success": True, "cancel_step": True, "files_changed": []}
         if "changes" in changes:
             try:
                 # Pass self (CodeProcessor instance) to manage accept_all state
