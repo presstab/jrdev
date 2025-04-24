@@ -2,8 +2,6 @@ import json
 import os
 from typing import Any, Dict, List, Set
 
-from statsmodels.stats.libqsturng.make_tbls import success
-
 from jrdev.llm_requests import stream_request
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.file_utils import requested_files, get_file_contents, cutoff_string
