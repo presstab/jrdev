@@ -169,18 +169,20 @@ class JrDevUI(App[None]):
         # Give the widget an ID for easier CSS targeting
         self.terminal_output_widget = TerminalOutputWidget(id="terminal_output_container")
         self.terminal_input = CommandTextArea(placeholder="Enter Command", id="cmd_input")
-        self.task_monitor = TaskMonitor()
+        self.task_monitor = TaskMonitor() # This is now the container widget
         self.directory_widget = DirectoryWidget(core_app=self.jrdev, id="directory_widget")
         self.model_list = ModelSelectionWidget(id="model_list")
         self.task_count = 0
         self.button_container = ButtonContainer()
+        # self.button_stop is now created inside TaskMonitor
 
         with Horizontal():
             with self.vlayout_left:
                 yield self.button_container
             with self.vlayout_terminal: # Manages vertical distribution
-                yield self.task_monitor
-                yield self.terminal_output_widget # Takes flexible space (1fr)
+                yield self.task_monitor # Yield the TaskMonitor container
+                yield self.terminal_output_widget
+                # Removed yield self.button_stop
                 yield self.terminal_input
             with self.vlayout_right:
                 yield self.directory_widget
@@ -207,6 +209,7 @@ class JrDevUI(App[None]):
         self.vlayout_left.styles.width = "10%"
 
         # --- Vertical Layout Splits within vlayout_terminal ---
+        # Apply height styling to the TaskMonitor container widget
         self.task_monitor.styles.height = "25%" # Fixed percentage
         self.terminal_input.styles.height = 5   # Fixed rows
 
@@ -298,6 +301,10 @@ class JrDevUI(App[None]):
 
         providers = self.jrdev.provider_list()
         self.push_screen(ApiKeyEntry(core_app=self.jrdev, providers=providers, mode="editor"), save_keys)
+
+    @on(Button.Pressed, "#stop-button")
+    def handle_stop_button(self):
+        self.workers.cancel_all()
 
     @on(Button.Pressed, "#button_profiles")
     def handle_agents_pressed(self):

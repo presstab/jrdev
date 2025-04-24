@@ -1,20 +1,27 @@
 from typing import Optional
 
-from textual.widgets import DataTable, Label
+from textual.app import ComposeResult
+from textual.containers import Vertical
+from textual.widgets import DataTable, Button
 from textual.color import Color
 from textual.worker import Worker, WorkerState
 import logging
 import time
+
 logger = logging.getLogger("jrdev")
 
 
-class TaskMonitor(DataTable):
+class TaskMonitorTable(DataTable):
+    BINDINGS = [
+        ("up", "cursor_up", "Cursor Up"),
+        ("down", "cursor_down", "Cursor Down"),
+    ]
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, id: Optional[str] = None):
+        super().__init__(id=id)
         self.column_names = ["id", "task", "model", "tok_in", "tok_out", "tok/sec", "runtime", "status"]
-        self.row_key_workers = {} # {row_key: worker.name}
-        self.runtimes = {} # {worker.name: start_time}
+        self.row_key_workers = {}  # {row_key: worker.name}
+        self.runtimes = {}  # {worker.name: start_time}
         self.update_timer = None
         self.tracked_commands = [
             "init",
@@ -26,8 +33,7 @@ class TaskMonitor(DataTable):
         ]
 
     async def on_mount(self) -> None:
-        self.border_title = "Tasks"
-        self.styles.border = ("round", Color.parse("#63f554"))
+        # Apply scrollbar styling directly or via CSS if preferred
         self.styles.scrollbar_background = "#1e1e1e"
         self.styles.scrollbar_background_hover = "#1e1e1e"
         self.styles.scrollbar_background_active = "#1e1e1e"
@@ -59,6 +65,13 @@ class TaskMonitor(DataTable):
         if not self.update_timer:
             self.update_timer = self.set_interval(3.0, self.update_runtimes)
 
+    def has_active_tasks(self) -> bool:
+        for worker_name, row_key in self.row_key_workers.items():
+            # Only update if the task is active
+            if self.get_cell(row_key, "status") == "active":
+                return True
+        return False
+
     def update_runtimes(self) -> None:
         time_now = time.time()
         has_active_tasks = False
@@ -89,10 +102,14 @@ class TaskMonitor(DataTable):
         return True
 
     def worker_updated(self, worker: Worker, state: WorkerState) -> None:
-        if state == WorkerState.SUCCESS:
-            row_key = self.row_key_workers.get(worker.name)
-            if row_key is not None:
-                self.update_cell(row_key, "status", "done")  # 4 = index of "status" column
+        row_key = self.row_key_workers.get(worker.name)
+        if row_key is not None:
+            if state == WorkerState.SUCCESS:
+                self.update_cell(row_key, "status", "done")
+            elif state == WorkerState.CANCELLED:
+                self.update_cell(row_key, "status", "cancelled")
+            elif state == WorkerState.ERROR:
+                self.update_cell(row_key, "status", "error")
 
     def set_task_finished(self, task_id):
         row_key = self.row_key_workers.get(task_id)
@@ -111,3 +128,64 @@ class TaskMonitor(DataTable):
         if row_key is not None:
             self.update_cell(row_key, "tok_out", token_count)
             self.update_cell(row_key, "tok/sec", tokens_per_second)
+
+
+class TaskMonitor(Vertical):
+    DEFAULT_CSS = """
+    TaskMonitor {
+        layout: vertical;
+    }
+    #task_monitor_table {
+        height: 1fr;
+        border: none;
+    }
+    #stop-button {
+        height: 1;
+        dock: bottom;
+        width: auto;
+        align-horizontal: left;
+    }
+    """
+
+    def __init__(self, id: Optional[str] = None):
+        super().__init__(id=id)
+        self._table = TaskMonitorTable(id="task_monitor_table")
+        self.button_stop = Button("Stop Tasks", id="stop-button")
+
+    def compose(self) -> ComposeResult:
+        yield self._table
+        yield self.button_stop
+
+    async def on_mount(self) -> None:
+        # Apply border styling to the container
+        self.border_title = "Tasks"
+        self.styles.border = ("round", Color.parse("#63f554"))
+        self._table.can_focus = False
+        self.button_stop.disabled = True
+
+    def update_stop_button_state(self) -> None:
+        # Stop Tasks is disabled unless there are tasks actively running
+        self.button_stop.disabled = not self._table.has_active_tasks()
+
+    # --- Delegate methods to the internal table --- #
+
+    def add_task(self, *args, **kwargs):
+        self._table.add_task(*args, **kwargs)
+        self.update_stop_button_state()
+
+    def worker_updated(self, *args, **kwargs):
+        self._table.worker_updated(*args, **kwargs)
+        self.update_stop_button_state()
+
+    def set_task_finished(self, *args, **kwargs):
+        self._table.set_task_finished(*args, **kwargs)
+        self.update_stop_button_state()
+
+    def update_input_tokens(self, *args, **kwargs):
+        self._table.update_input_tokens(*args, **kwargs)
+
+    def update_output_tokens(self, *args, **kwargs):
+        self._table.update_output_tokens(*args, **kwargs)
+
+    def should_track(self, *args, **kwargs) -> bool:
+        return self._table.should_track(*args, **kwargs)
