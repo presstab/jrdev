@@ -80,6 +80,8 @@ class TaskMonitor(DataTable):
 
     def should_track(self, command: str) -> bool:
         if command.startswith("/"):
+            if "git pr review" in command or "git pr summary" in command:
+                return True
             # remove the / and only include first word
             cmd = command[1:].split(" ")[0]
             return cmd in self.tracked_commands

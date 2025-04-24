@@ -96,7 +96,7 @@ class TextualEvents(UiWrapper):
             
         Returns:
             Tuple of (response, message):
-                - response: 'yes', 'no', 'request_change', or 'edit'
+                - response: 'yes', 'no', 'request_change', 'edit', or 'accept_all'
                 - message: User's feedback message when requesting changes,
                           or edited content when editing, None otherwise
         """

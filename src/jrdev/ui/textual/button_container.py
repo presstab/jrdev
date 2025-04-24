@@ -10,6 +10,9 @@ from collections import defaultdict, OrderedDict
 from typing import Any, Dict, List, Optional
 import logging
 
+# Import the new screen
+from jrdev.ui.textual.git_tools_screen import GitToolsScreen
+
 logger = logging.getLogger("jrdev")
 
 class ButtonContainer(Widget):
@@ -38,3 +41,9 @@ class ButtonContainer(Widget):
             button.styles.min_width = 4
             button.styles.width = "100%"
             button.styles.align_horizontal = "center"
+
+    @on(Button.Pressed, "#git")
+    def handle_git_tools_pressed(self, event: Button.Pressed) -> None:
+        """Handle the Git Tools button press by opening the GitToolsScreen."""
+        # Access the core application instance via self.app.jrdev
+        self.app.push_screen(GitToolsScreen(core_app=self.app.jrdev))
