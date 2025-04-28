@@ -23,7 +23,7 @@ def is_inside_think_tag(text):
     return think_open > think_close
 
 
-async def stream_openai_format(app, model, messages, task_id=None, print_stream=True, json_output=False):
+async def stream_openai_format(app, model, messages, task_id=None, print_stream=True, json_output=False, max_output_tokens=None):
     # Start timing the response
     start_time = time.time()
 
@@ -68,6 +68,9 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
         "stream": True,
         "temperature": 0.0
     }
+
+    if max_output_tokens:
+        kwargs["max_completion_tokens"] = max_output_tokens
 
     if model_provider == "openai":
         if "o3" in model or "o4-mini" in model:
@@ -213,7 +216,6 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
 
     return response_text
 
-# --- REWRITTEN FUNCTION BELOW ---
 async def stream_messages_format(app, model, messages, task_id=None, print_stream=True):
     # Start timing the response
     start_time = time.time()
@@ -405,7 +407,7 @@ async def stream_messages_format(app, model, messages, task_id=None, print_strea
         app.logger.error(f"Error making Anthropic API request: {str(e)}")
         raise ValueError(f"Error making Anthropic API request: {str(e)}")
 
-async def stream_request(app, model, messages, task_id=None, print_stream=True, json_output=False):
+async def stream_request(app, model, messages, task_id=None, print_stream=True, json_output=False, max_output_tokens=None):
     # Determine which client to use based on the model provider
     model_provider = None
 
@@ -420,4 +422,4 @@ async def stream_request(app, model, messages, task_id=None, print_stream=True, 
     if model_provider == "anthropic":
         return await stream_messages_format(app, model, messages, task_id, print_stream)
     else:
-        return await stream_openai_format(app, model, messages, task_id, print_stream, json_output)
+        return await stream_openai_format(app, model, messages, task_id, print_stream, json_output, max_output_tokens)

@@ -148,6 +148,7 @@ class StepsScreen(ModalScreen):
                 self.textarea_reprompt.focus()
                 self.button_save.display = False
                 self.button_continue.display = False
+                self.button_accept_all.display = False
                 self.button_reprompt.label = "Send"
                 self.button_cancel.label = "Cancel Re-Prompt"
         elif button_id == "accept-all-button": # Handle Accept All
@@ -159,6 +160,7 @@ class StepsScreen(ModalScreen):
                 self.textarea_reprompt.display = False
                 self.button_save.display = True
                 self.button_continue.display = True
+                self.button_accept_all.display = True
                 self.button_reprompt.label = "Re-Prompt"
                 self.button_cancel.label = "Cancel"
             else:

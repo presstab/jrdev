@@ -7,4 +7,4 @@ User Task: {user_task}
 
 Wrap your response in ```json and ``` markers. Use \n for line breaks in new_content. 
 Do not include any additional commentary or explanation outside the JSON. This will be production quality code, and will 
-not be edited further by the user, ensure that you do not add markers or commentary like "BEGIN NEW" or "END NEW"
+not be edited further by the user, ensure that you do not add markers or commentary like "BEGIN NEW", "END NEW", "deleted this here", "added this item here" 

@@ -27,6 +27,7 @@ class CodeProcessor:
         self.worker_id = worker_id
         self.sub_task_count = 0
         self._accept_all_active = False  # Track if 'Accept All' is active for this instance
+        self.files_validated = False
 
         # get custom user set code context, which should be cleared from app state after fetching
         self.user_context = app.get_code_context()
@@ -39,7 +40,7 @@ class CodeProcessor:
           1. Sending the initial request (the user’s task with any context)
           2. Interpreting the LLM response to see if file changes are requested
           3. Requesting file content if needed, parsing returned steps, and executing each step
-          4. Validating the changed files at the end
+          4. Validating the changed files at the end (only at the top level)
         """
         try:
             initial_response = await self.send_initial_request(user_task)
@@ -127,12 +128,13 @@ class CodeProcessor:
             user_choice = user_result.get("choice")
 
             if user_choice == "edit":
-                steps = user_result.get("steps") # Update steps if edited
+                steps = user_result.get("steps")
             elif user_choice == "accept":
-                steps = user_result.get("steps") # Update steps if edited (though unlikely for accept)
+                steps = user_result.get("steps")
             elif user_choice == "accept_all":
-                steps = user_result.get("steps") # Update steps if edited
-                self._accept_all_active = True # Set the flag for future operations
+                steps = user_result.get("steps")
+                # Set the flag for future operations
+                self._accept_all_active = True
                 # Proceed as if accepted
             elif user_choice == "cancel":
                 raise CodeTaskCancelled()
@@ -204,7 +206,10 @@ class CodeProcessor:
                 # todo try again?
                 self.app.logger.error(f"failed to parse review: {review_response}")
 
-            await self.validate_changed_files(changed_files)
+            # only perform validation once
+            if not self.files_validated:
+                await self.validate_changed_files(changed_files)
+                self.files_validated = True
         else:
             self.app.logger.info("No files were changed during processing.")
 
@@ -218,7 +223,7 @@ class CodeProcessor:
         Returns a list of files changed or an empty list if the step failed.
         """
         file_content = get_file_contents(files_to_send)
-        code_response = await self.request_code(step, file_content, user_task, retry_message)
+        code_response = await self.request_code(change_instruction=step, user_task=user_task, file_content=file_content, additional_prompt=retry_message)
         try:
             result = await self.check_and_apply_code_changes(code_response)
             if result.get("success"):
@@ -306,6 +311,11 @@ class CodeProcessor:
             changes = json.loads(json_block)
         except Exception as e:
             raise Exception(f"Parsing failed in code changes: {str(e)}\n Blob:{json_block}\n")
+        if "cancel_step" in changes:
+            # AI model has determined this step is already completed
+            reason = changes["cancel_step"]
+            self.app.logger.warning(f"Model determined step was already complete. Reason:{reason}")
+            return {"success": True, "cancel_step": True, "files_changed": []}
         if "changes" in changes:
             try:
                 # Pass self (CodeProcessor instance) to manage accept_all state
