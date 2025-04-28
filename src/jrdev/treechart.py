@@ -6,7 +6,7 @@ Tree chart utility for generating file structure diagrams.
 
 import os
 import re
-from fnmatch import fnmatch
+import fnmatch
 from pathlib import Path
 from typing import List, Dict, Optional, Union, Any
 
@@ -52,52 +52,30 @@ def is_ignored_by_gitignore(path: Union[str, Path], patterns: List[str], root_di
     Returns:
         True if the path should be ignored, False otherwise.
     """
+    """
+       Check if a path should be ignored based on .gitignore patterns
+       using fnmatch only (no manual regex).
+       """
     if not patterns:
         return False
 
-    # Get relative path from root directory
-    rel_path = os.path.relpath(str(path), root_dir)
+    # normalize
+    rel = os.path.relpath(str(path), root_dir).replace(os.sep, '/')
+    name = os.path.basename(rel)
 
-    # Replace backslashes with forward slashes for cross-platform compatibility
-    rel_path = rel_path.replace(os.sep, '/')
-
-    # Check each pattern
-    for pattern in patterns:
-        negated = pattern.startswith('!')
+    for pat in patterns:
+        negated = pat.startswith('!')
         if negated:
-            pattern = pattern[1:]
+            pat = pat[1:]
 
-        # Handle directory-specific patterns (ending with /)
-        is_dir_pattern = pattern.endswith('/')
-        if is_dir_pattern:
-            pattern = pattern[:-1]
-            if not os.path.isdir(path):
-                continue
+        # strip any leading slash for fnmatch
+        if pat.startswith('/'):
+            pat = pat[1:]
 
-        # Convert gitignore pattern to fnmatch pattern
-        if pattern.startswith('/'):
-            # Anchored pattern - match from root
-            pattern = pattern[1:]
-            match_path = rel_path
-        else:
-            # Unanchored pattern - can match anywhere
-            if '/' in pattern:
-                # If pattern has slashes, match the whole path
-                match_path = rel_path
-            else:
-                # If pattern has no slashes, match just the basename
-                match_path = os.path.basename(rel_path)
+        # if the pattern mentions a slash, match against the full relative path
+        target = rel if '/' in pat else name
 
-        # Use fnmatch for pattern matching
-        matched = fnmatch(match_path, pattern)
-
-        # Handle /** patterns (match all subdirectories)
-        if not matched and '/**' in pattern:
-            # Replace /** with a regex that matches any number of directories
-            regex_pattern = pattern.replace('/**', '(/.*)?')
-            matched = bool(re.match(f"^{regex_pattern}$", match_path))
-
-        if matched:
+        if fnmatch.fnmatch(target, pat):
             return not negated
 
     return False
