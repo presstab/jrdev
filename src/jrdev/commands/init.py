@@ -14,6 +14,7 @@ from jrdev.file_utils import (
     pair_header_source_files,
     requested_files,
     JRDEV_DIR,
+    write_string_to_file,  # Import the function
 )
 from jrdev.llm_requests import stream_request
 from jrdev.languages.utils import detect_language, is_headers_language
@@ -253,10 +254,9 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
                             print_stream=False,
                         )
 
-                        # Save to markdown file
+                        # Save to markdown file using the utility function
                         conventions_file_path = f"{JRDEV_DIR}jrdev_conventions.md"
-                        with open(conventions_file_path, "w") as f:
-                            f.write(conventions_result)
+                        write_string_to_file(conventions_file_path, conventions_result)
 
                         # Mark conventions sub_task complete
                         if conventions_task_id:
@@ -268,6 +268,9 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
                             f"Error generating project conventions: {str(e)}",
                             PrintType.ERROR,
                         )
+                        # Mark conventions sub_task as failed if an error occurs
+                        if conventions_task_id:
+                            app.ui.update_task_info(conventions_task_id, update={"sub_task_finished": True, "status": "failed"})
                         return None
 
                 # Create a task for generating conventions in parallel
@@ -363,8 +366,7 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
 
                     # Save to markdown file
                     overview_file_path = f"{JRDEV_DIR}jrdev_overview.md"
-                    with open(overview_file_path, "w") as f:
-                        f.write(full_overview)
+                    write_string_to_file(overview_file_path, full_overview)
 
                     app.ui.print_text(
                         f"\nProject overview generated and saved to "
@@ -379,6 +381,9 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
                     app.ui.print_text(
                         f"Error generating project overview: {str(e)}", PrintType.ERROR
                     )
+                    # Mark overview sub_task as failed if an error occurs
+                    if overview_task_id:
+                        app.ui.update_task_info(overview_task_id, update={"sub_task_finished": True, "status": "failed"})
 
                 # Calculate elapsed time
                 elapsed_time = time.time() - start_time
