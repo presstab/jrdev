@@ -176,6 +176,13 @@ class Application:
         """Get the currently active thread"""
         return self.state.get_current_thread()
 
+    def get_thread(self, thread_id):
+        """Get MessageThread instance"""
+        return self.state.get_thread(thread_id)
+
+    def get_active_thread_id(self):
+        return self.state.get_active_thread_id()
+
     def switch_thread(self, thread_id):
         """Switch to a different thread"""
         return self.state.switch_thread(thread_id)

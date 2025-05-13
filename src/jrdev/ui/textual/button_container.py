@@ -1,13 +1,8 @@
 from textual import events, on
 from textual.app import ComposeResult
-from textual.containers import Vertical
-from textual.document._document import Selection
-from textual.geometry import Size
 from textual.widget import Widget
 from textual.widgets import Button
-from textual.color import Color
-from collections import defaultdict, OrderedDict
-from typing import Any, Dict, List, Optional
+from typing import Dict, Optional
 import logging
 
 # Import the new screen

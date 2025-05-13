@@ -60,6 +60,13 @@ class AppState:
         """Get the currently active message thread"""
         return self.threads[self.active_thread]
 
+    def get_active_thread_id(self) -> str:
+        return self.active_thread
+
+    def get_thread(self, thread_id) -> MessageThread:
+        """Get a message thread instance"""
+        return self.threads.get(thread_id, None)
+
     # Thread management
     def create_thread(self, thread_id: str="") -> str:
         """Create a new message thread"""

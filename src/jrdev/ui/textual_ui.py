@@ -19,6 +19,7 @@ from jrdev.ui.textual.task_monitor import TaskMonitor
 from jrdev.ui.textual.terminal_output_widget import TerminalOutputWidget
 from jrdev.ui.textual.input_widget import CommandTextArea
 from jrdev.ui.textual.button_container import ButtonContainer
+from jrdev.ui.textual.chat_list import ChatList
 from jrdev.ui.textual.model_profile_widget import ModelProfileScreen
 
 logger = logging.getLogger("jrdev")
@@ -56,6 +57,19 @@ class JrDevUI(App[None]):
             padding: 0 0 0 0;
         }
         .sidebar_button:hover {
+            background: #656565;
+            border: none;
+        }
+        .sidebar_button.active {
+            color:  #27dfd0;
+            background: #2a2a2a;
+            border: none;
+            text-style: none;
+            text-align: center;
+            height: 1;
+            padding: 0 0 0 0;
+        }
+        .sidebar_button.active:hover {
             background: #656565;
             border: none;
         }
@@ -153,8 +167,12 @@ class JrDevUI(App[None]):
         }
         
         /* Ensure all widgets with borders have matching border backgrounds */
-        #task_monitor, #cmd_input, #model_list, #directory_widget, #button_container {
+        #task_monitor, #cmd_input, #model_list, #directory_widget, #button_container, #chat_list {
             border-title-background: #1e1e1e;
+        }
+        
+        #button_container, #chat_list {
+            height: auto;
         }
     """
     def compose(self) -> Generator[Any, None, None]:
@@ -173,16 +191,16 @@ class JrDevUI(App[None]):
         self.directory_widget = DirectoryWidget(core_app=self.jrdev, id="directory_widget")
         self.model_list = ModelSelectionWidget(id="model_list")
         self.task_count = 0
-        self.button_container = ButtonContainer()
-        # self.button_stop is now created inside TaskMonitor
+        self.button_container = ButtonContainer(id="button_container")
+        self.chat_list = ChatList(id="chat_list")
 
         with Horizontal():
             with self.vlayout_left:
                 yield self.button_container
-            with self.vlayout_terminal: # Manages vertical distribution
-                yield self.task_monitor # Yield the TaskMonitor container
+                yield self.chat_list
+            with self.vlayout_terminal:
+                yield self.task_monitor
                 yield self.terminal_output_widget
-                # Removed yield self.button_stop
                 yield self.terminal_input
             with self.vlayout_right:
                 yield self.directory_widget
@@ -203,6 +221,8 @@ class JrDevUI(App[None]):
 
         self.button_container.border_title = "Settings"
         self.button_container.styles.border = ("round", Color.parse("#63f554"))
+        self.chat_list.border_title = "Chats"
+        self.chat_list.styles.border = ("round", Color.parse("#63f554"))
 
         # Horizontal Layout Splits
         self.vlayout_terminal.styles.width = "65%"
@@ -226,6 +246,9 @@ class JrDevUI(App[None]):
 
         self.model_list.styles.height = "50%" # Relative to parent vlayout_right
 
+        # add current thread to chat list
+        current_thread = self.jrdev.get_current_thread()
+        await self.chat_list.add_thread(current_thread)
         self.jrdev.setup_complete()
 
     @on(CommandTextArea.Submitted, "#cmd_input")
@@ -307,7 +330,7 @@ class JrDevUI(App[None]):
         self.workers.cancel_all()
 
     @on(Button.Pressed, "#button_profiles")
-    def handle_agents_pressed(self):
+    def handle_profiles_pressed(self):
         """Open the model profile management screen"""
         self.app.push_screen(ModelProfileScreen(self.jrdev))
 
@@ -320,9 +343,14 @@ class JrDevUI(App[None]):
         self.jrdev.set_model(str(event.pressed.label), send_to_ui=False)
 
     @on(TextualEvents.ChatThreadUpdate)
-    def handle_chat_update(self, message: TextualEvents.ChatThreadUpdate):
+    async def handle_chat_update(self, message: TextualEvents.ChatThreadUpdate):
         """a chat thread has been updated, notify the directory widget to check for context changes"""
         self.directory_widget.reload_highlights()
+        # get the thread
+        msg_thread = self.jrdev.get_current_thread()
+        if msg_thread:
+            await self.chat_list.thread_update(msg_thread)
+            self.chat_list.set_active(msg_thread.thread_id)
 
     @on(TextualEvents.CodeContextUpdate)
     def handle_code_context_update(self, message: TextualEvents.CodeContextUpdate):
