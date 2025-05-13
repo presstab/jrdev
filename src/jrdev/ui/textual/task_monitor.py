@@ -5,6 +5,7 @@ from textual.containers import Vertical
 from textual.widgets import DataTable, Button
 from textual.color import Color
 from textual.worker import Worker, WorkerState
+from jrdev.ui.textual_events import TextualEvents
 import logging
 import time
 
@@ -166,6 +167,31 @@ class TaskMonitor(Vertical):
     def update_stop_button_state(self) -> None:
         # Stop Tasks is disabled unless there are tasks actively running
         self.button_stop.disabled = not self._table.has_active_tasks()
+
+    def handle_task_update(self, message: TextualEvents.TaskUpdate) -> None:
+        if "input_token_estimate" in message.update:
+            # first message gives us input token estimate and model being used
+            token_count = message.update["input_token_estimate"]
+            model = message.update["model"]
+            self.update_input_tokens(message.worker_id, token_count, model)
+        elif "output_token_estimate" in message.update:
+            token_count = message.update['output_token_estimate']
+            tokens_per_second = message.update["tokens_per_second"]
+            self.update_output_tokens(message.worker_id, token_count, tokens_per_second)
+        elif "input_tokens" in message.update:
+            # final official accounting of tokens
+            input_tokens = message.update.get("input_tokens")
+            self.update_input_tokens(message.worker_id, input_tokens)
+            output_tokens = message.update.get("output_tokens")
+            tokens_per_second = message.update.get("tokens_per_second")
+            self.update_output_tokens(message.worker_id, output_tokens, tokens_per_second)
+        elif "new_sub_task" in message.update:
+            # new sub task spawned
+            sub_task_id = message.update.get("new_sub_task")
+            description = message.update.get("description")
+            self.add_task(sub_task_id, task_name="init", model="", sub_task_name=description)
+        elif "sub_task_finished" in message.update:
+            self.set_task_finished(message.worker_id)
 
     # --- Delegate methods to the internal table --- #
 

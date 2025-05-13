@@ -331,31 +331,8 @@ class JrDevUI(App[None]):
 
     @on(TextualEvents.TaskUpdate)
     def handle_task_update(self, message: TextualEvents.TaskUpdate):
-        if "input_token_estimate" in message.update:
-            # first message gives us input token estimate and model being used
-            token_count = message.update["input_token_estimate"]
-            model = message.update["model"]
-            self.task_monitor.update_input_tokens(message.worker_id, token_count, model)
-        elif "output_token_estimate" in message.update:
-            token_count = message.update['output_token_estimate']
-            tokens_per_second = message.update["tokens_per_second"]
-            self.task_monitor.update_output_tokens(message.worker_id, token_count, tokens_per_second)
-        elif "input_tokens" in message.update:
-            # final official accounting of tokens
-            input_tokens = message.update.get("input_tokens")
-            self.task_monitor.update_input_tokens(message.worker_id, input_tokens)
-            output_tokens = message.update.get("output_tokens")
-            tokens_per_second = message.update.get("tokens_per_second")
-            self.task_monitor.update_output_tokens(message.worker_id, output_tokens, tokens_per_second)
-        elif "new_sub_task" in message.update:
-            # new sub task spawned
-            sub_task_id = message.update.get("new_sub_task")
-            description = message.update.get("description")
-            self.task_monitor.add_task(sub_task_id, task_name="init", model="", sub_task_name=description)
-        elif "sub_task_finished" in message.update:
-            self.task_monitor.set_task_finished(message.worker_id)
-
-
+        """An update to a task/worker is being sent from the core app"""
+        self.task_monitor.handle_task_update(message)
 
     @on(TextualEvents.ExitRequest)
     def handle_exit_request(self, message: TextualEvents.ExitRequest) -> None:
