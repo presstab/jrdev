@@ -33,7 +33,7 @@ class TerminalOutputWidget(Widget):
 
     def __init__(self, id: Optional[str] = None) -> None:
         super().__init__(id=id)
-        self.terminal_output = TerminalTextArea(id="terminal_output", language="plaintext")
+        self.terminal_output = TerminalTextArea(id="terminal_output", language="markdown")
         self.copy_button = Button(label="Copy Selection", id="copy_button")
 
     def compose(self) -> ComposeResult:
