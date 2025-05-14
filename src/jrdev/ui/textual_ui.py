@@ -21,6 +21,7 @@ from jrdev.ui.textual.input_widget import CommandTextArea
 from jrdev.ui.textual.button_container import ButtonContainer
 from jrdev.ui.textual.chat_list import ChatList
 from jrdev.ui.textual.model_profile_widget import ModelProfileScreen
+from jrdev.ui.textual.command_request import CommandRequest
 
 logger = logging.getLogger("jrdev")
 
@@ -225,8 +226,8 @@ class JrDevUI(App[None]):
         self.chat_list.styles.border = ("round", Color.parse("#63f554"))
 
         # Horizontal Layout Splits
-        self.vlayout_terminal.styles.width = "65%"
-        self.vlayout_left.styles.width = "10%"
+        self.vlayout_terminal.styles.width = "60%"
+        self.vlayout_left.styles.width = "15%"
 
         # --- Vertical Layout Splits within vlayout_terminal ---
         # Apply height styling to the TaskMonitor container widget
@@ -270,6 +271,11 @@ class JrDevUI(App[None]):
 
         # clear input widget
         self.terminal_input.value = ""
+
+    @on(CommandRequest)
+    async def run_command(self, event: CommandRequest) -> None:
+        """Pass a command to the core app through a worker"""
+        worker = self.run_worker(self.jrdev.process_input(event.command))
 
     def get_new_task_id(self):
         id = self.task_count

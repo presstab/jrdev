@@ -6,6 +6,7 @@ from typing import Dict, Optional
 import logging
 
 from jrdev.messages.thread import MessageThread
+from jrdev.ui.textual.command_request import CommandRequest
 
 logger = logging.getLogger("jrdev")
 
@@ -17,19 +18,25 @@ class ChatList(Widget):
         self.buttons: Dict[str, Button] = {} # id -> Button
         self.threads: Dict[str, MessageThread] = {} # id -> MsgThread
         self.active_thread_id: Optional[str] = None
+        self.new_button = Button(label="+ New Chat", id="new_thread", classes="sidebar_button")
 
     def compose(self) -> ComposeResult:
         for button in self.buttons.values():
             yield button
+        yield self.new_button
 
     async def on_mount(self) -> None:
         self.can_focus = False
         for button in self.buttons.values():
-            button.can_focus = False
-            button.styles.border = "none"
-            button.styles.min_width = 4
-            button.styles.width = "100%"
-            button.styles.align_horizontal = "center"
+            self.style_button(button)
+        self.style_button(self.new_button)
+
+    def style_button(self, btn):
+        btn.can_focus = False
+        btn.styles.border = "none"
+        btn.styles.min_width = 4
+        btn.styles.width = "100%"
+        btn.styles.align_horizontal = "center"
 
     async def add_thread(self, msg_thread: MessageThread) -> None:
         tid = msg_thread.thread_id
@@ -41,11 +48,7 @@ class ChatList(Widget):
         # if this is the first thread, make it active
         if self.active_thread_id is None:
             self.set_active(tid)
-        btn.can_focus = False
-        btn.styles.border = "none"
-        btn.styles.min_width = 4
-        btn.styles.width = "100%"
-        btn.styles.align_horizontal = "center"
+        self.style_button(btn)
 
     async def thread_update(self, msg_thread: MessageThread):
         # if this is a new thread, add it
@@ -64,10 +67,15 @@ class ChatList(Widget):
     @on(Button.Pressed, ".sidebar_button")
     async def handle_thread_button_click(self, event: Button.Pressed):
         btn = event.button
+
+        # check if it is the new thread button
+        if btn.id == "new_thread":
+            self.post_message(CommandRequest("/thread new"))
+            return
+
         if btn.id not in self.buttons:
             # ignore button if it doesn't belong to chat_list
             return
 
         # switch chat thread
-        if self.core_app.switch_thread(btn.id):
-            self.set_active(btn.id)
+        self.post_message(CommandRequest(f"/thread switch {btn.id}"))
