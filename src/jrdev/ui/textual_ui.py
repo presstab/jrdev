@@ -3,7 +3,7 @@ import copy
 from textual import on
 from textual.app import App
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, Input, RadioSet, TextArea
+from textual.widgets import Button, ContentSwitcher, Input, RadioSet, TextArea
 from textual.worker import Worker, WorkerState
 from textual.color import Color
 from typing import Any, Generator
@@ -22,6 +22,8 @@ from jrdev.ui.textual.button_container import ButtonContainer
 from jrdev.ui.textual.chat_list import ChatList
 from jrdev.ui.textual.model_profile_widget import ModelProfileScreen
 from jrdev.ui.textual.command_request import CommandRequest
+from jrdev.ui.textual.chat_view_widget import ChatViewWidget
+from jrdev.ui.textual.chat_input_widget import ChatInputWidget
 
 logger = logging.getLogger("jrdev")
 
@@ -131,7 +133,7 @@ class JrDevUI(App[None]):
         }
         /* Make the container widget flexible */
         TerminalOutputWidget {
-            height: 1fr;
+            height: 100%;
             background: #1e1e1e;
             border-title-background: #1e1e1e;
         }
@@ -152,6 +154,10 @@ class JrDevUI(App[None]):
         
         #add_chat_context_button, #add_code_context_button {
             min-width: 3;
+        }
+        
+        ContentSwitcher {
+            height: 1fr;
         }
         
         /* Ensure consistent background for all containers and widgets */
@@ -175,6 +181,10 @@ class JrDevUI(App[None]):
         #button_container, #chat_list {
             height: auto;
         }
+        
+        Horizontal {
+            layout: horizontal;
+        }
     """
     def compose(self) -> Generator[Any, None, None]:
         # todo welcome message
@@ -194,6 +204,10 @@ class JrDevUI(App[None]):
         self.task_count = 0
         self.button_container = ButtonContainer(id="button_container")
         self.chat_list = ChatList(self.jrdev, id="chat_list")
+        self.chat_view = ChatViewWidget(id="chat_view")
+        
+        # Initialize content switcher
+        self.content_switcher = ContentSwitcher(initial="terminal_output_container")
 
         with Horizontal():
             with self.vlayout_left:
@@ -201,7 +215,9 @@ class JrDevUI(App[None]):
                 yield self.chat_list
             with self.vlayout_terminal:
                 yield self.task_monitor
-                yield self.terminal_output_widget
+                with self.content_switcher:
+                    yield self.terminal_output_widget
+                    yield self.chat_view
                 yield self.terminal_input
             with self.vlayout_right:
                 yield self.directory_widget
@@ -213,6 +229,10 @@ class JrDevUI(App[None]):
         self.terminal_input.focus()
         self.terminal_input.border_title = "Command Input"
         self.terminal_input.styles.border = ("round", Color.parse("#63f554"))
+
+        self.chat_view.styles.border = ("round", Color.parse("#63f554"))
+        self.chat_view.border_title = "Chat"
+        self.chat_view.set_project_context_on(self.jrdev.state.use_project_context)
 
         # directory widget styling
         self.directory_widget.border_title = "Project Files"
@@ -271,6 +291,26 @@ class JrDevUI(App[None]):
 
         # clear input widget
         self.terminal_input.value = ""
+
+    @on(CommandTextArea.Submitted, "#chat_input")
+    async def accept_chat_input(self, event: CommandTextArea.Submitted) -> None:
+        text = event.value
+        # mirror user input to chat view
+        #self.content_switcher.chat_view.append_text(f"> {text}\n")
+
+        # is this something that should be tracked as an active task?
+        task_id = None
+        if self.task_monitor.should_track(text):
+            task_id = self.get_new_task_id()
+
+        # pass input to jrdev core
+        worker = self.run_worker(self.jrdev.process_input(text, task_id))
+        if task_id:
+            worker.name = task_id
+            self.task_monitor.add_task(task_id, text, "")
+
+        # clear input widget
+        #self.content_switcher.chat_input.value = ""
 
     @on(CommandRequest)
     async def run_command(self, event: CommandRequest) -> None:
@@ -340,6 +380,11 @@ class JrDevUI(App[None]):
         """Open the model profile management screen"""
         self.app.push_screen(ModelProfileScreen(self.jrdev))
 
+    @on(Button.Pressed, "#terminal_button")
+    def handle_show_terminal(self):
+        self.content_switcher.current = "terminal_output_container"
+        pass
+
     @on(TextualEvents.ModelChanged)
     def handle_model_change(self, message: TextualEvents.ModelChanged):
         self.model_list.set_model_selected(message.text)
@@ -363,6 +408,11 @@ class JrDevUI(App[None]):
         """The staged code context has been updated, notify directory widget to check for context changes"""
         self.directory_widget.reload_highlights()
 
+    @on(TextualEvents.ProjectContextUpdate)
+    def handle_project_context_update(self, event: TextualEvents.ProjectContextUpdate):
+        """Project context has been turned on or off"""
+        self.chat_view.handle_external_update(event.is_enabled)
+
     @on(TextualEvents.TaskUpdate)
     def handle_task_update(self, message: TextualEvents.TaskUpdate):
         """An update to a task/worker is being sent from the core app"""
@@ -372,6 +422,20 @@ class JrDevUI(App[None]):
     def handle_exit_request(self, message: TextualEvents.ExitRequest) -> None:
         """Handle a request to exit the application"""
         self.exit()
+        
+    @on(Button.Pressed, ".sidebar_button")
+    async def handle_chat_thread_button(self, event: Button.Pressed) -> None:
+        """Handle clicks on chat thread buttons in the sidebar"""
+        btn = event.button
+        
+        # If it's the new thread button, let the existing handler manage it
+        if btn.id == "new_thread":
+            return
+            
+        # If it's a thread button, switch to chat view
+        if btn.id in self.chat_list.buttons:
+            # Switch to chat view mode
+            self.content_switcher.current = "chat_view"
 
 
 def run_textual_ui() -> None:

@@ -86,3 +86,7 @@ class UiWrapper:
             update: mutable dict containing any kind of updates to parse
         """
         raise NotImplementedError("Subclasses must implement update_task_info")
+
+    def project_context_changed(self, is_enabled: bool) -> None:
+        """Project Context has been toggled on or off"""
+        raise NotImplementedError("Subclasses must implement project_context_changed")

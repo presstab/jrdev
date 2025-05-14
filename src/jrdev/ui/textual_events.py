@@ -45,7 +45,12 @@ class TextualEvents(UiWrapper):
     class CodeContextUpdate(Message):
         def __init__(self):
             super().__init__()
-            
+
+    class ProjectContextUpdate(Message):
+        def __init__(self, is_enabled):
+            super().__init__()
+            self.is_enabled = is_enabled
+
     class ConfirmationRequest(Message):
         def __init__(self, prompt_text: str, future: asyncio.Future, diff_lines: Optional[List[str]] = None):
             super().__init__()
@@ -148,3 +153,7 @@ class TextualEvents(UiWrapper):
         Signal to UI that code context has been updated
         """
         self.app.post_message(self.CodeContextUpdate())
+
+    def project_context_changed(self, is_enabled: bool) -> None:
+        """Signal to UI that project context has been toggled on or off"""
+        self.app.post_message(self.ProjectContextUpdate(is_enabled))

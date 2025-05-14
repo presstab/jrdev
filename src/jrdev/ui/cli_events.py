@@ -230,3 +230,6 @@ class CliEvents(UiWrapper):
 
     def code_context_update(self):
         pass
+
+    def project_context_changed(self, is_enabled: bool) -> None:
+        pass
