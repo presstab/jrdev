@@ -192,7 +192,7 @@ class JrDevUI(App[None]):
         self.model_list = ModelSelectionWidget(id="model_list")
         self.task_count = 0
         self.button_container = ButtonContainer(id="button_container")
-        self.chat_list = ChatList(id="chat_list")
+        self.chat_list = ChatList(self.jrdev, id="chat_list")
 
         with Horizontal():
             with self.vlayout_left:

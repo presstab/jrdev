@@ -185,6 +185,7 @@ class Application:
 
     def switch_thread(self, thread_id):
         """Switch to a different thread"""
+        self.logger.info(f"Switching thread to {thread_id}")
         return self.state.switch_thread(thread_id)
 
     def create_thread(self, thread_id="") -> str:

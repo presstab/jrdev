@@ -11,8 +11,9 @@ logger = logging.getLogger("jrdev")
 
 class ChatList(Widget):
 
-    def __init__(self, id: Optional[str] = None) -> None:
+    def __init__(self, core_app, id: Optional[str] = None) -> None:
         super().__init__(id=id)
+        self.core_app = core_app
         self.buttons: Dict[str, Button] = {} # id -> Button
         self.threads: Dict[str, MessageThread] = {} # id -> MsgThread
         self.active_thread_id: Optional[str] = None
@@ -59,3 +60,14 @@ class ChatList(Widget):
         self.active_thread_id = thread_id
         if thread_id in self.buttons:
             self.buttons[thread_id].add_class("active")
+
+    @on(Button.Pressed, ".sidebar_button")
+    async def handle_thread_button_click(self, event: Button.Pressed):
+        btn = event.button
+        if btn.id not in self.buttons:
+            # ignore button if it doesn't belong to chat_list
+            return
+
+        # switch chat thread
+        if self.core_app.switch_thread(btn.id):
+            self.set_active(btn.id)
