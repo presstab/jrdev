@@ -18,8 +18,8 @@ import argparse
 import re
 from typing import Any, List
 
-from jrdev.commands.help import format_command_with_args
-from jrdev.ui.ui import COLORS, PrintType, show_conversation
+from jrdev.commands.help import format_command_with_args_plain
+from jrdev.ui.ui import PrintType, show_conversation
 
 
 async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
@@ -32,8 +32,8 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
     # Create parser with enhanced descriptions
     parser = argparse.ArgumentParser(
         prog="/thread",
-        description=f"{COLORS['BRIGHT_WHITE']}Manage isolated conversation contexts{COLORS['RESET']}",
-        epilog=f"Examples:\n  {format_command_with_args('/thread new', 'feature/auth')}\n  {format_command_with_args('/thread switch', '3')}",
+        description="Manage isolated conversation contexts",
+        epilog=f"Examples:\n  {format_command_with_args_plain('/thread new', 'feature/auth')}\n  {format_command_with_args_plain('/thread switch', '3')}",
         exit_on_error=False
     )
 
@@ -43,8 +43,8 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
     new_parser = subparsers.add_parser(
         "new",
         help="Create new conversation thread",
-        description=f"{COLORS['BRIGHT_WHITE']}Create new isolated conversation context{COLORS['RESET']}",
-        epilog=f"Example: {format_command_with_args('/thread new', 'my_feature')}"
+        description="Create new isolated conversation context",
+        epilog=f"Example: {format_command_with_args_plain('/thread new', 'my_feature')}"
     )
     new_parser.add_argument(
         "name",
@@ -57,39 +57,39 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
     list_parser = subparsers.add_parser(
         "list",
         help="List all threads",
-        description=f"{COLORS['BRIGHT_WHITE']}Display available conversation threads{COLORS['RESET']}",
-        epilog=f"Example: {format_command_with_args('/thread list')}"
+        description="Display available conversation threads",
+        epilog=f"Example: {format_command_with_args_plain('/thread list')}"
     )
 
     # Switch thread command - Enhanced version
     switch_parser = subparsers.add_parser(
         "switch",
         help="Change active conversation context",
-        description=f"{COLORS['BRIGHT_WHITE']}Switch Between Conversation Contexts{COLORS['RESET']}",
-        epilog=f"Example: {format_command_with_args('/thread switch NewThemeChat')}"
+        description="Switch Between Conversation Contexts",
+        epilog=f"Example: {format_command_with_args_plain('/thread switch NewThemeChat')}"
     )
     switch_parser.add_argument(
         "thread_id",
         type=str,
         nargs="?",
         default=None,
-        help=f"{COLORS['BRIGHT_WHITE']}Target thread ID{COLORS['RESET']} (use '/thread list' to see available IDs)"
+        help="Target thread ID (use '/thread list' to see available IDs)"
     )
 
     # Show thread info command
     info_parser = subparsers.add_parser(
         "info",
         help="Current thread details",
-        description=f"{COLORS['BRIGHT_WHITE']}Show current thread statistics{COLORS['RESET']}",
-        epilog=f"Example: {format_command_with_args('/thread info')}"
+        description="Show current thread statistics",
+        epilog=f"Example: {format_command_with_args_plain('/thread info')}"
     )
 
     # View conversation command
     view_parser = subparsers.add_parser(
         "view",
         help="Display message history",
-        description=f"{COLORS['BRIGHT_WHITE']}Show conversation history{COLORS['RESET']}",
-        epilog=f"Example: {format_command_with_args('/thread view', '15')}"
+        description="Show conversation history",
+        epilog=f"Example: {format_command_with_args_plain('/thread view', '15')}"
     )
     view_parser.add_argument(
         "count",
@@ -131,7 +131,7 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
             await _handle_list_threads(app)
         elif parsed_args.subcommand == "switch":
             if parsed_args.thread_id is None:
-                app.ui.print_text(f"{COLORS['RED']}Error: must specify a thread_id", PrintType.ERROR)
+                app.ui.print_text("Error: must specify a thread_id", PrintType.ERROR)
                 switch_parser.print_help()  # Show specific help for switch command
                 return
             await _handle_switch_thread(app, parsed_args)
@@ -140,8 +140,8 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
         elif parsed_args.subcommand == "view":
             await _handle_view_conversation(app, parsed_args)
         else:
-            app.ui.print_text(f"{COLORS['RED']}Error: Missing subcommand{COLORS['RESET']}", PrintType.ERROR)
-            app.ui.print_text(f"{COLORS['BRIGHT_WHITE']}Available Thread Subcommands:{COLORS['RESET']}", PrintType.HEADER)
+            app.ui.print_text("Error: Missing subcommand", PrintType.ERROR)
+            app.ui.print_text("Available Thread Subcommands:", PrintType.HEADER)
 
             # Display formatted subcommand help
             subcommands = [
@@ -152,41 +152,41 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
                 ("view", "[count]", "Display message history", "thread view 5")
             ]
 
-            for cmd, args, desc, example in subcommands:
+            for cmd, cmd_args, desc, example in subcommands:
                 app.ui.print_text(
-                    f"  {format_command_with_args(f'/thread {cmd}', args)}",
+                    f"  {format_command_with_args_plain(f'/thread {cmd}', cmd_args)}",
                     PrintType.COMMAND,
                     end=""
                 )
                 app.ui.print_text(f" - {desc}")
-                app.ui.print_text(f"    {COLORS['BRIGHT_BLACK']}Example: {example}{COLORS['RESET']}\n")
+                app.ui.print_text(f"    Example: {example}\n")
 
     except Exception as e:
-        app.ui.print_text(f"{COLORS['RED']}Error: {str(e)}{COLORS['RESET']}", PrintType.ERROR)
-        app.ui.print_text(f"{COLORS['BRIGHT_WHITE']}Thread Command Usage:{COLORS['RESET']}", PrintType.HEADER)
+        app.ui.print_text(f"Error: {str(e)}", PrintType.ERROR)
+        app.ui.print_text("Thread Command Usage:", PrintType.HEADER)
 
         # Subcommand help sections
         sections = [
-            ("Create New Thread", format_command_with_args("/thread new", "[name]"),
+            ("Create New Thread", format_command_with_args_plain("/thread new", "[name]"),
              "Start fresh conversation with clean history\nExample: /thread new bugfix_123"),
 
-            ("List Threads", format_command_with_args("/thread list"),
+            ("List Threads", format_command_with_args_plain("/thread list"),
              "Show all available conversation contexts\nExample: /thread list"),
 
-            ("Switch Threads", format_command_with_args("/thread switch", "<id>"),
+            ("Switch Threads", format_command_with_args_plain("/thread switch", "<id>"),
              "Change active conversation context\nExample: /thread switch 2"),
 
-            ("Thread Info", format_command_with_args("/thread info"),
+            ("Thread Info", format_command_with_args_plain("/thread info"),
              "Show current thread statistics\nExample: /thread info"),
 
-            ("View History", format_command_with_args("/thread view", "[count]"),
+            ("View History", format_command_with_args_plain("/thread view", "[count]"),
              "Display message history (default 10)\nExample: /thread view 5")
         ]
 
         for header, cmd, desc in sections:
-            app.ui.print_text(f"{COLORS['BRIGHT_WHITE']}{header}:{COLORS['RESET']}", PrintType.HEADER)
+            app.ui.print_text(f"{header}:", PrintType.HEADER)
             app.ui.print_text(f"  {cmd}", PrintType.COMMAND)
-            app.ui.print_text(f"  {COLORS['BRIGHT_BLACK']}{desc}{COLORS['RESET']}\n")
+            app.ui.print_text(f"  {desc}\n")
 
 async def _handle_new_thread(app: Any, args: argparse.Namespace) -> None:
     """Create a new message thread
@@ -242,19 +242,19 @@ async def _handle_switch_thread(app: Any, args: argparse.Namespace) -> None:
     """Switch to a different message thread with visual feedback"""
     thread_id = getattr(args, 'thread_id', None)
     if not thread_id:
-        app.ui.print_text(f"{COLORS['RED']}Error: Must specify thread ID{COLORS['RESET']}", PrintType.ERROR)
+        app.ui.print_text("Error: Must specify thread ID", PrintType.ERROR)
         return
 
-    app.ui.print_text(f"{COLORS['BRIGHT_WHITE']}Switching Context...{COLORS['RESET']}", PrintType.HEADER)
+    app.ui.print_text("Switching Context...", PrintType.HEADER)
 
     # Validate thread existence
     if thread_id not in app.state.threads:
         app.ui.print_text(
-            f"{COLORS['RED']}Thread {COLORS['BRIGHT_WHITE']}{thread_id}{COLORS['RED']} not found{COLORS['RESET']}",
+            f"Thread {thread_id} not found",
             PrintType.ERROR
         )
         app.ui.print_text(
-            f"Use {COLORS['BRIGHT_WHITE']}/thread list{COLORS['RESET']} to see available threads",
+            "Use /thread list to see available threads",
             PrintType.INFO
         )
         return
@@ -266,11 +266,11 @@ async def _handle_switch_thread(app: Any, args: argparse.Namespace) -> None:
 
         # Success message with thread stats
         app.ui.print_text(
-            f"{COLORS['GREEN']}✓ Switched to thread {COLORS['BRIGHT_WHITE']}{thread_id}{COLORS['RESET']}",
+            f"Successfully switched to thread {thread_id}",
             PrintType.SUCCESS
         )
         app.ui.print_text(
-            f"{COLORS['BRIGHT_CYAN']}Thread Stats:{COLORS['RESET']}\n"
+            f"Thread Stats:\n"
             f"  Messages: {len(new_thread.messages)} | "
             f"Context Files: {len(new_thread.context)}\n"
             f"Embedded Files: {len(new_thread.embedded_files)}",
@@ -281,13 +281,13 @@ async def _handle_switch_thread(app: Any, args: argparse.Namespace) -> None:
         app.ui.chat_thread_update(new_thread.thread_id)
     else:
         app.ui.print_text(
-            f"{COLORS['RED']}Failed to switch to thread {COLORS['BRIGHT_WHITE']}{thread_id}{COLORS['RESET']}",
+            f"Failed to switch to thread {thread_id}",
             PrintType.ERROR
         )
         app.switch_thread(previous_thread)  # Revert to previous thread
 
         # notify ui of thread change
-        app.ui.chat_thread_update(previous_thread.thread_id)
+        app.ui.chat_thread_update(previous_thread)
 
 async def _handle_thread_info(app: Any) -> None:
     """Show information about the current thread
