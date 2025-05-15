@@ -123,7 +123,7 @@ class JrDevUI(App[None]):
         }
 
         /* Apply consistent scrollbar styling */
-        TaskMonitor, ModelSelectionWidget, #diff-display, TerminalTextArea, #cmd_input, DirectoryTree {
+        TaskMonitor, ModelSelectionWidget, #diff-display, TerminalTextArea, #cmd_input, DirectoryTree, VerticalScroll {
             scrollbar-background: #1e1e1e;
             scrollbar-background-hover: #1e1e1e;
             scrollbar-background-active: #1e1e1e;
@@ -185,6 +185,11 @@ class JrDevUI(App[None]):
         Horizontal {
             layout: horizontal;
         }
+        
+        #chat_view {
+            height: 1fr;
+            width: 100%;
+        }
     """
     def compose(self) -> Generator[Any, None, None]:
         # todo welcome message
@@ -238,6 +243,7 @@ class JrDevUI(App[None]):
 
         # Horizontal Layout Splits
         self.vlayout_terminal.styles.width = "60%"
+        self.vlayout_terminal.styles.height = "1fr"
         self.vlayout_left.styles.width = "15%"
 
         # --- Vertical Layout Splits within vlayout_terminal ---
@@ -285,7 +291,9 @@ class JrDevUI(App[None]):
     @on(CommandTextArea.Submitted, "#chat_input")
     async def accept_chat_input(self, event: CommandTextArea.Submitted) -> None:
         text = event.value
-        self.chat_view.append_text(f"> {text}\n")
+
+        # show user chat
+        await self.chat_view.add_user_message(text)
 
         # always track chat tasks
         task_id = self.get_new_task_id()
@@ -324,9 +332,9 @@ class JrDevUI(App[None]):
             self.terminal_output_widget.append_text(event.text + "\n")
 
     @on(TextualEvents.StreamChunk)
-    def handle_stream_chunk(self, event: TextualEvents.StreamChunk) -> None:
+    async def handle_stream_chunk(self, event: TextualEvents.StreamChunk) -> None:
         """Append incoming LLM stream chunks to the chat output if active thread matches."""
-        self.chat_view.handle_stream_chunk(event)
+        await self.chat_view.handle_stream_chunk(event)
 
     @on(TextualEvents.ConfirmationRequest)
     def handle_confirmation_request(self, message: TextualEvents.ConfirmationRequest) -> None:
@@ -394,7 +402,7 @@ class JrDevUI(App[None]):
             self.chat_list.set_active(msg_thread.thread_id)
 
             # update chat view
-            self.chat_view.on_thread_switched()
+            await self.chat_view.on_thread_switched()
 
     @on(TextualEvents.CodeContextUpdate)
     def handle_code_context_update(self, message: TextualEvents.CodeContextUpdate):
