@@ -12,6 +12,16 @@ class UiWrapper:
     def print_stream(self, message: str):
         """print a stream of text"""
         raise NotImplementedError("Subclasses must implement print_stream()")
+
+    def stream_chunk(self, thread_id: str, chunk: str) -> None:
+        """
+        Handle an incoming chunk of text from a streaming LLM response.
+        
+        Args:
+            thread_id: The ID of the conversation thread this chunk belongs to.
+            chunk: The piece of text from the AI's response.
+        """
+        raise NotImplementedError("Subclasses must implement stream_chunk()")
         
     async def prompt_for_confirmation(self, prompt_text: str = "Apply these changes?", diff_lines: Optional[List[str]] = None) -> Tuple[str, Optional[str]]:
         """

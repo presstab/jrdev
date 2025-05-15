@@ -10,7 +10,6 @@ from jrdev.core.commands import Command, CommandHandler
 from jrdev.core.state import AppState
 from jrdev.file_utils import add_to_gitignore, JRDEV_DIR, JRDEV_PACKAGE_DIR, get_env_path
 from jrdev.commands.keys import check_existing_keys, save_keys_to_env, run_first_time_setup
-from jrdev.llm_requests import stream_request
 from jrdev.logger import setup_logger
 from jrdev.services.message_service import MessageService
 from jrdev.model_list import ModelList
@@ -401,8 +400,17 @@ class Application:
                 self.logger.info("Exit command received, forcing running state to False")
                 self.state.running = False
         else:
+            # 1) get the active thread
             msg_thread = self.state.get_current_thread()
-            await self.send_message(msg_thread, user_input, print_stream=True, worker_id=worker_id)
+            thread_id = msg_thread.thread_id
+            # 2) tell UI “I’m starting a new chat” (e.g. highlight the thread)
+            self.ui.chat_thread_update(thread_id)
+            # 3) stream the LLM response
+            async for chunk in self.message_service.stream_message(msg_thread, user_input):
+                # for each piece of text we hand it off to the UI
+                self.ui.stream_chunk(thread_id, chunk)
+            # 4) at the end, notify UI to refresh thread list or button state
+            self.ui.chat_thread_update(thread_id)
 
     async def _perform_first_time_setup(self):
         """Handle first-time setup process"""

@@ -1,4 +1,4 @@
-"""Message thread implementation."""
+'''Message thread implementation.'''
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
@@ -58,11 +58,27 @@ class MessageThread:
         self.messages.append({"role": "assistant", "content": response})
         self.metadata["last_modified"] = datetime.now()
 
+    def add_response_partial(self, chunk: str) -> None:
+        """Add a partial assistant response chunk to the thread history."""
+        if self.messages and self.messages[-1].get("role") == "assistant":
+            self.messages[-1]["content"] += chunk
+        else:
+            self.messages.append({"role": "assistant", "content": chunk})
+        self.metadata["last_modified"] = datetime.now()
+
+    def finalize_response(self, full_text: str) -> None:
+        """Finalize the assistant response, replacing partials with full text."""
+        if self.messages and self.messages[-1].get("role") == "assistant":
+            self.messages[-1]["content"] = full_text
+        else:
+            # This case should ideally not happen if add_response_partial was called first
+            # but as a fallback, we add a new message.
+            self.messages.append({"role": "assistant", "content": full_text})
+        self.metadata["last_modified"] = datetime.now()
+
     def set_compacted(self, messages):
         """Replace the exising messages list, set file states to default"""
         self.messages = messages
         self.context = set()
         self.embedded_files = set()
         self.metadata["last_modified"] = datetime.now()
-
-

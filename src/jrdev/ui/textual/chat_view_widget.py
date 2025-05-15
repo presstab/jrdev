@@ -90,6 +90,13 @@ class ChatViewWidget(TerminalOutputWidget):
         else:
             self.send_commands = True
 
+    def handle_stream_chunk(self, event: TextualEvents.StreamChunk) -> None:
+        """Append incoming LLM stream chunks to the chat output if active thread matches."""
+        # todo: only render if it’s the current thread
+        # if event.thread_id != self.current_thread_id:
+        #     return
+        self.append_text(event.chunk)
+
     def handle_external_update(self, is_enabled: bool) -> None:
         if self.context_switch.value != is_enabled:
             self.set_project_context_on(is_enabled)

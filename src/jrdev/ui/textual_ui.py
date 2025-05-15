@@ -285,22 +285,24 @@ class JrDevUI(App[None]):
     @on(CommandTextArea.Submitted, "#chat_input")
     async def accept_chat_input(self, event: CommandTextArea.Submitted) -> None:
         text = event.value
-        # mirror user input to chat view
-        #self.content_switcher.chat_view.append_text(f"> {text}\n")
+        # User input is not directly mirrored here.
+        # It will be added to the chat history by the core application logic,
+        # and the ChatViewWidget will update based on thread changes.
 
-        # is this something that should be tracked as an active task?
         task_id = None
-        if self.task_monitor.should_track(text):
+        if self.task_monitor.should_track(text): # Check if input should be tracked
             task_id = self.get_new_task_id()
 
-        # pass input to jrdev core
+        # Pass input to jrdev core for processing in a background worker
+        # The process_input method now handles adding the user message to the thread
+        # and initiating the streaming response.
         worker = self.run_worker(self.jrdev.process_input(text, task_id))
         if task_id:
             worker.name = task_id
-            self.task_monitor.add_task(task_id, text, "")
+            self.task_monitor.add_task(task_id, text, "") # Add to task monitor if tracked
 
-        # clear input widget
-        #self.content_switcher.chat_input.value = ""
+        # Clear the chat input widget after submission
+        self.chat_view.input_widget.clear()
 
     @on(CommandRequest)
     async def run_command(self, event: CommandRequest) -> None:
@@ -323,6 +325,11 @@ class JrDevUI(App[None]):
             self.terminal_output_widget.append_text("\n".join(event.text) + "\n")
         else:
             self.terminal_output_widget.append_text(event.text + "\n")
+
+    @on(TextualEvents.StreamChunk)
+    def handle_stream_chunk(self, event: TextualEvents.StreamChunk) -> None:
+        """Append incoming LLM stream chunks to the chat output if active thread matches."""
+        self.chat_view.handle_stream_chunk(event)
 
     @on(TextualEvents.ConfirmationRequest)
     def handle_confirmation_request(self, message: TextualEvents.ConfirmationRequest) -> None:

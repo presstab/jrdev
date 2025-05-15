@@ -13,7 +13,7 @@ import time
 from typing import Any, Dict, List, Optional, cast
 
 from jrdev.file_utils import JRDEV_DIR
-from jrdev.llm_requests import stream_request
+from jrdev.llm_requests import generate_llm_response
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.string_utils import contains_chinese
 from jrdev.ui.ui import PrintType
@@ -284,7 +284,7 @@ class ContextManager:
             logger.info(f"Waiting for LLM analysis of {file_path}...")
 
             # Send the request to the LLM
-            file_analysis_result: Any = await stream_request(
+            file_analysis_result: Any = await generate_llm_response(
                 app, app.state.model, temp_messages, task_id=task_id, print_stream=False, max_output_tokens=500
             )
             file_analysis = str(file_analysis_result)

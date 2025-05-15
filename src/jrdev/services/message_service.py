@@ -1,110 +1,58 @@
-import os
+from typing import AsyncIterator, TYPE_CHECKING
 from jrdev.message_builder import MessageBuilder
 from jrdev.llm_requests import stream_request
-from jrdev.ui.ui import PrintType
+from jrdev.messages.thread import MessageThread
+
+if TYPE_CHECKING:
+    from jrdev.core.application import Application # To avoid circular imports
 
 class MessageService:
-    def __init__(self, application):
+    def __init__(self, application: 'Application'):
         self.app = application
         self.logger = application.logger
 
-    async def send_message(self, msg_thread, content, writepath=None, print_stream=True, worker_id=None):
+    async def stream_message(self, msg_thread: MessageThread, content: str) -> AsyncIterator[str]:
         """
-        Send a message to the LLM with default behavior.
-        If writepath is provided, the response will be saved to that file.
-
-        Args:
-            msg_thread: The message thread that this is being added to
-            content: The message content to send
-            writepath: Optional. If provided, the response will be saved to this path as a markdown file
-            print_stream: Whether to print the stream response to terminal (default: True)
-
-        Returns:
-            str: The response text from the model
+        Build the user+context messages, send the chat to the LLM as a stream,
+        and yield each chunk of text as it arrives.
         """
-        self.logger.info(f"Sending message to model {self.app.state.model}")
-
-        if not isinstance(content, str):
-            error_msg = f"Expected string but got {type(content)}"
-            self.logger.error(error_msg)
-            self.app.ui.print_text(f"Error: {error_msg}", PrintType.ERROR)
-            return None
-
-        user_additional_modifier = " Here is the user's question or instruction:"
-        user_message = f"{user_additional_modifier} {content}"
-
-        # Build actual request to send to LLM
         builder = MessageBuilder(self.app)
+        # Configure builder with history and context
         builder.set_embedded_files(msg_thread.embedded_files)
-        builder.start_user_section()
 
-        # Update message history in the builder
         if msg_thread.messages:
             builder.add_historical_messages(msg_thread.messages)
-        elif self.app.state.use_project_context:
-            # only add project files on the first message in the thread
+        elif self.app.state.use_project_context: # Add project files if no history and project context is on
             builder.add_project_files()
 
-        # Add user added context
-        thread_context = msg_thread.context
-        if thread_context:
-            builder.add_context(list(thread_context))
+        if msg_thread.context: # Add any files explicitly added to this thread's context
+            builder.add_context(list(msg_thread.context))
 
-        files_sent = builder.get_files()
-        builder.append_to_user_section(user_message)
+        # Add the current user message
+        builder.start_user_section()
+        builder.append_to_user_section(content)
         builder.finalize_user_section()
-        messages = builder.build()
 
-        # update history on thread
-        msg_thread.add_embedded_files(files_sent)
-        msg_thread.messages = messages
+        messages_for_llm = builder.build()
 
-        model_name = self.app.state.model
-        self.app.ui.print_text(f"\n{model_name} is processing request in message thread: {msg_thread.thread_id}...", PrintType.PROCESSING)
+        # Update message thread state with the new user message and context used
+        # This ensures the user's message is part of the history before the assistant responds.
+        msg_thread.add_embedded_files(builder.get_files()) # Files used are now "embedded"
+        msg_thread.messages = messages_for_llm # Update thread history to include this user's message
 
-        try:
-            # Send the message to the LLM
-            response_text = await stream_request(self.app, self.app.state.model, messages, task_id=worker_id, print_stream=print_stream)
-            self.logger.info(f"Successfully received response from model in thread {msg_thread.thread_id}")
+        # Stream response from LLM
+        response_accumulator = ""
+        # stream_request returns an async generator directly as per refactoring note (b)
+        llm_response_stream = stream_request(
+            self.app,
+            self.app.state.model, # Current model from app state
+            messages_for_llm
+        )
 
-            # Add response to messages
-            msg_thread.add_response(response_text)
+        async for chunk in llm_response_stream:
+            response_accumulator += chunk
+            msg_thread.add_response_partial(chunk) # Update thread with partial assistant response
+            yield chunk
 
-            if writepath is None:
-                return response_text
-
-            # Make sure the writepath has .md extension
-            if not writepath.endswith('.md'):
-                writepath = f"{writepath}.md"
-
-            # Create directory structure if it doesn't exist
-            os.makedirs(os.path.dirname(os.path.abspath(writepath)), exist_ok=True)
-
-            # Write the response to the specified file path
-            try:
-                with open(writepath, 'w') as f:
-                    # Add a title based on the file name
-                    title = os.path.basename(writepath).replace('.md', '').replace('_', ' ').title()
-                    f.write(f"# {title}\n\n")
-
-                    # Write timestamp
-                    from datetime import datetime
-                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    f.write(f"> Generated by {self.app.state.model} on {timestamp}\n\n")
-
-                    # Write the LLM response
-                    f.write(response_text)
-
-                self.logger.info(f"Response saved to file: {writepath}")
-                self.app.ui.print_text(f"Response saved to {writepath}", print_type=PrintType.SUCCESS)
-                return response_text
-            except Exception as e:
-                error_msg = f"Error writing to file {writepath}: {str(e)}"
-                self.logger.error(error_msg)
-                self.app.ui.print_text(error_msg, print_type=PrintType.ERROR)
-                return response_text
-        except Exception as e:
-            error_msg = str(e)
-            self.logger.error(f"Error in send_message: {error_msg}")
-            self.app.ui.print_text(f"Error: {error_msg}", PrintType.ERROR)
-            return None
+        # Finalize the full response in the message thread
+        msg_thread.finalize_response(response_accumulator)
