@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 
+USER_INPUT_PREFIX = "User Input: "
 
 class MessageThread:
     """Thread for storing a sequence of messages and related context."""

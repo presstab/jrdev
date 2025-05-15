@@ -203,7 +203,7 @@ class JrDevUI(App[None]):
         self.task_count = 0
         self.button_container = ButtonContainer(id="button_container")
         self.chat_list = ChatList(self.jrdev, id="chat_list")
-        self.chat_view = ChatViewWidget(id="chat_view")
+        self.chat_view = ChatViewWidget(self.jrdev, id="chat_view")
         
         # Initialize content switcher
         self.content_switcher = BorderedSwitcher(id="content_switcher", initial="terminal_output_container")
@@ -285,13 +285,10 @@ class JrDevUI(App[None]):
     @on(CommandTextArea.Submitted, "#chat_input")
     async def accept_chat_input(self, event: CommandTextArea.Submitted) -> None:
         text = event.value
-        # User input is not directly mirrored here.
-        # It will be added to the chat history by the core application logic,
-        # and the ChatViewWidget will update based on thread changes.
+        self.chat_view.append_text(f"> {text}\n")
 
-        task_id = None
-        if self.task_monitor.should_track(text): # Check if input should be tracked
-            task_id = self.get_new_task_id()
+        # always track chat tasks
+        task_id = self.get_new_task_id()
 
         # Pass input to jrdev core for processing in a background worker
         # The process_input method now handles adding the user message to the thread
@@ -392,8 +389,12 @@ class JrDevUI(App[None]):
         # get the thread
         msg_thread = self.jrdev.get_current_thread()
         if msg_thread:
+            # update chat_list buttons
             await self.chat_list.thread_update(msg_thread)
             self.chat_list.set_active(msg_thread.thread_id)
+
+            # update chat view
+            self.chat_view.on_thread_switched()
 
     @on(TextualEvents.CodeContextUpdate)
     def handle_code_context_update(self, message: TextualEvents.CodeContextUpdate):

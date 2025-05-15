@@ -11,6 +11,7 @@ from jrdev.core.state import AppState
 from jrdev.file_utils import add_to_gitignore, JRDEV_DIR, JRDEV_PACKAGE_DIR, get_env_path
 from jrdev.commands.keys import check_existing_keys, save_keys_to_env, run_first_time_setup
 from jrdev.logger import setup_logger
+from jrdev.messages.thread import USER_INPUT_PREFIX
 from jrdev.services.message_service import MessageService
 from jrdev.model_list import ModelList
 from jrdev.model_profiles import ModelProfileManager
@@ -406,7 +407,8 @@ class Application:
             # 2) tell UI “I’m starting a new chat” (e.g. highlight the thread)
             self.ui.chat_thread_update(thread_id)
             # 3) stream the LLM response
-            async for chunk in self.message_service.stream_message(msg_thread, user_input):
+            content = f"{USER_INPUT_PREFIX}{user_input}"
+            async for chunk in self.message_service.stream_message(msg_thread, content, worker_id):
                 # for each piece of text we hand it off to the UI
                 self.ui.stream_chunk(thread_id, chunk)
             # 4) at the end, notify UI to refresh thread list or button state

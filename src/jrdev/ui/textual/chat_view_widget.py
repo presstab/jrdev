@@ -10,6 +10,7 @@ from jrdev.ui.textual.terminal_output_widget import TerminalOutputWidget
 from jrdev.ui.textual.command_request import CommandRequest
 from jrdev.ui.textual_events import TextualEvents
 from jrdev.ui.textual.chat_input_widget import ChatInputWidget
+from jrdev.messages.thread import MessageThread, USER_INPUT_PREFIX
 
 logger = logging.getLogger("jrdev")
 
@@ -43,14 +44,16 @@ class ChatViewWidget(TerminalOutputWidget):
     }
     """
 
-    def __init__(self, id: Optional[str] = None) -> None:
+    def __init__(self, core_app, id: Optional[str] = None) -> None:
         super().__init__(id=id)
+        self.core_app = core_app
         self.layout_output = Vertical(id="chat_output_layout")
         self.terminal_button = Button(label="<-- Terminal", id="terminal_button")
         self.context_switch = Switch(value=False, id="context_switch", tooltip="When enabled, summarized information about the project is added as context to the chat, this includes select file summaries, file tree, and a project overview")
         self.context_label = Label("Project Ctx", id="context_label")
         self.input_widget = ChatInputWidget(id="chat_input")
         self.send_commands = True
+        self.current_thread_id = "main"
 
     def compose(self) -> ComposeResult:
         """Compose the widget with terminal output and buttons."""
@@ -76,6 +79,38 @@ class ChatViewWidget(TerminalOutputWidget):
 
         self.input_widget.styles.height = 8  # Fixed rows
 
+        # now load only the active thread’s history:
+        self._load_current_thread()
+
+    def _load_current_thread(self) -> None:
+        """Clear the output and re–print only messages from the active thread."""
+        thread: MessageThread = self.core_app.get_current_thread()
+        if not thread:
+            return
+
+        if self.current_thread_id == thread.thread_id:
+            # already on correct thread
+            return
+
+        self.current_thread_id = thread.thread_id
+
+        # clear existing text
+        self.terminal_output.text = ""
+
+        # replay the thread’s messages
+        for msg in thread.messages:
+            role = msg["role"]
+            body = msg["content"]
+            prefix = "You: "
+            text = ""
+            if role == "user":
+                #strip out context files from content
+                before, sep, text = body.partition(USER_INPUT_PREFIX)
+            else:
+                prefix = "Assistant: "
+                text = body
+            self.append_text(f"{prefix}{text}\n")
+
     def set_project_context_on(self, is_on):
         """Is project context enabled or disabled"""
         if self.context_switch.value != is_on:
@@ -90,12 +125,18 @@ class ChatViewWidget(TerminalOutputWidget):
         else:
             self.send_commands = True
 
+    def on_thread_switched(self):
+        """Whenever the core tells us the thread changed, re-render."""
+        self._load_current_thread()
+
     def handle_stream_chunk(self, event: TextualEvents.StreamChunk) -> None:
-        """Append incoming LLM stream chunks to the chat output if active thread matches."""
-        # todo: only render if it’s the current thread
-        # if event.thread_id != self.current_thread_id:
-        #     return
-        self.append_text(event.chunk)
+        """
+        Only append chunks that belong to the active thread,
+        so we don’t mix simultaneous conversations.
+        """
+        active = self.core_app.get_current_thread()
+        if active and event.thread_id == active.thread_id:
+            self.append_text(event.chunk)
 
     def handle_external_update(self, is_enabled: bool) -> None:
         if self.context_switch.value != is_enabled:

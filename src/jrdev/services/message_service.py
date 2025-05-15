@@ -11,7 +11,7 @@ class MessageService:
         self.app = application
         self.logger = application.logger
 
-    async def stream_message(self, msg_thread: MessageThread, content: str) -> AsyncIterator[str]:
+    async def stream_message(self, msg_thread: MessageThread, content: str, task_id: str = None) -> AsyncIterator[str]:
         """
         Build the user+context messages, send the chat to the LLM as a stream,
         and yield each chunk of text as it arrives.
@@ -45,8 +45,9 @@ class MessageService:
         # stream_request returns an async generator directly as per refactoring note (b)
         llm_response_stream = stream_request(
             self.app,
-            self.app.state.model, # Current model from app state
-            messages_for_llm
+            self.app.state.model,
+            messages_for_llm,
+            task_id
         )
 
         async for chunk in llm_response_stream:
