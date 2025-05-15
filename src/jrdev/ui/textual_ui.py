@@ -3,7 +3,7 @@ import copy
 from textual import on
 from textual.app import App
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, ContentSwitcher, Input, RadioSet, TextArea
+from textual.widgets import Button, Input, RadioSet, TextArea
 from textual.worker import Worker, WorkerState
 from textual.color import Color
 from typing import Any, Generator
@@ -24,9 +24,9 @@ from jrdev.ui.textual.model_profile_widget import ModelProfileScreen
 from jrdev.ui.textual.command_request import CommandRequest
 from jrdev.ui.textual.chat_view_widget import ChatViewWidget
 from jrdev.ui.textual.chat_input_widget import ChatInputWidget
+from jrdev.ui.textual.bordered_switcher import BorderedSwitcher
 
 logger = logging.getLogger("jrdev")
-
 
 class JrDevUI(App[None]):
     CSS = """
@@ -197,7 +197,6 @@ class JrDevUI(App[None]):
         self.vlayout_left = Vertical()
         # Give the widget an ID for easier CSS targeting
         self.terminal_output_widget = TerminalOutputWidget(id="terminal_output_container")
-        self.terminal_input = CommandTextArea(placeholder="Enter Command", id="cmd_input")
         self.task_monitor = TaskMonitor() # This is now the container widget
         self.directory_widget = DirectoryWidget(core_app=self.jrdev, id="directory_widget")
         self.model_list = ModelSelectionWidget(id="model_list")
@@ -207,7 +206,7 @@ class JrDevUI(App[None]):
         self.chat_view = ChatViewWidget(id="chat_view")
         
         # Initialize content switcher
-        self.content_switcher = ContentSwitcher(initial="terminal_output_container")
+        self.content_switcher = BorderedSwitcher(id="content_switcher", initial="terminal_output_container")
 
         with Horizontal():
             with self.vlayout_left:
@@ -218,20 +217,12 @@ class JrDevUI(App[None]):
                 with self.content_switcher:
                     yield self.terminal_output_widget
                     yield self.chat_view
-                yield self.terminal_input
             with self.vlayout_right:
                 yield self.directory_widget
                 yield self.model_list
 
     async def on_mount(self) -> None:
-        self.terminal_output_widget.border_title = "JrDev Terminal"
-        self.terminal_output_widget.styles.border = ("round", Color.parse("#63f554"))
-        self.terminal_input.focus()
-        self.terminal_input.border_title = "Command Input"
-        self.terminal_input.styles.border = ("round", Color.parse("#63f554"))
-
-        self.chat_view.styles.border = ("round", Color.parse("#63f554"))
-        self.chat_view.border_title = "Chat"
+        # init state of project context for chat widget
         self.chat_view.set_project_context_on(self.jrdev.state.use_project_context)
 
         # directory widget styling
@@ -252,7 +243,6 @@ class JrDevUI(App[None]):
         # --- Vertical Layout Splits within vlayout_terminal ---
         # Apply height styling to the TaskMonitor container widget
         self.task_monitor.styles.height = "25%" # Fixed percentage
-        self.terminal_input.styles.height = 5   # Fixed rows
 
         await self.jrdev.initialize_services()
 
@@ -290,7 +280,7 @@ class JrDevUI(App[None]):
             self.task_monitor.add_task(task_id, text, "")
 
         # clear input widget
-        self.terminal_input.value = ""
+        self.terminal_output_widget.clear_input()
 
     @on(CommandTextArea.Submitted, "#chat_input")
     async def accept_chat_input(self, event: CommandTextArea.Submitted) -> None:
@@ -380,11 +370,6 @@ class JrDevUI(App[None]):
         """Open the model profile management screen"""
         self.app.push_screen(ModelProfileScreen(self.jrdev))
 
-    @on(Button.Pressed, "#terminal_button")
-    def handle_show_terminal(self):
-        self.content_switcher.current = "terminal_output_container"
-        pass
-
     @on(TextualEvents.ModelChanged)
     def handle_model_change(self, message: TextualEvents.ModelChanged):
         self.model_list.set_model_selected(message.text)
@@ -422,7 +407,11 @@ class JrDevUI(App[None]):
     def handle_exit_request(self, message: TextualEvents.ExitRequest) -> None:
         """Handle a request to exit the application"""
         self.exit()
-        
+
+    @on(Button.Pressed, "#terminal_button")
+    def handle_show_terminal(self):
+        self.content_switcher.current = "terminal_output_container"
+
     @on(Button.Pressed, ".sidebar_button")
     async def handle_chat_thread_button(self, event: Button.Pressed) -> None:
         """Handle clicks on chat thread buttons in the sidebar"""
@@ -436,6 +425,18 @@ class JrDevUI(App[None]):
         if btn.id in self.chat_list.buttons:
             # Switch to chat view mode
             self.content_switcher.current = "chat_view"
+
+    def _on_panel_switched(self, old: str|None, new: str|None) -> None:
+        """
+        Called whenever the ContentSwitcher flips panels.
+        We reset the border_title on the visible view.
+        """
+        if new == "terminal_output_container":
+            # your terminal pane lives in self.terminal_output_widget.layout_output
+            self.terminal_output_widget.layout_output.border_title = "JrDev Terminal"
+        elif new == "chat_view":
+            # your chat pane lives in self.chat_view.layout_output
+            self.chat_view.layout_output.border_title = "Chat"
 
 
 def run_textual_ui() -> None:
