@@ -2,10 +2,10 @@ import os
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.message import Message
 from textual.widget import Widget
-from textual.widgets import Button, Label, Switch
+from textual.widgets import Button, Label, Input, Switch
 from textual.color import Color
-from textual.scroll_view import ScrollView
 from typing import Optional
 import logging
 
@@ -88,12 +88,14 @@ class ChatViewWidget(Widget):
 
         #controls and input
         self.layout_output = Vertical(id="chat_output_layout")
+        self.layout_chat_controls = Horizontal(id="chat_controls_container")
         self.terminal_button = Button(label="⇤ Terminal", id="terminal_button")
         self.change_name_button = Button(label="Rename", id="change_name_button")
         self.delete_button = Button(label="Delete", id="delete_button")
         self.context_switch = Switch(value=False, id="context_switch", tooltip="When enabled, summarized information about the project is added as context to the chat, this includes select file summaries, file tree, and a project overview")
         self.context_label = Label("Project Ctx", id="context_label")
         self.input_widget = ChatInputWidget(id="chat_input")
+        self.input_name = None
 
         # Chat context display widgets
         self.chat_context_title_label = Label("Chat Context:", id="chat_context_title_label")
@@ -102,12 +104,13 @@ class ChatViewWidget(Widget):
         self.send_commands = True # For context_switch logic
         self.current_thread_id: Optional[str] = None
         self.MAX_BUBBLES = MAX_BUBBLES
+        self.name_edit_mode = False
 
     def compose(self) -> ComposeResult:
         """Compose the widget with controls, message scroll view, and input area."""
         with self.layout_output:
             yield self.message_scroller
-            with Horizontal(id="chat_controls_container"):
+            with self.layout_chat_controls:
                 yield self.terminal_button
                 yield self.change_name_button
                 yield self.delete_button
@@ -130,10 +133,13 @@ class ChatViewWidget(Widget):
 
         self.message_scroller.styles.height = "1fr"
         self.message_scroller.styles.min_height = 0
-        self.message_scroller.show_vertical_scrollbar = True
-        self.message_scroller.horizontal_scrollbar
 
         await self._load_current_thread()
+
+    class ShowTerminal(Message):
+        """Send signal to UI to show terminal"""
+        def __init__(self):
+            super().__init__()
 
     async def _prune_bubbles(self) -> None:
         """Removes the oldest bubbles if the count exceeds MAX_BUBBLES."""
@@ -245,6 +251,57 @@ class ChatViewWidget(Widget):
             self.post_message(CommandRequest(f"/projectcontext {'on' if event.value else 'off'}"))
         else:
             self.send_commands = True # Reset for next user interaction
+
+    @on(Button.Pressed, "#terminal_button")
+    async def handle_show_terminal(self):
+        if self.name_edit_mode:
+            # this button doubles as a cancel button when in name edit mode
+            await self.set_name_edit_mode(False)
+        else:
+            self.post_message(self.ShowTerminal())
+
+    @on(Button.Pressed, "#change_name_button")
+    async def handle_rename_pressed(self):
+        # if this is pressed when edit mode is active, then it renames the thread
+        if self.name_edit_mode:
+            if self.input_name.value and len(self.input_name.value):
+                self.post_message(CommandRequest(f"/thread rename {self.current_thread_id} {self.input_name.value}"))
+                await self.set_name_edit_mode(False)
+            return
+
+        await self.set_name_edit_mode(True)
+
+
+    async def set_name_edit_mode(self, is_edit_mode: bool) -> None:
+        self.name_edit_mode = is_edit_mode
+        if is_edit_mode:
+            self.input_name = Input(placeholder="Enter Name", id="input_name")
+            await self.layout_chat_controls.mount(self.input_name, after=1)
+            self.input_name.styles.height = 1
+            self.input_name.styles.margin = (0, 0, 1, 1)
+            self.input_name.styles.padding = 0
+            self.input_name.styles.border = "none"
+            self.input_name.styles.max_width = 20
+            self.input_name.styles.width = 20
+
+            # repurpose buttons
+            self.terminal_button.label = "Cancel"
+            self.change_name_button.label = "Save Name"
+
+            # hide other elements
+            self.delete_button.visible = False
+            self.context_switch.visible = False
+            self.context_label.visible = False
+        else:
+            # return widgets to their normal state
+            self.terminal_button.label = "⇤ Terminal"
+            self.change_name_button.label = "Rename"
+            self.delete_button.visible = True
+            self.context_switch.visible = True
+            self.context_label.visible = True
+            await self.input_name.remove()
+            self.input_name = None
+
 
     async def on_thread_switched(self) -> None:
         """Called when the core application signals a thread switch."""

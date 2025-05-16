@@ -424,8 +424,9 @@ class JrDevUI(App[None]):
         """Handle a request to exit the application"""
         self.exit()
 
-    @on(Button.Pressed, "#terminal_button")
+    @on(ChatViewWidget.ShowTerminal)
     def handle_show_terminal(self):
+        """Switch to terminal view"""
         self.content_switcher.current = "terminal_output_container"
 
     @on(Button.Pressed, ".sidebar_button")

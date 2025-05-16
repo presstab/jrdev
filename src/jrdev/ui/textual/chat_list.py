@@ -41,6 +41,8 @@ class ChatList(Widget):
     async def add_thread(self, msg_thread: MessageThread) -> None:
         tid = msg_thread.thread_id
         name = tid.removeprefix("thread_")
+        if msg_thread.name:
+            name = msg_thread.name
         btn = Button(label=name, id=tid, classes="sidebar_button")
         self.buttons[tid] = btn
         self.threads[tid] = msg_thread
@@ -54,6 +56,11 @@ class ChatList(Widget):
         # if this is a new thread, add it
         if self.threads.get(msg_thread.thread_id, None) is None:
             await self.add_thread(msg_thread)
+        else:
+            # check if thread name may have changed
+            btn = self.buttons[msg_thread.thread_id]
+            if msg_thread.name and msg_thread.name != str(btn.label):
+                btn.label = msg_thread.name
 
     def set_active(self, thread_id: str) -> None:
         # if this is already active thread, then ignore
