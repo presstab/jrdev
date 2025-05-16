@@ -2,7 +2,7 @@ from textual import events, on
 from textual.app import ComposeResult
 from textual.widget import Widget
 from textual.widgets import Button
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 import logging
 
 from jrdev.messages.thread import MessageThread
@@ -61,6 +61,17 @@ class ChatList(Widget):
             btn = self.buttons[msg_thread.thread_id]
             if msg_thread.name and msg_thread.name != str(btn.label):
                 btn.label = msg_thread.name
+
+    def check_threads(self, all_threads: List[str]) -> None:
+        # check our list of threads against the list from app state
+        to_remove = [tid for tid in self.threads.keys() if tid not in all_threads]
+        for tid in to_remove:
+            btn = self.buttons.pop(tid, None)
+            if btn is not None:
+                btn.remove()
+            self.threads.pop(tid, None)
+            if self.active_thread_id == tid:
+                self.active_thread_id = None
 
     def set_active(self, thread_id: str) -> None:
         # if this is already active thread, then ignore

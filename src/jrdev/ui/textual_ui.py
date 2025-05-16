@@ -401,6 +401,10 @@ class JrDevUI(App[None]):
             await self.chat_list.thread_update(msg_thread)
             self.chat_list.set_active(msg_thread.thread_id)
 
+            # double check that no threads were deleted
+            all_threads = self.jrdev.state.get_thread_ids()
+            self.chat_list.check_threads(all_threads)
+
             # update chat view
             await self.chat_view.on_thread_switched()
 

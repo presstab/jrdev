@@ -96,6 +96,7 @@ class ChatViewWidget(Widget):
         self.context_label = Label("Project Ctx", id="context_label")
         self.input_widget = ChatInputWidget(id="chat_input")
         self.input_name = None
+        self.label_delete_prompt = None
 
         # Chat context display widgets
         self.chat_context_title_label = Label("Chat Context:", id="chat_context_title_label")
@@ -105,6 +106,7 @@ class ChatViewWidget(Widget):
         self.current_thread_id: Optional[str] = None
         self.MAX_BUBBLES = MAX_BUBBLES
         self.name_edit_mode = False
+        self.delete_prompt_mode = False
 
     def compose(self) -> ComposeResult:
         """Compose the widget with controls, message scroll view, and input area."""
@@ -257,8 +259,45 @@ class ChatViewWidget(Widget):
         if self.name_edit_mode:
             # this button doubles as a cancel button when in name edit mode
             await self.set_name_edit_mode(False)
+        elif self.delete_prompt_mode:
+            # this button doubles as a Yes button when in delete prompt mode
+            self.post_message(CommandRequest(f"/thread delete {self.current_thread_id}"))
+
+            # return button states to normal
+            await self.set_delete_prompt_mode(False)
+
+            # chat is not valid now so return to terminal
+            self.post_message(self.ShowTerminal())
         else:
             self.post_message(self.ShowTerminal())
+
+    @on(Button.Pressed, "#delete_button")
+    async def handle_delete_pressed(self):
+        await self.set_delete_prompt_mode(True)
+
+    async def set_delete_prompt_mode(self, is_delete_mode):
+        self.delete_prompt_mode = is_delete_mode
+        if is_delete_mode:
+            # prompt with are you sure you want to delete this thread?
+            self.terminal_button.label = "Yes"
+            self.change_name_button.label = "Cancel"
+            self.delete_button.visible = False
+            self.context_label.visible = False
+            self.context_switch.visible = False
+
+            # detemine thread name
+            self.label_delete_prompt = Label(f"Delete chat thread \"{self.current_thread_id}?\"")
+            await self.layout_chat_controls.mount(self.label_delete_prompt, before=0)
+        else:
+            # return widgets to their normal state
+            self.terminal_button.label = "⇤ Terminal"
+            self.change_name_button.label = "Rename"
+            self.delete_button.visible = True
+            self.context_switch.visible = True
+            self.context_label.visible = True
+            await self.label_delete_prompt.remove()
+            self.label_delete_prompt = None
+
 
     @on(Button.Pressed, "#change_name_button")
     async def handle_rename_pressed(self):
@@ -267,6 +306,10 @@ class ChatViewWidget(Widget):
             if self.input_name.value and len(self.input_name.value):
                 self.post_message(CommandRequest(f"/thread rename {self.current_thread_id} {self.input_name.value}"))
                 await self.set_name_edit_mode(False)
+            return
+        elif self.delete_prompt_mode:
+            # if this is pressed when delete prompt is active, then it ends delete prompt mode
+            await self.set_delete_prompt_mode(False)
             return
 
         await self.set_name_edit_mode(True)

@@ -63,6 +63,9 @@ class AppState:
     def get_active_thread_id(self) -> str:
         return self.active_thread
 
+    def get_thread_ids(self) -> List[str]:
+        return list(self.threads.keys())
+
     def get_thread(self, thread_id) -> MessageThread:
         """Get a message thread instance"""
         return self.threads.get(thread_id, None)
@@ -112,6 +115,24 @@ class AppState:
         """Remove a completed task"""
         if task_id in self.active_tasks:
             del self.active_tasks[task_id]
+
+    # Delete thread command support
+    def delete_thread(self, thread_id: str) -> bool:
+        """Delete an existing message thread and adjust active thread if needed"""
+        if thread_id not in self.threads:
+            return False
+        # Remove the thread
+        del self.threads[thread_id]
+        # Adjust active_thread if necessary
+        if self.active_thread == thread_id:
+            # Switch to main if it exists, else to another available thread
+            if "main" in self.threads:
+                self.active_thread = "main"
+            elif self.threads:
+                self.active_thread = next(iter(self.threads))
+            else:
+                self.active_thread = ""
+        return True
 
     # State validation
     def validate(self) -> bool:
