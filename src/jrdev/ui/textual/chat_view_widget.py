@@ -1,3 +1,4 @@
+import os
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -36,7 +37,28 @@ class ChatViewWidget(Widget):
         height: auto;
         width: 100%;
         layout: horizontal;
-        border: none;
+        border-top: #63f554;
+        border-bottom: none;
+        border-left: none;
+        border-right: none;
+    }
+    #chat_context_display_container {
+        height: auto; /* Allow wrapping for multiple files */
+        width: 100%;
+        layout: horizontal;
+        padding: 0 1; /* Horizontal padding */
+    }
+    #chat_context_title_label {
+        height: 1;
+        width: auto;
+        margin-right: 1;
+        color: #63f554; /* Match other labels */
+    }
+    #chat_context_files_label {
+        height: 1;
+        width: 1fr; /* Fill available space */
+        color: #9b65ff; /* Match purplish color from filtered directory tree */
+        text-style: italic;
     }
     #terminal_button {
         height: 1;
@@ -69,6 +91,10 @@ class ChatViewWidget(Widget):
         self.context_switch = Switch(value=False, id="context_switch", tooltip="When enabled, summarized information about the project is added as context to the chat, this includes select file summaries, file tree, and a project overview")
         self.context_label = Label("Project Ctx", id="context_label")
         self.input_widget = ChatInputWidget(id="chat_input")
+
+        # Chat context display widgets
+        self.chat_context_title_label = Label("Chat Context:", id="chat_context_title_label")
+        self.chat_context_files_label = Label("None", id="chat_context_files_label")
         
         self.send_commands = True # For context_switch logic
         self.current_thread_id: Optional[str] = None
@@ -82,6 +108,9 @@ class ChatViewWidget(Widget):
                 yield self.terminal_button
                 yield self.context_switch
                 yield self.context_label
+            with Horizontal(id="chat_context_display_container"):
+                yield self.chat_context_title_label
+                yield self.chat_context_files_label
         yield self.input_widget
 
     async def on_mount(self) -> None:
@@ -109,6 +138,19 @@ class ChatViewWidget(Widget):
             for old_bubble in list(bubbles[:num_to_remove]): 
                 await old_bubble.remove()
 
+    async def _update_chat_context_display(self) -> None:
+        """Updates the label displaying the current chat context files."""
+        thread: Optional[MessageThread] = self.core_app.get_current_thread()
+        if thread:
+            context_paths = thread.get_context_paths()
+            if context_paths:
+                filenames = [os.path.basename(p) for p in context_paths]
+                self.chat_context_files_label.update(", ".join(filenames))
+            else:
+                self.chat_context_files_label.update("Empty")
+        else:
+            self.chat_context_files_label.update("Empty")
+
     async def _load_current_thread(self) -> None:
         """Clear the output and re-render messages from the active thread as bubbles."""
         thread: Optional[MessageThread] = self.core_app.get_current_thread()
@@ -117,9 +159,14 @@ class ChatViewWidget(Widget):
             if self.current_thread_id is not None:
                  await self.message_scroller.remove_children()
                  self.current_thread_id = None
+            await self._update_chat_context_display() # Update context display for no thread
             return
 
+        # update context file list
+        await self._update_chat_context_display()
+
         if self.current_thread_id == thread.thread_id and self.message_scroller.children:
+            # If it's the same thread and we already have bubbles, just scroll
             self.message_scroller.scroll_end(animate=False)
             return
 
@@ -143,6 +190,7 @@ class ChatViewWidget(Widget):
             await self.message_scroller.mount(bubble)
 
         await self._prune_bubbles()
+        await self._update_chat_context_display() # Update context display after loading thread messages
         self.message_scroller.scroll_end(animate=False)
 
     async def add_user_message(self, raw_user_input: str) -> None:
@@ -153,6 +201,7 @@ class ChatViewWidget(Widget):
         bubble = MessageBubble(raw_user_input, role="user")
         await self.message_scroller.mount(bubble)
         await self._prune_bubbles()
+        # Context display is updated when the thread itself is updated (e.g., via _load_current_thread)
         self.message_scroller.scroll_end(animate=False)
 
     async def handle_stream_chunk(self, event: TextualEvents.StreamChunk) -> None:

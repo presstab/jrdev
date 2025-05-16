@@ -450,9 +450,11 @@ class JrDevUI(App[None]):
         if new == "terminal_output_container":
             # your terminal pane lives in self.terminal_output_widget.layout_output
             self.terminal_output_widget.layout_output.border_title = "JrDev Terminal"
+            self.task_monitor.styles.height = "25%"
         elif new == "chat_view":
             # your chat pane lives in self.chat_view.layout_output
             self.chat_view.layout_output.border_title = "Chat"
+            self.task_monitor.styles.height = 6 # min size to display a row
 
 
 def run_textual_ui() -> None:

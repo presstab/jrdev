@@ -56,6 +56,10 @@ class ChatList(Widget):
             await self.add_thread(msg_thread)
 
     def set_active(self, thread_id: str) -> None:
+        # if this is already active thread, then ignore
+        if self.active_thread_id == thread_id:
+            return
+
         # remove “active” from old
         if self.active_thread_id and self.active_thread_id in self.buttons:
             self.buttons[self.active_thread_id].remove_class("active")

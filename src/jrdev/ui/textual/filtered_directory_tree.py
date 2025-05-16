@@ -15,6 +15,7 @@ from textual.app import ComposeResult
 
 from jrdev.core.application import Application
 from jrdev.messages import MessageThread
+from jrdev.ui.textual_events import TextualEvents
 
 import logging
 logger = logging.getLogger("jrdev")
@@ -176,6 +177,8 @@ class DirectoryWidget(Widget):
         msg = f"Added {rel_path} to message thread: {chat_thread.thread_id}"
         if self.button_add_chat_context.is_add_mode:
             chat_thread.add_new_context(rel_path)
+            # notify the rest of UI that chat thread is updated
+            self.post_message(TextualEvents.ChatThreadUpdate(chat_thread.thread_id))
         else:
             if not chat_thread.remove_context(rel_path):
                 msg = f"Failed to remove {rel_path}. Files sent in previous messages cannot be removed."
@@ -186,6 +189,7 @@ class DirectoryWidget(Widget):
                 return
             msg = f"Removed {rel_path} from message thread: {chat_thread.thread_id}"
             self.button_add_chat_context.set_mode(is_add_mode=True)
+            self.post_message(TextualEvents.ChatThreadUpdate(chat_thread.thread_id))
 
         # Update highlights
         self.update_highlights()
