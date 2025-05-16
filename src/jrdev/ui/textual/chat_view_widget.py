@@ -60,9 +60,10 @@ class ChatViewWidget(Widget):
         color: #9b65ff; /* Match purplish color from filtered directory tree */
         text-style: italic;
     }
-    #terminal_button {
+    #terminal_button, #change_name_button, #delete_button {
         height: 1;
         width: auto;
+        margin-left: 1;
     }
     #context_switch {
         height: 1;
@@ -87,7 +88,9 @@ class ChatViewWidget(Widget):
 
         #controls and input
         self.layout_output = Vertical(id="chat_output_layout")
-        self.terminal_button = Button(label="<-- Terminal", id="terminal_button")
+        self.terminal_button = Button(label="⇤ Terminal", id="terminal_button")
+        self.change_name_button = Button(label="Rename", id="change_name_button")
+        self.delete_button = Button(label="Delete", id="delete_button")
         self.context_switch = Switch(value=False, id="context_switch", tooltip="When enabled, summarized information about the project is added as context to the chat, this includes select file summaries, file tree, and a project overview")
         self.context_label = Label("Project Ctx", id="context_label")
         self.input_widget = ChatInputWidget(id="chat_input")
@@ -106,6 +109,8 @@ class ChatViewWidget(Widget):
             yield self.message_scroller
             with Horizontal(id="chat_controls_container"):
                 yield self.terminal_button
+                yield self.change_name_button
+                yield self.delete_button
                 yield self.context_switch
                 yield self.context_label
             with Horizontal(id="chat_context_display_container"):

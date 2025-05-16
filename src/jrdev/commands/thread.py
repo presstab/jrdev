@@ -8,6 +8,7 @@ Commands:
 - /thread new [NAME]: Create a new thread (optionally with a custom name)
 - /thread list: List all available threads
 - /thread switch THREAD_ID: Switch to a different thread
+- /thread rename THREAD_ID NAME: Rename an existing thread
 - /thread info: Show information about the current thread
 - /thread view [COUNT]: View conversation history in the current thread (default: 10)
 
@@ -16,10 +17,11 @@ For more details, see the docs/threads.md documentation.
 
 import argparse
 import re
-from typing import Any, List
+from typing import Any, List, Optional
 
 from jrdev.commands.help import format_command_with_args_plain
 from jrdev.ui.ui import PrintType, show_conversation
+from jrdev.messages.thread import MessageThread # For type hinting
 
 
 async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
@@ -33,7 +35,7 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
     parser = argparse.ArgumentParser(
         prog="/thread",
         description="Manage isolated conversation contexts",
-        epilog=f"Examples:\n  {format_command_with_args_plain('/thread new', 'feature/auth')}\n  {format_command_with_args_plain('/thread switch', '3')}",
+        epilog=f"Examples:\n  {format_command_with_args_plain('/thread new', 'feature/auth')}\n  {format_command_with_args_plain('/thread switch', '3')}\n  {format_command_with_args_plain('/thread rename', 'thread-abc new-feature-name')}",
         exit_on_error=False
     )
 
@@ -74,6 +76,24 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
         nargs="?",
         default=None,
         help="Target thread ID (use '/thread list' to see available IDs)"
+    )
+
+    # Rename thread command
+    rename_parser = subparsers.add_parser(
+        "rename",
+        help="Rename an existing thread",
+        description="Change the name of an existing conversation thread",
+        epilog=f"Example: {format_command_with_args_plain('/thread rename', 'thread_abc new_name')}"
+    )
+    rename_parser.add_argument(
+        "thread_id",
+        type=str,
+        help="Unique ID of the thread to rename"
+    )
+    rename_parser.add_argument(
+        "name",
+        type=str,
+        help="New name for the thread (3-20 chars, a-z0-9_-)"
     )
 
     # Show thread info command
@@ -135,6 +155,8 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
                 switch_parser.print_help()  # Show specific help for switch command
                 return
             await _handle_switch_thread(app, parsed_args)
+        elif parsed_args.subcommand == "rename":
+            await _handle_rename_thread(app, parsed_args)
         elif parsed_args.subcommand == "info":
             await _handle_thread_info(app)
         elif parsed_args.subcommand == "view":
@@ -148,6 +170,7 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
                 ("new", "[name]", "Create new conversation thread", "thread new feature/login"),
                 ("list", "", "List all available threads", "thread list"),
                 ("switch", "<id>", "Change active thread", "thread switch 2"),
+                ("rename", "<thread_id> <name>", "Rename an existing thread", "thread rename thread_abc new_name"),
                 ("info", "", "Show current thread details", "thread info"),
                 ("view", "[count]", "Display message history", "thread view 5")
             ]
@@ -175,6 +198,9 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
 
             ("Switch Threads", format_command_with_args_plain("/thread switch", "<id>"),
              "Change active conversation context\nExample: /thread switch 2"),
+
+            ("Rename Thread", format_command_with_args_plain("/thread rename", "<thread_id> <new_name>"),
+             "Change the name of an existing thread\nExample: /thread rename my_thread_id new_feature_name"),
 
             ("Thread Info", format_command_with_args_plain("/thread info"),
              "Show current thread statistics\nExample: /thread info"),
@@ -205,10 +231,15 @@ async def _handle_new_thread(app: Any, args: argparse.Namespace) -> None:
     # Create the thread
     thread_id = app.create_thread("")
     
+    # If a name was provided, set it
+    if args.name:
+        thread = app.state.threads[thread_id]
+        thread.set_name(args.name)
+
     # Switch to the new thread
     app.switch_thread(thread_id)
     
-    app.ui.print_text(f"Created and switched to new thread: {thread_id}", PrintType.SUCCESS)
+    app.ui.print_text(f"Created and switched to new thread: {thread_id}{f' (named: {args.name})' if args.name else ''}", PrintType.SUCCESS)
 
     # notify ui of thread change
     app.ui.chat_thread_update(thread_id)
@@ -229,10 +260,11 @@ async def _handle_list_threads(app: Any) -> None:
         message_count = len(thread.messages)
         context_count = len(thread.context)
         active_marker = "* " if thread_id == active_thread else "  "
+        name_display = f" (Name: {thread.name})" if thread.name else ""
         
         # Format the thread info
         app.ui.print_text(
-            f"{active_marker}{thread_id} - {message_count} messages, {context_count} context files", 
+            f"{active_marker}{thread_id}{name_display} - {message_count} messages, {context_count} context files", 
             PrintType.INFO if thread_id == active_thread else PrintType.INFO
         )
 
@@ -263,10 +295,11 @@ async def _handle_switch_thread(app: Any, args: argparse.Namespace) -> None:
     previous_thread = app.state.active_thread
     if app.switch_thread(thread_id):
         new_thread = app.state.get_current_thread()
+        name_display = f" (Name: {new_thread.name})" if new_thread.name else ""
 
         # Success message with thread stats
         app.ui.print_text(
-            f"Successfully switched to thread {thread_id}",
+            f"Successfully switched to thread {thread_id}{name_display}",
             PrintType.SUCCESS
         )
         app.ui.print_text(
@@ -289,6 +322,55 @@ async def _handle_switch_thread(app: Any, args: argparse.Namespace) -> None:
         # notify ui of thread change
         app.ui.chat_thread_update(previous_thread)
 
+async def _handle_rename_thread(app: Any, args: argparse.Namespace) -> None:
+    """Rename an existing message thread.
+
+    Args:
+        app: The application instance.
+        args: Parsed arguments, expecting 'thread_id' (unique ID of thread to rename) 
+              and 'name' (the new name for the thread).
+    """
+    thread_id_to_rename = args.thread_id
+    new_thread_name = args.name
+
+    # Validate new_thread_name format
+    if not re.match(r"^[\w-]{3,20}$", new_thread_name):
+        app.ui.print_text(
+            f"Error: Invalid new name '{new_thread_name}'. Name must be 3-20 alphanumerics, underscores, or hyphens.",
+            PrintType.ERROR
+        )
+        return
+
+    # Check if the target thread exists
+    if thread_id_to_rename not in app.state.threads:
+        #check if it is missing the thread_ prefix
+        if f"thread_{thread_id_to_rename}" not in app.state.threads:
+            app.ui.print_text(f"Error: Thread with ID '{thread_id_to_rename}' not found.", PrintType.ERROR)
+            return
+        thread_id_to_rename = f"thread_{thread_id_to_rename}"
+    
+    thread_to_rename: MessageThread = app.state.threads[thread_id_to_rename]
+            
+    old_display_name = thread_to_rename.name if thread_to_rename.name else thread_to_rename.thread_id
+    
+    # Prevent renaming to an existing thread ID (other than its own)
+    if new_thread_name != thread_id_to_rename and new_thread_name in app.state.threads:
+        app.ui.print_text(
+            f"Error: The new name '{new_thread_name}' conflicts with an existing thread ID.",
+            PrintType.ERROR
+        )
+        return
+
+    thread_to_rename.set_name(new_thread_name)
+
+    app.ui.print_text(
+        f"Thread '{old_display_name}' (ID: {thread_id_to_rename}) successfully renamed to '{new_thread_name}'.",
+        PrintType.SUCCESS
+    )
+    
+    # Notify UI of thread change, as the name might be displayed
+    app.ui.chat_thread_update(thread_id_to_rename)
+
 async def _handle_thread_info(app: Any) -> None:
     """Show information about the current thread
     
@@ -302,6 +384,7 @@ async def _handle_thread_info(app: Any) -> None:
     message_count = len(thread.messages)
     context_count = len(thread.context)
     files_count = len(thread.embedded_files)
+    name_display = f" (Name: {thread.name})" if thread.name else ""
     
     # Get message roles breakdown
     user_messages = sum(1 for msg in thread.messages if msg.get("role") == "user")
@@ -309,7 +392,7 @@ async def _handle_thread_info(app: Any) -> None:
     system_messages = sum(1 for msg in thread.messages if msg.get("role") == "system")
     
     # Show thread information
-    app.ui.print_text(f"Thread ID: {thread_id}", PrintType.HEADER)
+    app.ui.print_text(f"Thread ID: {thread_id}{name_display}", PrintType.HEADER)
     app.ui.print_text(f"Total messages: {message_count}", PrintType.INFO)
     app.ui.print_text(f"  User messages: {user_messages}", PrintType.INFO)
     app.ui.print_text(f"  Assistant messages: {assistant_messages}", PrintType.INFO)

@@ -25,6 +25,15 @@ class MessageThread:
             "last_modified": datetime.now(),
         }
 
+    def set_name(self, new_name: str) -> None:
+        """Set or update the name of the thread.
+
+        Args:
+            new_name: The new name for the thread.
+        """
+        self.name = new_name
+        self.metadata["last_modified"] = datetime.now()
+
     def add_new_context(self, file_path):
         """Add a new file that will be embedded into the next sent message in this thread"""
         # this does not check if the file is already embedded!
