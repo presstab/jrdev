@@ -278,6 +278,11 @@ class JrDevUI(App[None]):
     @on(CommandTextArea.Submitted, "#cmd_input")
     async def accept_input(self, event: CommandTextArea.Submitted) -> None:
         text = event.value
+        # if is not a command, encourage user to open chat window
+        if not text.startswith("/"):
+            self.terminal_output_widget.append_text(f"\nUnknown command: {text}\n- For a list of commands use '/help'\n- To open a new chat click the New Chat button.\n")
+            return
+
         # mirror user input to text area
         self.terminal_output_widget.append_text(f"> {text}\n")
 
@@ -308,7 +313,7 @@ class JrDevUI(App[None]):
         # Pass input to jrdev core for processing in a background worker
         # The process_input method now handles adding the user message to the thread
         # and initiating the streaming response.
-        worker = self.run_worker(self.jrdev.process_input(text, task_id))
+        worker = self.run_worker(self.jrdev.process_chat_input(text, task_id))
         if task_id:
             worker.name = task_id
             self.task_monitor.add_task(task_id, text, "") # Add to task monitor if tracked

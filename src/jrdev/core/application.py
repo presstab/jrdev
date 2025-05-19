@@ -441,18 +441,21 @@ class Application:
                 self.logger.info("Exit command received, forcing running state to False")
                 self.state.running = False
         else:
-            # 1) get the active thread
-            msg_thread = self.state.get_current_thread()
-            thread_id = msg_thread.thread_id
-            # 2) tell UI “I’m starting a new chat” (e.g. highlight the thread)
-            self.ui.chat_thread_update(thread_id)
-            # 3) stream the LLM response
-            content = f"{USER_INPUT_PREFIX}{user_input}"
-            async for chunk in self.message_service.stream_message(msg_thread, content, worker_id):
-                # for each piece of text we hand it off to the UI
-                self.ui.stream_chunk(thread_id, chunk)
-            # 4) at the end, notify UI to refresh thread list or button state
-            self.ui.chat_thread_update(thread_id)
+            await self.process_chat_input(user_input, worker_id)
+
+    async def process_chat_input(self, user_input, worker_id=None):
+        # 1) get the active thread
+        msg_thread = self.state.get_current_thread()
+        thread_id = msg_thread.thread_id
+        # 2) tell UI “I’m starting a new chat” (e.g. highlight the thread)
+        self.ui.chat_thread_update(thread_id)
+        # 3) stream the LLM response
+        content = f"{USER_INPUT_PREFIX}{user_input}"
+        async for chunk in self.message_service.stream_message(msg_thread, content, worker_id):
+            # for each piece of text we hand it off to the UI
+            self.ui.stream_chunk(thread_id, chunk)
+        # 4) at the end, notify UI to refresh thread list or button state
+        self.ui.chat_thread_update(thread_id)
 
     async def _perform_first_time_setup(self):
         """Handle first-time setup process"""
