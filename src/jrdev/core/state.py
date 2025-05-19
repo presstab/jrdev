@@ -35,13 +35,15 @@ class AppState:
         # Thread management
         if persisted_threads:
             self.threads: Dict[str, MessageThread] = persisted_threads
+            # choose the most recently modified thread as the current thread
+            latest = max(
+                self.threads.values(),
+                key=lambda t: t.metadata["last_modified"],
+            )
+            self.active_thread = latest.thread_id
         else:
             self.threads: Dict[str, MessageThread] = {}
-
-        # Ensure main always exists
-        if "main" not in self.threads:
-            self.threads["main"] = MessageThread("main")
-        self.active_thread: str = "main"  # Default active thread to main
+            self.active_thread = self.create_thread()
 
         # Context management
         self.context_code: Set[str] = set()
@@ -144,12 +146,10 @@ class AppState:
         
         # Adjust active_thread if necessary
         if self.active_thread == thread_id:
-            if "main" in self.threads: # Prefer switching to main if it exists
-                self.active_thread = "main"
-            elif self.threads: # If other threads exist, switch to the first one
+            if self.threads: # If other threads exist, switch to the first one
                 self.active_thread = next(iter(self.threads))
-            else: # No threads left
-                self.active_thread = "" # No active thread
+            else: # No threads left create new
+                self.active_thread = self.create_thread()
         return True
 
     # State validation
