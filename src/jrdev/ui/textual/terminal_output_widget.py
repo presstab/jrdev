@@ -33,18 +33,22 @@ class TerminalOutputWidget(Widget):
     }
     """
 
-    def __init__(self, id: Optional[str] = None) -> None:
+    def __init__(self, id: Optional[str] = None, output_widget_mode=False) -> None:
         super().__init__(id=id)
+        # output_widget_mode provides the output widget, without the input widget
+        self.output_widget_mode = output_widget_mode
         self.terminal_output = TerminalTextArea(id="terminal_output", language="markdown")
         self.copy_button = Button(label="Copy Selection", id="copy_button")
-        self.terminal_input = CommandTextArea(placeholder="Enter Command", id="cmd_input")
+        if not self.output_widget_mode:
+            self.terminal_input = CommandTextArea(placeholder="Enter Command", id="cmd_input")
         self.layout_output = Vertical(id="vlayout_output")
 
     def compose(self) -> ComposeResult:
         with self.layout_output:
             yield self.terminal_output
             yield self.copy_button
-        yield self.terminal_input
+        if not self.output_widget_mode:
+            yield self.terminal_input
 
     async def on_mount(self) -> None:
         self.can_focus = False
@@ -54,13 +58,15 @@ class TerminalOutputWidget(Widget):
         self.terminal_output.read_only = True
         self.terminal_output.show_line_numbers = False
 
-        self.terminal_input.focus()
-        self.terminal_input.border_title = "Command Input"
-        self.terminal_input.styles.border = ("round", Color.parse("#63f554"))
-        self.terminal_input.styles.height = 5  # Fixed rows
-
-        self.layout_output.border_title = "JrDev Terminal"
-        self.layout_output.styles.border = ("round", Color.parse("#63f554"))
+        if self.output_widget_mode:
+            self.styles.height = "1fr"
+        else:
+            self.terminal_input.focus()
+            self.terminal_input.border_title = "Command Input"
+            self.terminal_input.styles.border = ("round", Color.parse("#63f554"))
+            self.terminal_input.styles.height = 5  # Fixed rows
+            self.layout_output.border_title = "JrDev Terminal"
+            self.layout_output.styles.border = ("round", Color.parse("#63f554"))
 
     @on(Button.Pressed, "#copy_button")
     def handle_copy(self):

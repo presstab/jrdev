@@ -253,7 +253,7 @@ class GitToolsScreen(ModalScreen):
                         with Horizontal(classes="pr-buttons", id="summary-buttons"):
                             yield Button("Generate Summary", id="generate-summary-btn", variant="primary")
                             # LoadingIndicator will be added here dynamically
-                        yield TerminalOutputWidget(id="summary-output-widget")
+                        yield TerminalOutputWidget(id="summary-output-widget", output_widget_mode=True)
 
                     # PR Review View (Initially Hidden)
                     with Vertical(id="pr-review-view", classes="pr-view-container"):
@@ -262,7 +262,7 @@ class GitToolsScreen(ModalScreen):
                         with Horizontal(classes="pr-buttons", id="review-buttons"):
                             yield Button("Generate Review", id="generate-review-btn", variant="primary")
                             # LoadingIndicator will be added here dynamically
-                        yield TerminalOutputWidget(id="review-output-widget")
+                        yield TerminalOutputWidget(id="review-output-widget", output_widget_mode=True)
 
                     # Help View (Initially Hidden)
                     with Vertical(id="help-view"):
