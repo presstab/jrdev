@@ -160,7 +160,8 @@ class TaskMonitor(Vertical):
     async def on_mount(self) -> None:
         # Apply border styling to the container
         self.border_title = "Tasks"
-        self.styles.border = ("round", Color.parse("#63f554"))
+        self.styles.border = ("round", Color.parse("#5e5e5e"))
+        self.styles.border_title_color = "#fabd2f"
         self._table.can_focus = False
         self.button_stop.disabled = True
 

@@ -232,14 +232,17 @@ class JrDevUI(App[None]):
 
         # directory widget styling
         self.directory_widget.border_title = "Project Files"
-        self.directory_widget.styles.border = ("round", Color.parse("#63f554"))
+        self.directory_widget.styles.border = ("round", Color.parse("#5e5e5e"))
+        self.directory_widget.styles.border_title_color = "#fabd2f"
         self.directory_widget.styles.height = "50%"
         self.directory_widget.update_highlights()
 
         self.button_container.border_title = "Settings"
-        self.button_container.styles.border = ("round", Color.parse("#63f554"))
+        self.button_container.styles.border = ("round", Color.parse("#5e5e5e"))
+        self.button_container.styles.border_title_color = "#fabd2f"
         self.chat_list.border_title = "Chats"
-        self.chat_list.styles.border = ("round", Color.parse("#63f554"))
+        self.chat_list.styles.border = ("round", Color.parse("#5e5e5e"))
+        self.chat_list.styles.border_title_color = "#fabd2f"
 
         # Horizontal Layout Splits
         self.vlayout_terminal.styles.width = "60%"

@@ -46,4 +46,5 @@ class ChatInputWidget(CommandTextArea):
         """
         super().__init__(placeholder=placeholder, id=id, height=height, **kwargs)
         self.border_title = "Chat Input"
-        self.styles.border = ("round", Color.parse("#63f554"))
+        self.styles.border = ("round", Color.parse("#5e5e5e"))
+        self.styles.border_title_color = "#fabd2f"

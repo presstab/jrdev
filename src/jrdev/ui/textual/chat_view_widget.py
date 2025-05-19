@@ -37,7 +37,7 @@ class ChatViewWidget(Widget):
         height: auto;
         width: 100%;
         layout: horizontal;
-        border-top: #63f554;
+        border-top: #5e5e5e;
         border-bottom: none;
         border-left: none;
         border-right: none;
@@ -125,7 +125,8 @@ class ChatViewWidget(Widget):
 
     async def on_mount(self) -> None:
         """Set up the widget when mounted."""
-        self.layout_output.styles.border = ("round", Color.parse("#63f554"))
+        self.layout_output.styles.border = ("round", Color.parse("#5e5e5e"))
+        self.layout_output.styles.border_title_color = "#fabd2f"
         self.layout_output.border_title = "Chat"
 
         self.terminal_button.can_focus = False
