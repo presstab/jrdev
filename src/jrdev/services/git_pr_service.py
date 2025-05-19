@@ -3,7 +3,7 @@ import subprocess
 import shlex
 from typing import Optional, Tuple, Dict, Any
 from jrdev.message_builder import MessageBuilder
-from jrdev.llm_requests import stream_request
+from jrdev.llm_requests import generate_llm_response
 
 
 class GitPRServiceError(Exception):
@@ -66,7 +66,7 @@ async def generate_pr_analysis(
         messages = builder.build()
 
         # Get LLM response
-        response = await stream_request(
+        response = await generate_llm_response(
             app,
             app.state.model,
             messages,

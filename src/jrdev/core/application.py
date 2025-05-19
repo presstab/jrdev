@@ -10,9 +10,9 @@ from jrdev.core.commands import Command, CommandHandler
 from jrdev.core.state import AppState
 from jrdev.file_utils import add_to_gitignore, JRDEV_DIR, JRDEV_PACKAGE_DIR, get_env_path
 from jrdev.commands.keys import check_existing_keys, save_keys_to_env, run_first_time_setup
-from jrdev.llm_requests import stream_request
 from jrdev.logger import setup_logger
-from jrdev.message_builder import MessageBuilder
+from jrdev.messages.thread import USER_INPUT_PREFIX, MessageThread, THREADS_DIR # Added MessageThread, THREADS_DIR
+from jrdev.services.message_service import MessageService
 from jrdev.model_list import ModelList
 from jrdev.model_profiles import ModelProfileManager
 from jrdev.model_utils import load_hardcoded_models
@@ -27,9 +27,45 @@ class Application:
     def __init__(self):
         # Initialize core components
         self.logger = setup_logger(JRDEV_DIR)
-        self.state = AppState()
+
+        # Load persisted threads before AppState initialization
+        persisted_threads = self._load_persisted_threads()
+
+        self.state = AppState(persisted_threads=persisted_threads) # Pass loaded threads to AppState
         self.state.clients = APIClients()
         self.ui: UiWrapper = UiWrapper()
+
+    def _load_persisted_threads(self) -> Dict[str, MessageThread]:
+        """Load all persisted message threads from disk."""
+        loaded_threads: Dict[str, MessageThread] = {}
+        if not os.path.isdir(THREADS_DIR):
+            self.logger.info(f"Threads directory '{THREADS_DIR}' not found. No threads to load.")
+            return loaded_threads
+
+        self.logger.info(f"Loading persisted threads from '{THREADS_DIR}'...")
+        for filename in os.listdir(THREADS_DIR):
+            if filename.endswith(".json"):
+                file_path = os.path.join(THREADS_DIR, filename)
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    
+                    if "thread_id" not in data:
+                        self.logger.warning(f"File {file_path} is missing 'thread_id'. Skipping.")
+                        continue
+
+                    thread = MessageThread.from_dict(data)
+                    loaded_threads[thread.thread_id] = thread
+                    self.logger.debug(f"Successfully loaded thread: {thread.thread_id} from {file_path}")
+                except json.JSONDecodeError as e:
+                    self.logger.error(f"Error decoding JSON from {file_path}: {e}. Skipping file.")
+                except KeyError as e:
+                    self.logger.error(f"Missing key in thread data from {file_path}: {e}. Skipping file.")
+                except Exception as e:
+                    self.logger.error(f"Unexpected error loading thread from {file_path}: {e}. Skipping file.")
+        
+        self.logger.info(f"Finished loading threads. Total loaded: {len(loaded_threads)}.")
+        return loaded_threads
 
     def setup(self):
         self._initialize_commands()
@@ -132,6 +168,8 @@ class Application:
             self.logger.info("api clients not initialized")
             await self._initialize_api_clients()
 
+        self.message_service = MessageService(self)
+
         self.logger.info("Application services initialized")
         return True
 
@@ -176,8 +214,20 @@ class Application:
         """Get the currently active thread"""
         return self.state.get_current_thread()
 
+    def get_thread(self, thread_id):
+        """Get MessageThread instance"""
+        return self.state.get_thread(thread_id)
+
+    def get_all_threads(self):
+        """Get all MessageThread instances"""
+        return self.state.get_all_threads()
+
+    def get_active_thread_id(self):
+        return self.state.get_active_thread_id()
+
     def switch_thread(self, thread_id):
         """Switch to a different thread"""
+        self.logger.info(f"Switching thread to {thread_id}")
         return self.state.switch_thread(thread_id)
 
     def create_thread(self, thread_id="") -> str:
@@ -205,102 +255,8 @@ class Application:
         """
         Send a message to the LLM with default behavior.
         If writepath is provided, the response will be saved to that file.
-
-        Args:
-            msg_thread: The message thread that this is being added to
-            content: The message content to send
-            writepath: Optional. If provided, the response will be saved to this path as a markdown file
-            print_stream: Whether to print the stream response to terminal (default: True)
-
-        Returns:
-            str: The response text from the model
         """
-        self.logger.info(f"Sending message to model {self.state.model}")
-
-        if not isinstance(content, str):
-            error_msg = f"Expected string but got {type(content)}"
-            self.logger.error(error_msg)
-            self.ui.print_text(f"Error: {error_msg}", PrintType.ERROR)
-            return None
-
-        user_additional_modifier = " Here is the user's question or instruction:"
-        user_message = f"{user_additional_modifier} {content}"
-
-        # Build actual request to send to LLM
-        builder = MessageBuilder(self)
-        builder.set_embedded_files(msg_thread.embedded_files)
-        builder.start_user_section()
-
-        # Update message history in the builder
-        if msg_thread.messages:
-            builder.add_historical_messages(msg_thread.messages)
-        elif self.state.use_project_context:
-            # only add project files on the first message in the thread
-            builder.add_project_files()
-
-        # Add user added context
-        thread_context = msg_thread.context
-        if thread_context:
-            builder.add_context(list(thread_context))
-
-        files_sent = builder.get_files()
-        builder.append_to_user_section(user_message)
-        builder.finalize_user_section()
-        messages = builder.build()
-
-        # update history on thread
-        msg_thread.add_embedded_files(files_sent)
-        msg_thread.messages = messages
-
-        model_name = self.state.model
-        self.ui.print_text(f"\n{model_name} is processing request in message thread: {msg_thread.thread_id}...", PrintType.PROCESSING)
-
-        try:
-            # Send the message to the LLM
-            response_text = await stream_request(self, self.state.model, messages, task_id=worker_id, print_stream=print_stream)
-            self.logger.info(f"Successfully received response from model in thread {msg_thread.thread_id}")
-
-            # Add response to messages
-            msg_thread.add_response(response_text)
-
-            if writepath is None:
-                return response_text
-
-            # Make sure the writepath has .md extension
-            if not writepath.endswith('.md'):
-                writepath = f"{writepath}.md"
-
-            # Create directory structure if it doesn't exist
-            os.makedirs(os.path.dirname(os.path.abspath(writepath)), exist_ok=True)
-
-            # Write the response to the specified file path
-            try:
-                with open(writepath, 'w') as f:
-                    # Add a title based on the file name
-                    title = os.path.basename(writepath).replace('.md', '').replace('_', ' ').title()
-                    f.write(f"# {title}\n\n")
-
-                    # Write timestamp
-                    from datetime import datetime
-                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    f.write(f"> Generated by {self.state.model} on {timestamp}\n\n")
-
-                    # Write the LLM response
-                    f.write(response_text)
-
-                self.logger.info(f"Response saved to file: {writepath}")
-                self.ui.print_text(f"Response saved to {writepath}", print_type=PrintType.SUCCESS)
-                return response_text
-            except Exception as e:
-                error_msg = f"Error writing to file {writepath}: {str(e)}"
-                self.logger.error(error_msg)
-                self.ui.print_text(error_msg, print_type=PrintType.ERROR)
-                return response_text
-        except Exception as e:
-            error_msg = str(e)
-            self.logger.error(f"Error in send_message: {error_msg}")
-            self.ui.print_text(f"Error: {error_msg}", PrintType.ERROR)
-            return None
+        await self.message_service.send_message(msg_thread, content, writepath, print_stream, worker_id)
 
     def profile_manager(self):
         return self.state.model_profile_manager
@@ -485,8 +441,21 @@ class Application:
                 self.logger.info("Exit command received, forcing running state to False")
                 self.state.running = False
         else:
-            msg_thread = self.state.get_current_thread()
-            await self.send_message(msg_thread, user_input, print_stream=True, worker_id=worker_id)
+            await self.process_chat_input(user_input, worker_id)
+
+    async def process_chat_input(self, user_input, worker_id=None):
+        # 1) get the active thread
+        msg_thread = self.state.get_current_thread()
+        thread_id = msg_thread.thread_id
+        # 2) tell UI “I’m starting a new chat” (e.g. highlight the thread)
+        self.ui.chat_thread_update(thread_id)
+        # 3) stream the LLM response
+        content = f"{USER_INPUT_PREFIX}{user_input}"
+        async for chunk in self.message_service.stream_message(msg_thread, content, worker_id):
+            # for each piece of text we hand it off to the UI
+            self.ui.stream_chunk(thread_id, chunk)
+        # 4) at the end, notify UI to refresh thread list or button state
+        self.ui.chat_thread_update(thread_id)
 
     async def _perform_first_time_setup(self):
         """Handle first-time setup process"""

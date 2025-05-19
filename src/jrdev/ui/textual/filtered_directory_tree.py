@@ -15,6 +15,7 @@ from textual.app import ComposeResult
 
 from jrdev.core.application import Application
 from jrdev.messages import MessageThread
+from jrdev.ui.textual_events import TextualEvents
 
 import logging
 logger = logging.getLogger("jrdev")
@@ -75,6 +76,11 @@ class DirectoryWidget(Widget):
             id="add_code_context_button",
             classes="sidebar_button"
         )
+        self.button_refresh_directory = Button(
+            label="\u27F3",
+            id="refresh_directory_button",
+            classes=""
+        )
         self.ctx_buttons_active = False
 
     def compose(self) -> ComposeResult:
@@ -83,6 +89,7 @@ class DirectoryWidget(Widget):
             yield self.directory_tree
             # Buttons take only the space they need vertically
             with Horizontal(id="directory_widget_buttons", classes="button_container"):
+                yield self.button_refresh_directory
                 yield self.button_add_chat_context
                 yield self.button_add_code_context
 
@@ -101,6 +108,12 @@ class DirectoryWidget(Widget):
             button.styles.height = 1
             button.styles.border = None
 
+        self.button_refresh_directory.styles.border = None
+        self.button_refresh_directory.styles.min_width = 3
+        self.button_refresh_directory.styles.width = 3
+        self.button_refresh_directory.styles.height = 1
+        self.button_refresh_directory.tooltip = "Refresh Contents"
+
         # disable context buttons since they won't have anything selected
         self.button_add_code_context.disabled = True
         self.button_add_chat_context.disabled = True
@@ -112,7 +125,7 @@ class DirectoryWidget(Widget):
 
     def reload_highlights(self):
         self.update_highlights()
-        self.directory_tree.reload()
+        self.directory_tree.refresh()
 
     def get_selected_file_rel_path(self):
         # get selected file from directory tree
@@ -176,24 +189,26 @@ class DirectoryWidget(Widget):
         msg = f"Added {rel_path} to message thread: {chat_thread.thread_id}"
         if self.button_add_chat_context.is_add_mode:
             chat_thread.add_new_context(rel_path)
+            # notify the rest of UI that chat thread is updated
+            self.post_message(TextualEvents.ChatThreadUpdate(chat_thread.thread_id))
         else:
             if not chat_thread.remove_context(rel_path):
                 msg = f"Failed to remove {rel_path}. Files sent in previous messages cannot be removed."
                 logger.info(msg)
                 self.notify(msg, timeout=2)
                 # update just in case
-                self.update_highlights()
+                self.reload_highlights()
                 return
             msg = f"Removed {rel_path} from message thread: {chat_thread.thread_id}"
             self.button_add_chat_context.set_mode(is_add_mode=True)
+            self.post_message(TextualEvents.ChatThreadUpdate(chat_thread.thread_id))
 
         # Update highlights
-        self.update_highlights()
+        self.reload_highlights()
 
         # Show notification
         logger.info(msg)
         self.notify(msg, timeout=2)
-        self.directory_tree.reload()
 
     @on(Button.Pressed, "#add_code_context_button")
     def handle_code_context_button(self):
@@ -219,19 +234,23 @@ class DirectoryWidget(Widget):
                 msg = f"Failed to remove {rel_path} from staged code context"
                 logger.info(msg)
                 self.notify(msg, timeout=2)
-                self.update_highlights()
+                self.reload_highlights()
                 return
 
         # update button mode - should always be add mode after this
         self.button_add_code_context.set_mode(is_add_mode=True)
 
         # Update highlights
-        self.update_highlights()
+        self.reload_highlights()
 
         # Show notification
         logger.info(msg)
         self.notify(msg, timeout=2)
+
+    @on(Button.Pressed, "#refresh_directory_button")
+    def handle_refresh_directory_button(self):
         self.directory_tree.reload()
+        self.notify("Directory refreshed", timeout=1)
 
 class FilteredDirectoryTree(DirectoryTree):
     def __init__(self, path: str, core_app: Application):
@@ -264,9 +283,7 @@ class FilteredDirectoryTree(DirectoryTree):
 
     def render_label(self, node: TreeNode[DirEntry], base_style: Style, style: Style) -> Text:
         label = super().render_label(node, base_style, style)
-        root_path = self.PATH(self.path)
         try:
-            sub_paths = []
             if node.data and node.data.path:
                 try:
                     current_dir = os.getcwd()

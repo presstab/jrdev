@@ -89,7 +89,7 @@ class StepsScreen(ModalScreen):
         self.future = None
         self.label_title = Label("Generated Steps", id="header-title")
         self.label_reprompt = Label("Additional Instructions", id="reprompt-label")
-        self.textarea_reprompt = TextArea("", id="reprompt-input", language="text")
+        self.textarea_reprompt = TextArea("", id="reprompt-input", language="markdown")
         self.button_continue = Button("Continue", id="continue-button", tooltip="Proceed with the suggested steps")
         self.button_accept_all = Button("Auto Accept", id="accept-all-button", variant="success", tooltip="Automatically accepts all prompts for this code task") # New Button
         self.button_save = Button("Save Edits", id="save-button", variant="success", tooltip="Save the edited steps and proceed")

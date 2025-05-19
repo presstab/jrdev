@@ -45,7 +45,19 @@ class TextualEvents(UiWrapper):
     class CodeContextUpdate(Message):
         def __init__(self):
             super().__init__()
-            
+
+    class ProjectContextUpdate(Message):
+        def __init__(self, is_enabled):
+            super().__init__()
+            self.is_enabled = is_enabled
+
+    class StreamChunk(Message):
+        """Fired once per text-chunk from the LLM."""
+        def __init__(self, thread_id: str, chunk: str):
+            super().__init__()
+            self.thread_id = thread_id
+            self.chunk = chunk
+
     class ConfirmationRequest(Message):
         def __init__(self, prompt_text: str, future: asyncio.Future, diff_lines: Optional[List[str]] = None):
             super().__init__()
@@ -85,7 +97,7 @@ class TextualEvents(UiWrapper):
 
     def update_task_info(self, worker_id: str, update: dict = None) -> None:
         self.app.post_message(self.TaskUpdate(worker_id, update))
-            
+
     async def prompt_for_confirmation(self, prompt_text: str = "Apply these changes?", diff_lines: Optional[List[str]] = None) -> Tuple[str, Optional[str]]:
         """
         Prompt the user for confirmation with options using Textual widgets.
@@ -93,7 +105,7 @@ class TextualEvents(UiWrapper):
         Args:
             prompt_text: The text to display when prompting the user
             diff_lines: Optional list of diff lines to display in the dialog
-            
+        
         Returns:
             Tuple of (response, message):
                 - response: 'yes', 'no', 'request_change', 'edit', or 'accept_all'
@@ -148,3 +160,11 @@ class TextualEvents(UiWrapper):
         Signal to UI that code context has been updated
         """
         self.app.post_message(self.CodeContextUpdate())
+
+    def project_context_changed(self, is_enabled: bool) -> None:
+        """Signal to UI that project context has been toggled on or off"""
+        self.app.post_message(self.ProjectContextUpdate(is_enabled))
+
+    def stream_chunk(self, thread_id: str, chunk: str) -> None:
+        """Post a chunk event into Textual's event bus."""
+        self.app.post_message(self.StreamChunk(thread_id, chunk))

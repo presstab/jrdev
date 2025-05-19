@@ -47,10 +47,12 @@ async def handle_projectcontext(app: Any, args: List[str], worker_id: str) -> No
     elif command == "on":
         app.state.use_project_context = True
         app.ui.print_text("Project context is now ON", PrintType.SUCCESS)
+        app.ui.project_context_changed(is_enabled=True)
 
     elif command == "off":
         app.state.use_project_context = False
         app.ui.print_text("Project context is now OFF", PrintType.SUCCESS)
+        app.ui.project_context_changed(is_enabled=False)
 
     elif command == "status":
         await _show_status(app)

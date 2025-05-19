@@ -2,7 +2,7 @@ import json
 import os
 from typing import Any, Dict, List, Set
 
-from jrdev.llm_requests import stream_request
+from jrdev.llm_requests import generate_llm_response
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.file_utils import requested_files, get_file_contents, cutoff_string
 from jrdev.file_operations.process_ops import apply_file_changes, CodeTaskCancelled
@@ -78,7 +78,7 @@ class CodeProcessor:
             self.app.ui.update_task_info(self.worker_id, update={"new_sub_task": sub_task_str, "description": "analyze request"})
 
         # send request
-        response_text = await stream_request(self.app, model_name, messages, task_id=sub_task_str)
+        response_text = await generate_llm_response(self.app, model_name, messages, task_id=sub_task_str)
 
         # mark sub_task complete
         if self.worker_id:
@@ -292,7 +292,7 @@ class CodeProcessor:
             sub_task_str = f"{self.worker_id}:{self.sub_task_count }"
             self.app.ui.update_task_info(self.worker_id, update={"new_sub_task": sub_task_str, "description": op_type})
 
-        response = await stream_request(self.app, model, messages, task_id=sub_task_str, print_stream=True, json_output=True)
+        response = await generate_llm_response(self.app, model, messages, task_id=sub_task_str, print_stream=True, json_output=True)
 
         # mark sub_task complete
         if self.worker_id:
@@ -348,7 +348,7 @@ class CodeProcessor:
             sub_task_str = f"{self.worker_id}:{self.sub_task_count}"
             self.app.ui.update_task_info(self.worker_id, update={"new_sub_task": sub_task_str, "description": "format file request"})
 
-        response = await stream_request(self.app, model, messages, task_id=sub_task_str)
+        response = await generate_llm_response(self.app, model, messages, task_id=sub_task_str)
 
         # mark sub_task complete
         if self.worker_id:
@@ -380,7 +380,7 @@ class CodeProcessor:
             sub_task_str = f"{self.worker_id}:{self.sub_task_count}"
             self.app.ui.update_task_info(self.worker_id, update={"new_sub_task": sub_task_str, "description": "files check"})
 
-        response = await stream_request(self.app, model, messages, task_id=sub_task_str)
+        response = await generate_llm_response(self.app, model, messages, task_id=sub_task_str)
         self.app.logger.info(f"additional files response:\n {response}")
 
         # mark sub_task complete
@@ -429,7 +429,7 @@ class CodeProcessor:
             sub_task_str = f"{self.worker_id}:{self.sub_task_count}"
             self.app.ui.update_task_info(self.worker_id, update={"new_sub_task": sub_task_str, "description": "create plan"})
 
-        response = await stream_request(self.app, model, messages, task_id=sub_task_str)
+        response = await generate_llm_response(self.app, model, messages, task_id=sub_task_str)
 
         # mark sub_task complete
         if self.worker_id:
@@ -494,7 +494,7 @@ class CodeProcessor:
             sub_task_str = f"{self.worker_id}:{self.sub_task_count}"
             self.app.ui.update_task_info(self.worker_id, update={"new_sub_task": sub_task_str, "description": "check work"})
 
-        response = await stream_request(self.app, model, messages, task_id=sub_task_str, print_stream=False)
+        response = await generate_llm_response(self.app, model, messages, task_id=sub_task_str, print_stream=False)
 
         # mark sub_task complete
         if self.worker_id:
@@ -526,7 +526,7 @@ class CodeProcessor:
             sub_task_str = f"{self.worker_id}:{self.sub_task_count}"
             self.app.ui.update_task_info(self.worker_id, update={"new_sub_task": sub_task_str, "description": "validate"})
 
-        validation_response = await stream_request(
+        validation_response = await generate_llm_response(
             self.app, model, messages, task_id=sub_task_str, print_stream=False
         )
 

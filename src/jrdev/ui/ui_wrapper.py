@@ -12,6 +12,16 @@ class UiWrapper:
     def print_stream(self, message: str):
         """print a stream of text"""
         raise NotImplementedError("Subclasses must implement print_stream()")
+
+    def stream_chunk(self, thread_id: str, chunk: str) -> None:
+        """
+        Handle an incoming chunk of text from a streaming LLM response.
+        
+        Args:
+            thread_id: The ID of the conversation thread this chunk belongs to.
+            chunk: The piece of text from the AI's response.
+        """
+        raise NotImplementedError("Subclasses must implement stream_chunk()")
         
     async def prompt_for_confirmation(self, prompt_text: str = "Apply these changes?", diff_lines: Optional[List[str]] = None) -> Tuple[str, Optional[str]]:
         """
@@ -86,3 +96,7 @@ class UiWrapper:
             update: mutable dict containing any kind of updates to parse
         """
         raise NotImplementedError("Subclasses must implement update_task_info")
+
+    def project_context_changed(self, is_enabled: bool) -> None:
+        """Project Context has been toggled on or off"""
+        raise NotImplementedError("Subclasses must implement project_context_changed")

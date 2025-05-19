@@ -10,7 +10,8 @@ class ModelSelectionWidget(RadioSet):
     def __init__(self, id) -> None:
         super().__init__(id=id)
         self.border_title = "Model"
-        self.styles.border = ("round", Color.parse("#63f554"))
+        self.styles.border = ("round", Color.parse("#5e5e5e"))
+        self.styles.border_title_color = "#fabd2f"
         self.styles.width = "100%"
         self.can_focus = False
         self._model_buttons = {}  # Dictionary to track model name to button mapping

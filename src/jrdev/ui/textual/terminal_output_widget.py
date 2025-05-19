@@ -1,11 +1,14 @@
 from textual import events, on
 from textual.app import ComposeResult
+from textual.color import Color
+from textual.containers import Horizontal, Vertical
 from textual.widget import Widget
 from textual.widgets import Button
 from typing import Optional
 import logging
 import pyperclip
 
+from jrdev.ui.textual.input_widget import CommandTextArea
 from jrdev.ui.textual.terminal_text_area import TerminalTextArea
 
 logger = logging.getLogger("jrdev")
@@ -27,18 +30,25 @@ class TerminalOutputWidget(Widget):
         height: 1; /* Fixed height */
         width: auto;
         align-horizontal: left;
-        dock: bottom; /* Keep button at the bottom */
     }
     """
 
-    def __init__(self, id: Optional[str] = None) -> None:
+    def __init__(self, id: Optional[str] = None, output_widget_mode=False) -> None:
         super().__init__(id=id)
-        self.terminal_output = TerminalTextArea(id="terminal_output", language="plaintext")
+        # output_widget_mode provides the output widget, without the input widget
+        self.output_widget_mode = output_widget_mode
+        self.terminal_output = TerminalTextArea(id="terminal_output", language="markdown")
         self.copy_button = Button(label="Copy Selection", id="copy_button")
+        if not self.output_widget_mode:
+            self.terminal_input = CommandTextArea(placeholder="Enter Command", id="cmd_input")
+        self.layout_output = Vertical(id="vlayout_output")
 
     def compose(self) -> ComposeResult:
-        yield self.terminal_output
-        yield self.copy_button
+        with self.layout_output:
+            yield self.terminal_output
+            yield self.copy_button
+        if not self.output_widget_mode:
+            yield self.terminal_input
 
     async def on_mount(self) -> None:
         self.can_focus = False
@@ -47,6 +57,18 @@ class TerminalOutputWidget(Widget):
         self.terminal_output.soft_wrap = True
         self.terminal_output.read_only = True
         self.terminal_output.show_line_numbers = False
+
+        if self.output_widget_mode:
+            self.styles.height = "1fr"
+        else:
+            self.terminal_input.focus()
+            self.terminal_input.border_title = "Command Input"
+            self.terminal_input.styles.border = ("round", Color.parse("#5e5e5e"))
+            self.terminal_input.styles.border_title_color = "#fabd2f"
+            self.terminal_input.styles.height = 5  # Fixed rows
+            self.layout_output.border_title = "JrDev Terminal"
+            self.layout_output.styles.border = ("round", Color.parse("#5e5e5e"))
+            self.layout_output.styles.border_title_color = "#fabd2f"
 
     @on(Button.Pressed, "#copy_button")
     def handle_copy(self):
@@ -77,3 +99,6 @@ class TerminalOutputWidget(Widget):
             text: The text to append to the terminal output.
         """
         self.terminal_output.append_text(text)
+
+    def clear_input(self):
+        self.terminal_input.value = ""

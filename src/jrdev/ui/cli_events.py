@@ -18,6 +18,16 @@ class CliEvents(UiWrapper):
     def print_stream(self, message: str):
         """print a stream of text"""
         terminal_print(message, PrintType.LLM, end="", flush=True)
+
+    def stream_chunk(self, thread_id: str, chunk: str) -> None:
+        """
+        Handle an incoming chunk of text from a streaming LLM response.
+        
+        Args:
+            thread_id: The ID of the conversation thread this chunk belongs to.
+            chunk: The piece of text from the AI's response.
+        """
+        terminal_print(chunk, PrintType.LLM, end="", flush=True)
         
     async def prompt_for_confirmation(self, prompt_text: str = "Apply these changes?", diff_lines: Optional[List[str]] = None) -> Tuple[str, Optional[str]]:
         """
@@ -229,4 +239,7 @@ class CliEvents(UiWrapper):
         pass
 
     def code_context_update(self):
+        pass
+
+    def project_context_changed(self, is_enabled: bool) -> None:
         pass

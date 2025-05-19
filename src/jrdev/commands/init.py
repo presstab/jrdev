@@ -16,7 +16,7 @@ from jrdev.file_utils import (
     JRDEV_DIR,
     write_string_to_file,  # Import the function
 )
-from jrdev.llm_requests import stream_request
+from jrdev.llm_requests import generate_llm_response
 from jrdev.languages.utils import detect_language, is_headers_language
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.string_utils import contains_chinese
@@ -122,7 +122,7 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
         # Send the request to the LLM
         sub_task_id = 0
         try:
-            recommendation_response = await stream_request(
+            recommendation_response = await generate_llm_response(
                 app, app.state.model, temp_messages, task_id=worker_id
             )
 
@@ -246,7 +246,7 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
 
                     try:
                         # Use conventions_model directly instead of changing app.state.model
-                        conventions_result = await stream_request(
+                        conventions_result = await generate_llm_response(
                             app,
                             conventions_model,
                             conventions_messages,
@@ -360,7 +360,7 @@ async def handle_init(app: Any, args: List[str], worker_id: str) -> None:
                 
                 # Send request to the model for project overview
                 try:
-                    full_overview = await stream_request(
+                    full_overview = await generate_llm_response(
                         app, app.state.model, overview_messages, task_id=overview_task_id
                     )
 

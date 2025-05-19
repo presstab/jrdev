@@ -11,7 +11,7 @@ from threading import current_thread
 from typing import Any, List, Protocol
 
 from jrdev.file_utils import cutoff_string
-from jrdev.llm_requests import stream_request
+from jrdev.llm_requests import generate_llm_response
 from jrdev.message_builder import MessageBuilder
 from jrdev.ui.ui import PrintType
 
@@ -107,7 +107,7 @@ async def handle_compact(app: Any, args: List[str], worker_id: str) -> None:
             PrintType.PROCESSING,
         )
 
-        response = await stream_request(app, app.state.model, messages, print_stream=True)
+        response = await generate_llm_response(app, app.state.model, messages, print_stream=True)
 
         if response is not None:
             # Parse the JSON response
