@@ -54,7 +54,7 @@ class APIClients:
         if name == "anthropic":
             self._clients[name] = anthropic.AsyncAnthropic(api_key=api_key)
         else:
-            self._clients[name] = AsyncOpenAI(api_key=api_key, base_url=base_url)
+            self._clients[name] = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=300)
 
     def __getattr__(self, name: str):
         """Dynamic property access for clients"""

@@ -263,10 +263,17 @@ class JrDevUI(App[None]):
 
         self.model_list.styles.height = "50%" # Relative to parent vlayout_right
 
-        # add current thread to chat list
-        current_thread = self.jrdev.get_current_thread()
-        await self.chat_list.add_thread(current_thread)
+        await self.init_chat_list()
+
         self.jrdev.setup_complete()
+
+    async def init_chat_list(self):
+        """Add all chat threads to chat list widget, mark current thread"""
+        message_threads = self.jrdev.get_all_threads()
+        for thr in message_threads:
+            await self.chat_list.add_thread(thr)
+        current_thread = self.jrdev.get_current_thread()
+        self.chat_list.set_active(current_thread.thread_id)
 
     @on(CommandTextArea.Submitted, "#cmd_input")
     async def accept_input(self, event: CommandTextArea.Submitted) -> None:

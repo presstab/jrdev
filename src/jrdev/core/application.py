@@ -11,7 +11,7 @@ from jrdev.core.state import AppState
 from jrdev.file_utils import add_to_gitignore, JRDEV_DIR, JRDEV_PACKAGE_DIR, get_env_path
 from jrdev.commands.keys import check_existing_keys, save_keys_to_env, run_first_time_setup
 from jrdev.logger import setup_logger
-from jrdev.messages.thread import USER_INPUT_PREFIX
+from jrdev.messages.thread import USER_INPUT_PREFIX, MessageThread, THREADS_DIR # Added MessageThread, THREADS_DIR
 from jrdev.services.message_service import MessageService
 from jrdev.model_list import ModelList
 from jrdev.model_profiles import ModelProfileManager
@@ -27,9 +27,45 @@ class Application:
     def __init__(self):
         # Initialize core components
         self.logger = setup_logger(JRDEV_DIR)
-        self.state = AppState()
+
+        # Load persisted threads before AppState initialization
+        persisted_threads = self._load_persisted_threads()
+
+        self.state = AppState(persisted_threads=persisted_threads) # Pass loaded threads to AppState
         self.state.clients = APIClients()
         self.ui: UiWrapper = UiWrapper()
+
+    def _load_persisted_threads(self) -> Dict[str, MessageThread]:
+        """Load all persisted message threads from disk."""
+        loaded_threads: Dict[str, MessageThread] = {}
+        if not os.path.isdir(THREADS_DIR):
+            self.logger.info(f"Threads directory '{THREADS_DIR}' not found. No threads to load.")
+            return loaded_threads
+
+        self.logger.info(f"Loading persisted threads from '{THREADS_DIR}'...")
+        for filename in os.listdir(THREADS_DIR):
+            if filename.endswith(".json"):
+                file_path = os.path.join(THREADS_DIR, filename)
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    
+                    if "thread_id" not in data:
+                        self.logger.warning(f"File {file_path} is missing 'thread_id'. Skipping.")
+                        continue
+
+                    thread = MessageThread.from_dict(data)
+                    loaded_threads[thread.thread_id] = thread
+                    self.logger.debug(f"Successfully loaded thread: {thread.thread_id} from {file_path}")
+                except json.JSONDecodeError as e:
+                    self.logger.error(f"Error decoding JSON from {file_path}: {e}. Skipping file.")
+                except KeyError as e:
+                    self.logger.error(f"Missing key in thread data from {file_path}: {e}. Skipping file.")
+                except Exception as e:
+                    self.logger.error(f"Unexpected error loading thread from {file_path}: {e}. Skipping file.")
+        
+        self.logger.info(f"Finished loading threads. Total loaded: {len(loaded_threads)}.")
+        return loaded_threads
 
     def setup(self):
         self._initialize_commands()
@@ -181,6 +217,10 @@ class Application:
     def get_thread(self, thread_id):
         """Get MessageThread instance"""
         return self.state.get_thread(thread_id)
+
+    def get_all_threads(self):
+        """Get all MessageThread instances"""
+        return self.state.get_all_threads()
 
     def get_active_thread_id(self):
         return self.state.get_active_thread_id()

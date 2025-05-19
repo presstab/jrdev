@@ -11,7 +11,7 @@ from jrdev.messages.thread import MessageThread
 class AppState:
     """Central class for managing application state"""
 
-    def __init__(self) -> None:
+    def __init__(self, persisted_threads: Optional[Dict[str, MessageThread]] = None) -> None:
         # Load persisted chat model or fallback to default
         config_path = os.path.join(JRDEV_DIR, "model_profiles.json")
         loaded_model = None
@@ -33,10 +33,15 @@ class AppState:
         self.clients: Any = None  # Will be initialized with APIClients
 
         # Thread management
-        self.active_thread: str = "main"
-        self.threads: Dict[str, MessageThread] = {
-            "main": MessageThread("main")
-        }
+        if persisted_threads:
+            self.threads: Dict[str, MessageThread] = persisted_threads
+        else:
+            self.threads: Dict[str, MessageThread] = {}
+
+        # Ensure main always exists
+        if "main" not in self.threads:
+            self.threads["main"] = MessageThread("main")
+        self.active_thread: str = "main"  # Default active thread to main
 
         # Context management
         self.context_code: Set[str] = set()
@@ -66,9 +71,13 @@ class AppState:
     def get_thread_ids(self) -> List[str]:
         return list(self.threads.keys())
 
-    def get_thread(self, thread_id) -> MessageThread:
+    def get_thread(self, thread_id) -> Optional[MessageThread]:
         """Get a message thread instance"""
-        return self.threads.get(thread_id, None)
+        return self.threads.get(thread_id)
+
+    def get_all_threads(self) -> List[MessageThread]:
+        """Get all message thread instances"""
+        return list(self.threads.values())
 
     # Thread management
     def create_thread(self, thread_id: str="") -> str:
@@ -77,6 +86,10 @@ class AppState:
             thread_id = f"thread_{uuid.uuid4().hex[:8]}"
         if thread_id not in self.threads:
             self.threads[thread_id] = MessageThread(thread_id)
+            # New threads should also be saved immediately if persistence is active
+            # This is handled by @auto_persist on MessageThread methods like set_name or if it's saved on creation
+            # For now, MessageThread constructor doesn't auto-save, so an explicit save might be needed
+            # or ensure first mutation triggers save. The current design relies on mutation.
         return thread_id
 
     def switch_thread(self, thread_id: str) -> bool:
@@ -121,17 +134,22 @@ class AppState:
         """Delete an existing message thread and adjust active thread if needed"""
         if thread_id not in self.threads:
             return False
-        # Remove the thread
+        
+        thread_to_delete = self.threads.get(thread_id)
+        if thread_to_delete:
+            thread_to_delete.delete_persisted_file() # Remove persisted file
+
+        # Remove the thread from runtime
         del self.threads[thread_id]
+        
         # Adjust active_thread if necessary
         if self.active_thread == thread_id:
-            # Switch to main if it exists, else to another available thread
-            if "main" in self.threads:
+            if "main" in self.threads: # Prefer switching to main if it exists
                 self.active_thread = "main"
-            elif self.threads:
+            elif self.threads: # If other threads exist, switch to the first one
                 self.active_thread = next(iter(self.threads))
-            else:
-                self.active_thread = ""
+            else: # No threads left
+                self.active_thread = "" # No active thread
         return True
 
     # State validation
@@ -148,4 +166,4 @@ class AppState:
 
     def __repr__(self) -> str:
         thread = self.get_current_thread()
-        return f"<AppState:\nModel: {self.model}\nActive thread: {self.active_thread}\nThread count: {len(self.threads)}\nMessages in thread: {len(thread.messages)}\nContext files: {len(self.context_code)}\nActive tasks: {len(self.active_tasks)}\nClients initialized: {self.clients.is_initialized() if self.clients else False}\nRunning: {self.running}\n>"
+        return f"<AppState:\nModel: {self.model}\nActive thread: {self.active_thread}\nThread count: {len(self.threads)}\nMessages in thread: {len(thread.messages) if thread else 'N/A'}\nContext files: {len(self.context_code)}\nActive tasks: {len(self.active_tasks)}\nClients initialized: {self.clients.is_initialized() if self.clients else False}\nRunning: {self.running}\n>"

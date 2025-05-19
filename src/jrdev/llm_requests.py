@@ -1,23 +1,8 @@
-import re
 import time
 import tiktoken
 from typing import AsyncIterator
 
-from jrdev.model_utils import is_think_model
 from jrdev.usage import get_instance
-
-
-def filter_think_tags(text):
-    """Remove content within  tags."""
-    # Use regex to remove all  sections
-    return re.sub(r"", "", text, flags=re.DOTALL)
-
-
-def is_inside_think_tag(text):
-    """Determine if the current position is inside a """
-
-    # If there are more opening tags than closing tags, we're inside a tag
-    return think_open > think_close
 
 
 async def stream_openai_format(app, model, messages, task_id=None, print_stream=True, json_output=False, max_output_tokens=None) -> AsyncIterator[str]:
@@ -280,12 +265,20 @@ def stream_request(app, model, messages, task_id=None, print_stream=True, json_o
     else:
         return stream_openai_format(app, model, messages, task_id, print_stream, json_output, max_output_tokens)
 
-async def generate_llm_response(app, model, messages, task_id=None, print_stream=True, json_output=False, max_output_tokens=None):
+async def generate_llm_response(app, model, messages, task_id=None, print_stream=True, json_output=False, max_output_tokens=None, attempts=0):
     # Stream response from LLM and return the full response string
-    llm_response_stream = stream_request(app, model, messages, task_id, print_stream, json_output, max_output_tokens)
+    try:
+        llm_response_stream = stream_request(app, model, messages, task_id, print_stream, json_output, max_output_tokens)
 
-    response_accumulator = ""
-    async for chunk in llm_response_stream:
-        response_accumulator += chunk
+        response_accumulator = ""
+        async for chunk in llm_response_stream:
+            response_accumulator += chunk
 
-    return response_accumulator
+        return response_accumulator
+    except Exception as e:
+        app.logger.error(f"generate_llm_response: {e}")
+        if attempts < 1:
+            # try again
+            app.logger.info("Attempting LLM stream again")
+            attempts += 1
+            return await generate_llm_response(app, model, messages, task_id, print_stream, json_output, max_output_tokens, attempts)
