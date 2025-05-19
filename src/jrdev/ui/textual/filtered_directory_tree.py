@@ -76,6 +76,11 @@ class DirectoryWidget(Widget):
             id="add_code_context_button",
             classes="sidebar_button"
         )
+        self.button_refresh_directory = Button(
+            label="\u27F3",
+            id="refresh_directory_button",
+            classes=""
+        )
         self.ctx_buttons_active = False
 
     def compose(self) -> ComposeResult:
@@ -84,6 +89,7 @@ class DirectoryWidget(Widget):
             yield self.directory_tree
             # Buttons take only the space they need vertically
             with Horizontal(id="directory_widget_buttons", classes="button_container"):
+                yield self.button_refresh_directory
                 yield self.button_add_chat_context
                 yield self.button_add_code_context
 
@@ -101,6 +107,12 @@ class DirectoryWidget(Widget):
             button.styles.width = "1fr"
             button.styles.height = 1
             button.styles.border = None
+
+        self.button_refresh_directory.styles.border = None
+        self.button_refresh_directory.styles.min_width = 3
+        self.button_refresh_directory.styles.width = 3
+        self.button_refresh_directory.styles.height = 1
+        self.button_refresh_directory.tooltip = "Refresh Contents"
 
         # disable context buttons since they won't have anything selected
         self.button_add_code_context.disabled = True
@@ -234,6 +246,11 @@ class DirectoryWidget(Widget):
         # Show notification
         logger.info(msg)
         self.notify(msg, timeout=2)
+
+    @on(Button.Pressed, "#refresh_directory_button")
+    def handle_refresh_directory_button(self):
+        self.directory_tree.reload()
+        self.notify("Directory refreshed", timeout=1)
 
 class FilteredDirectoryTree(DirectoryTree):
     def __init__(self, path: str, core_app: Application):
