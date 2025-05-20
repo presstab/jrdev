@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
 from setuptools import setup, find_packages
+from jrdev import __version__
 
 setup(
     name="jrdev",
-    version="0.1.0",
+    version=__version__,
     description="JrDev terminal interface for LLM interactions",
     author="presstab",
     url="https://github.com/presstab/jrdev",
