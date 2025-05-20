@@ -6,6 +6,7 @@ Help command implementation for the JrDev application.
 
 from typing import Any, List
 
+from jrdev import __version__
 from jrdev.ui.ui import PrintType, COLORS, FORMAT_MAP
 
 
@@ -50,9 +51,12 @@ async def handle_help(app: Any, args: List[str], worker_id: str):
     if app.ui.ui_name == "textual":
         return await handle_help_plain(app, args)
 
+    # Version
+    app.ui.print_text(f"{COLORS['BRIGHT_WHITE']}JrDev v{__version__}:{COLORS['RESET']}", print_type=None)
+
     # Basic commands
     app.ui.print_text(f"{COLORS['BRIGHT_WHITE']}{COLORS['BOLD']}{COLORS['UNDERLINE']}Basic:{COLORS['RESET']}", print_type=None)
-    
+
     # Format each command line as a single string
     cmd_format = FORMAT_MAP[PrintType.COMMAND]
     reset = COLORS['RESET']
@@ -115,6 +119,9 @@ async def handle_help_plain(app: Any, args: List[str]):
     """
     Handle the /help command to display available commands categorized without color formatting.
     """
+    app.ui.print_text(f"JrDev v{__version__}")
+    app.ui.print_text("")
+
     # Basic commands
     app.ui.print_text("Basic:", print_type=None)
     

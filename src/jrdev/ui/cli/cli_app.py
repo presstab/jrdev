@@ -4,6 +4,7 @@ from jrdev.core.application import Application
 from jrdev.ui.cli_events import CliEvents
 from jrdev.ui.ui import PrintType
 from jrdev.colors import Colors
+from jrdev import __version__
 
 
 class CliApp:
@@ -56,7 +57,7 @@ class CliApp:
 
     def _print_welcome_message(self):
         """Print startup messages"""
-        self.ui.print_text(f"JrDev Terminal (Model: {self.core_app.state.model})", PrintType.HEADER)
+        self.ui.print_text(f"JrDev Terminal v{__version__} (Model: {self.core_app.state.model})", PrintType.HEADER)
         self.ui.print_text("Type a message to chat with the model", PrintType.INFO)
         self.ui.print_text("Type /help for available commands", PrintType.INFO)
         self.ui.print_text("Type /exit to quit", PrintType.INFO)
