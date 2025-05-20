@@ -207,4 +207,4 @@ isort src/
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License with Commons Clause - see the [LICENSE](LICENSE) file for details.
