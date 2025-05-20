@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 
 from setuptools import setup, find_packages
-from jrdev import __version__
+import os
+
+# Function to read the version from the VERSION file
+def get_version():
+    version_file = os.path.join(os.path.dirname(__file__), 'VERSION')
+    with open(version_file, 'r') as f:
+        return f.read().strip()
 
 setup(
     name="jrdev",
-    version=__version__,
+    version=get_version(),
     description="JrDev terminal interface for LLM interactions",
     author="presstab",
     url="https://github.com/presstab/jrdev",
