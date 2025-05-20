@@ -128,6 +128,7 @@ class JrDevUI(App[None]):
             scrollbar-color: #63f554 30%;
             scrollbar-color-active: #63f554;
             scrollbar-color-hover: #63f554 50%;
+            scrollbar-size: 1 1;
         }
         /* Make the container widget flexible */
         TerminalOutputWidget {
@@ -190,7 +191,6 @@ class JrDevUI(App[None]):
         }
     """
     def compose(self) -> Generator[Any, None, None]:
-        # todo welcome message
         self.jrdev = Application()
         self.jrdev.ui = TextualEvents(self)
         self.title = "JrDev Terminal"
