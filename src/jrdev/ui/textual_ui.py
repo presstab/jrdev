@@ -1,14 +1,11 @@
-import copy
-
 from textual import on
 from textual.app import App
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Input, RadioSet, TextArea
 from textual.worker import Worker, WorkerState
 from textual.color import Color
-from typing import Any, Generator
-import logging
 from jrdev.core.application import Application
+from jrdev import __version__
 from jrdev.ui.textual_events import TextualEvents
 from jrdev.ui.textual.code_confirmation_screen import CodeConfirmationScreen
 from jrdev.ui.textual.steps_screen import StepsScreen
@@ -23,9 +20,10 @@ from jrdev.ui.textual.chat_list import ChatList
 from jrdev.ui.textual.model_profile_widget import ModelProfileScreen
 from jrdev.ui.textual.command_request import CommandRequest
 from jrdev.ui.textual.chat_view_widget import ChatViewWidget
-from jrdev.ui.textual.chat_input_widget import ChatInputWidget
 from jrdev.ui.textual.bordered_switcher import BorderedSwitcher
 
+from typing import Any, Generator
+import logging
 logger = logging.getLogger("jrdev")
 
 class JrDevUI(App[None]):
@@ -269,6 +267,26 @@ class JrDevUI(App[None]):
         await self.init_chat_list()
 
         self.jrdev.setup_complete()
+
+        self.print_welcome()
+
+    def print_welcome(self):
+        """Print startup messages"""
+        # More welcoming and includes a tagline
+        self.terminal_output_widget.append_text(f"Welcome to JrDev Terminal v{__version__}!\n")
+        self.terminal_output_widget.append_text("Chat, Code, Review—All from Your Shell\n\n")
+
+        # Structured guidance for key actions
+        self.terminal_output_widget.append_text("Get Started:\n")
+        self.terminal_output_widget.append_text("  - New Chat: Click \"+ New Chat\" (left panel) to talk to the AI.\n")
+        self.terminal_output_widget.append_text("  - Coding Tasks: Use /code [your task description] in this terminal.\n")
+        self.terminal_output_widget.append_text("  - All Commands: Type /help for a full list.\n\n")
+
+        # Tip for discovering other UI features
+        self.terminal_output_widget.append_text("Explore: Use the right panels to manage Project Files & AI Models.\n\n")
+
+        # Clear exit instructions
+        self.terminal_output_widget.append_text("Quit: Type /exit or press Ctrl+Q.\n\n")
 
     async def init_chat_list(self):
         """Add all chat threads to chat list widget, mark current thread"""
