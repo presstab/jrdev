@@ -49,11 +49,11 @@
             "context_tokens": 32768
         },
         {
-            "name": "qwen-2.5-qwq-32b",
+            "name": "qwen3-235b",
             "provider": "venice",
             "is_think": true,
-            "input_cost": 5,
-            "output_cost": 20,
+            "input_cost": 15,
+            "output_cost": 60,
             "context_tokens": 32768
         },
         {
@@ -71,22 +71,6 @@
             "input_cost": 15,
             "output_cost": 60,
             "context_tokens": 65536
-        },
-        {
-            "name": "llama-3.2-3b",
-            "provider": "venice",
-            "is_think": false,
-            "input_cost": 2,
-            "output_cost": 6,
-            "context_tokens": 131072
-        },
-        {
-            "name": "dolphin-2.9.2-qwen2-72b",
-            "provider": "venice",
-            "is_think": false,
-            "input_cost": 7,
-            "output_cost": 28,
-            "context_tokens": 32768
         },
         {
             "name": "mistral-31-24b",
@@ -127,22 +111,6 @@
             "input_cost": 4,
             "output_cost": 16,
             "context_tokens": 1000000
-        },
-        {
-            "name": "qwen-2.5-vl",
-            "provider": "venice",
-            "is_think": false,
-            "input_cost": 0,
-            "output_cost": 0,
-            "context_tokens": 32768
-        },
-        {
-            "name": "deepseek-coder-v2-lite",
-            "provider": "venice",
-            "is_think": false,
-            "input_cost": 0,
-            "output_cost": 0,
-            "context_tokens": 131072
         },
         {
             "name": "deepseek/deepseek-r1",
