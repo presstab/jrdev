@@ -412,29 +412,8 @@ class Application:
             error_msg = f"Failed to initialize API clients: {str(e)}"
             self.logger.error(error_msg)
             self.ui.print_text(f"Error: {error_msg}", PrintType.ERROR)
-            self.ui.print_text("Please restart the application and provide a valid Venice API key.", PrintType.INFO)
+            self.ui.print_text("Please restart the application and provide a valid API key.", PrintType.INFO)
             sys.exit(1)
-
-    # Client property accessors for backward compatibility
-    @property
-    def venice_client(self):
-        """Return the Venice client for backward compatibility"""
-        return self.state.clients.venice if self.state.clients else None
-
-    @property
-    def openai_client(self):
-        """Return the OpenAI client for backward compatibility"""
-        return self.state.clients.openai if self.state.clients else None
-
-    @property
-    def anthropic_client(self):
-        """Return the Anthropic client for backward compatibility"""
-        return self.state.clients.anthropic if self.state.clients else None
-
-    @property
-    def deepseek_client(self):
-        """Return the DeepSeek client for backward compatibility"""
-        return self.state.clients.deepseek if self.state.clients else None
 
     @property
     def context_manager(self):

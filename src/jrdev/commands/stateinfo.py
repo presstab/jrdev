@@ -37,12 +37,6 @@ async def handle_stateinfo(app: Any, args: List[str], worker_id: str) -> None:
     else:
         app.ui.print_text(f"  Context files: 0", print_type=PrintType.INFO)
     
-    # Display API details
-    if app.state.clients and app.state.clients.venice:
-        app.ui.print_text(f"  Venice API base URL: {app.state.clients.venice.base_url}", print_type=PrintType.INFO)
-    if app.state.clients and app.state.clients.openai:
-        app.ui.print_text(f"  OpenAI API configured", print_type=PrintType.INFO)
-    
     # If the app has any file context loaded
     project_files = app.state.project_files
     
