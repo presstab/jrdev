@@ -24,14 +24,14 @@ from jrdev.ui.ui_wrapper import UiWrapper
 
 
 class Application:
-    def __init__(self):
+    def __init__(self, ui_mode="textual"):
         # Initialize core components
         self.logger = setup_logger(JRDEV_DIR)
 
         # Load persisted threads before AppState initialization
         persisted_threads = self._load_persisted_threads()
 
-        self.state = AppState(persisted_threads=persisted_threads) # Pass loaded threads to AppState
+        self.state = AppState(persisted_threads=persisted_threads, ui_mode=ui_mode) # Pass loaded threads to AppState
         self.state.clients = APIClients()
         self.ui: UiWrapper = UiWrapper()
 

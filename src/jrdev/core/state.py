@@ -11,7 +11,7 @@ from jrdev.messages.thread import MessageThread
 class AppState:
     """Central class for managing application state"""
 
-    def __init__(self, persisted_threads: Optional[Dict[str, MessageThread]] = None) -> None:
+    def __init__(self, persisted_threads: Optional[Dict[str, MessageThread]] = None, ui_mode = None) -> None:
         # Load persisted chat model or fallback to default
         config_path = os.path.join(JRDEV_DIR, "model_profiles.json")
         loaded_model = None
@@ -33,14 +33,25 @@ class AppState:
         self.clients: Any = None  # Will be initialized with APIClients
 
         # Thread management
+        self.active_thread = ""
         if persisted_threads:
             self.threads: Dict[str, MessageThread] = persisted_threads
-            # choose the most recently modified thread as the current thread
-            latest = max(
-                self.threads.values(),
-                key=lambda t: t.metadata["last_modified"],
-            )
-            self.active_thread = latest.thread_id
+            if ui_mode and ui_mode == "cli":
+                # for cli, look for an empty chat thread on init and use that as current
+                for thread in self.threads.values():
+                    if not thread.messages:
+                        self.active_thread = thread.thread_id
+                        break
+                # if no empty chat, then create new
+                if not self.active_thread:
+                    self.active_thread = self.create_thread()
+            else:
+                # for Textual UI choose the most recently modified thread as the current thread
+                latest = max(
+                    self.threads.values(),
+                    key=lambda t: t.metadata["last_modified"],
+                )
+                self.active_thread = latest.thread_id
         else:
             self.threads: Dict[str, MessageThread] = {}
             self.active_thread = self.create_thread()
