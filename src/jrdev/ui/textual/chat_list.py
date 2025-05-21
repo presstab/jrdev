@@ -2,6 +2,7 @@ from textual import events, on
 from textual.app import ComposeResult
 from textual.widget import Widget
 from textual.widgets import Button
+from textual.message import Message
 from typing import Dict, List, Optional
 import logging
 
@@ -11,6 +12,11 @@ from jrdev.ui.textual.command_request import CommandRequest
 logger = logging.getLogger("jrdev")
 
 class ChatList(Widget):
+    class NewChatActivated(Message):
+        """Message sent when a new chat is created and activated."""
+        def __init__(self, thread_id: str) -> None:
+            self.thread_id = thread_id
+            super().__init__()
 
     def __init__(self, core_app, id: Optional[str] = None) -> None:
         super().__init__(id=id)
@@ -92,7 +98,13 @@ class ChatList(Widget):
 
         # check if it is the new thread button
         if btn.id == "new_thread":
+            # Post the command to create a new thread
             self.post_message(CommandRequest("/thread new"))
+            # Wait for the thread to be created in the backend, then update UI
+            # We'll optimistically try to find the new thread after a short delay
+            # but the main UI will also update us via ChatThreadUpdate event.
+            # Instead, we emit a message to parent to switch to the new chat after it's created.
+            # So, we do nothing here except post the command.
             return
 
         if btn.id not in self.buttons:
@@ -101,3 +113,22 @@ class ChatList(Widget):
 
         # switch chat thread
         self.post_message(CommandRequest(f"/thread switch {btn.id}"))
+
+    async def on_command_request(self, event: CommandRequest) -> None:
+        # Listen for /thread new command completion by monitoring thread list changes
+        # This is handled by the parent UI, so nothing to do here
+        pass
+
+    async def thread_update(self, msg_thread: MessageThread):
+        # Overridden to handle new thread activation
+        is_new = self.threads.get(msg_thread.thread_id, None) is None
+        if is_new:
+            await self.add_thread(msg_thread)
+            # Set as active and notify parent to switch view
+            self.set_active(msg_thread.thread_id)
+            self.post_message(self.NewChatActivated(msg_thread.thread_id))
+        else:
+            # check if thread name may have changed
+            btn = self.buttons[msg_thread.thread_id]
+            if msg_thread.name and msg_thread.name != str(btn.label):
+                btn.label = msg_thread.name
