@@ -16,7 +16,6 @@ from jrdev.services.message_service import MessageService
 from jrdev.model_list import ModelList
 from jrdev.model_profiles import ModelProfileManager
 from jrdev.model_utils import load_hardcoded_models
-from jrdev.models import fetch_venice_models
 from jrdev.projectcontext.contextmanager import ContextManager
 from jrdev.treechart import generate_compact_tree
 from jrdev.ui.ui import PrintType
@@ -182,10 +181,6 @@ class Application:
         """Start background services"""
         # Start task monitor
         self.state.task_monitor = asyncio.create_task(self._schedule_task_monitor())
-
-        # Start model update service
-        model_update_task = asyncio.create_task(self._schedule_model_updates())
-
         self.logger.info("Background services started")
 
     async def handle_command(self, command: Command):
@@ -287,88 +282,6 @@ class Application:
                 self.logger.error(f"Error saving chat_model to config: {e}")
             if send_to_ui:
                 self.ui.model_changed(model)
-
-    async def update_model_names_cache(self):
-        """Update the model names cache in the background."""
-
-        try:
-            # Get current models from API
-            models = await fetch_venice_models(client=self.state.clients.venice)
-
-            if not models:
-                self.logger.warning("Failed to fetch models from API")
-                return
-
-            # Get current models
-            current_models = self.get_models()
-            current_model_names = [model["name"] for model in current_models]
-
-            # Find new models that aren't in the hardcoded list
-            new_models = [model for model in models if model["name"] not in current_model_names]
-
-            if new_models:
-                # Print new models in a nice format
-                self.logger.info("\nNew models discovered:")
-                for model in new_models:
-                    self.logger.info(f"  • {model['name']} ({model['provider']})")
-
-                # Update model_list.json file with new models
-                try:
-                    # Get the directory where the module is located
-                    current_dir = os.path.dirname(os.path.abspath(__file__))
-                    # Go up one directory to find jrdev/
-                    parent_dir = os.path.dirname(current_dir)
-                    json_path = os.path.join(parent_dir, "model_list.json")
-
-                    # Read the existing model list
-                    with open(json_path, "r") as f:
-                        model_list_data = json.load(f)
-
-                    # Add new models to the list
-                    for model in new_models:
-                        # Create a model entry with default values
-                        new_entry = {
-                            "name": model["name"],
-                            "provider": model["provider"],
-                            "is_think": model["is_think"],
-                            "input_cost": 0,  # Default to 0 for now
-                            "output_cost": 0,  # Default to 0 for now
-                            "context_tokens": model["context_tokens"]
-                        }
-                        model_list_data["models"].append(new_entry)
-
-                    # Write the updated list back to the file
-                    with open(json_path, "w") as f:
-                        json.dump(model_list_data, f, indent=4)
-
-                    self.logger.info(f"Updated model_list.json with {len(new_models)} new models")
-
-                    # add new models
-                    venice_models = [model for model in models if model["provider"] == "venice"]
-                    self.state.model_list.append_model_list(venice_models)
-                except Exception as e:
-                    self.logger.error(f"Error updating model_list.json: {e}")
-        except Exception as e:
-            self.logger.error(f"Error updating model names cache: {e}")
-
-    async def _schedule_model_updates(self):
-        """Background task to periodically update model list."""
-        try:
-            # Perform an immediate update when the terminal starts
-            await self.update_model_names_cache()
-        except Exception as e:
-            self.logger.error(f"Initial model update failed: {e}")
-
-        # Then enter the periodic update loop
-        while self.state.running:
-            try:
-                # Update every hour
-                await asyncio.sleep(3600)
-                await self.update_model_names_cache()
-            except Exception as e:
-                self.logger.error(f"Error in model update task: {e}")
-                # Wait a bit before retrying on error
-                await asyncio.sleep(60)
 
     def _check_gitignore(self):
         """
