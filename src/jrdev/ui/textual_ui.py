@@ -480,6 +480,12 @@ class JrDevUI(App[None]):
             # Switch to chat view mode
             self.content_switcher.current = "chat_view"
 
+    @on(ChatList.NewChatActivated)
+    async def handle_new_chat_activated(self, event: ChatList.NewChatActivated) -> None:
+        """When a new chat is created and activated, switch to chat view and display the new chat."""
+        self.content_switcher.current = "chat_view"
+        await self.chat_view.on_thread_switched()
+
     def _on_panel_switched(self, old: str|None, new: str|None) -> None:
         """
         Called whenever the ContentSwitcher flips panels.

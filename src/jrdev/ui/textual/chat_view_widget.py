@@ -127,7 +127,7 @@ class ChatViewWidget(Widget):
         """Set up the widget when mounted."""
         self.layout_output.styles.border = ("round", Color.parse("#5e5e5e"))
         self.layout_output.styles.border_title_color = "#fabd2f"
-        self.layout_output.border_title = "Chat"
+        await self._update_layout_output_border_title()
 
         self.terminal_button.can_focus = False
         self.context_switch.can_focus = False
@@ -165,10 +165,27 @@ class ChatViewWidget(Widget):
         else:
             self.chat_context_files_label.update("Empty")
 
+    async def _update_layout_output_border_title(self, thread: MessageThread = None) -> None:
+        """
+        Updates the border title of the layout_output to display the current thread's name or id.
+        """
+        if not thread:
+            thread: Optional[MessageThread] = self.core_app.get_current_thread()
+        if thread:
+            thread_name = thread.name.strip() if thread.name else None
+            if thread_name:
+                self.layout_output.border_title = f"Chat: {thread_name}"
+            else:
+                self.layout_output.border_title = f"Chat: {thread.thread_id}"
+        else:
+            self.layout_output.border_title = "Chat"
+
     async def _load_current_thread(self) -> None:
         """Clear the output and re-render messages from the active thread as bubbles."""
         thread: Optional[MessageThread] = self.core_app.get_current_thread()
-        
+
+        await self._update_layout_output_border_title(thread)
+
         if not thread:
             if self.current_thread_id is not None:
                  await self.message_scroller.remove_children()
@@ -307,6 +324,7 @@ class ChatViewWidget(Widget):
             if self.input_name.value and len(self.input_name.value):
                 self.post_message(CommandRequest(f"/thread rename {self.current_thread_id} {self.input_name.value}"))
                 await self.set_name_edit_mode(False)
+                await self._update_layout_output_border_title()
             return
         elif self.delete_prompt_mode:
             # if this is pressed when delete prompt is active, then it ends delete prompt mode

@@ -50,7 +50,7 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
     new_parser.add_argument(
         "name",
         type=str,
-        nargs="?",
+        nargs=argparse.REMAINDER,
         help="Optional name (3-20 chars, a-z0-9_- )"
     )
 
@@ -92,6 +92,7 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
     rename_parser.add_argument(
         "name",
         type=str,
+        nargs=argparse.REMAINDER,
         help="New name for the thread (3-20 chars, a-z0-9_- )"
     )
 
@@ -234,18 +235,24 @@ async def _handle_new_thread(app: Any, args: argparse.Namespace) -> None:
     Raises:
         ValueError: If the thread name format is invalid
     """
-    if args.name and not re.match(r"^[\w-]{3,20}$", args.name):
-        raise ValueError("Invalid thread name - use 3-20 alphanumerics")
+    name = None
+    if hasattr(args, 'name') and args.name:
+        # args.name is a list (possibly empty) due to nargs=REMAINDER
+        name = ' '.join(args.name).strip()
+        if name and not re.match(r"^[\w\- ]{3,40}$", name):
+            raise ValueError("Invalid thread name - use 3-40 alphanumerics, underscores, hyphens, or spaces")
+        if not name:
+            name = None
     
     thread_id = app.create_thread("")
     
-    if args.name:
+    if name:
         thread = app.state.threads[thread_id]
-        thread.set_name(args.name)
+        thread.set_name(name)
 
     app.switch_thread(thread_id)
     
-    app.ui.print_text(f"Created and switched to new thread: {thread_id}{f' (named: {args.name})' if args.name else ''}", PrintType.SUCCESS)
+    app.ui.print_text(f"Created and switched to new thread: {thread_id}{f' (named: {name})' if name else ''}", PrintType.SUCCESS)
     app.ui.chat_thread_update(thread_id)
 
 
@@ -316,11 +323,19 @@ async def _handle_switch_thread(app: Any, args: argparse.Namespace) -> None:
 async def _handle_rename_thread(app: Any, args: argparse.Namespace) -> None:
     """Rename an existing message thread."""
     thread_id_to_rename = args.thread_id
-    new_thread_name = args.name
-
-    if not re.match(r"^[\w-]{3,20}$", new_thread_name):
+    new_thread_name = None
+    if hasattr(args, 'name') and args.name:
+        new_thread_name = ' '.join(args.name).strip()
+    else:
         app.ui.print_text(
-            f"Error: Invalid new name '{new_thread_name}'. Name must be 3-20 alphanumerics, underscores, or hyphens.",
+            f"Error: No new name provided.",
+            PrintType.ERROR
+        )
+        return
+
+    if not re.match(r"^[\w\- ]{3,40}$", new_thread_name):
+        app.ui.print_text(
+            f"Error: Invalid new name '{new_thread_name}'. Name must be 3-40 alphanumerics, underscores, hyphens, or spaces.",
             PrintType.ERROR
         )
         return
