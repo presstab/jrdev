@@ -2,9 +2,25 @@ from typing import AsyncIterator, TYPE_CHECKING
 from jrdev.message_builder import MessageBuilder
 from jrdev.llm_requests import stream_request
 from jrdev.messages.thread import MessageThread
+import re
 
 if TYPE_CHECKING:
     from jrdev.core.application import Application # To avoid circular imports
+
+def filter_think_tags(text):
+    """Remove content within <think></think> tags."""
+    # Use regex to remove all <think>...</think> sections
+    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+
+
+def is_inside_think_tag(text):
+    """Determine if the current position is inside a <think> tag."""
+    # Count the number of opening and closing tags
+    think_open = text.count("<think>")
+    think_close = text.count("</think>")
+
+    # If there are more opening tags than closing tags, we're inside a tag
+    return think_open > think_close
 
 class MessageService:
     def __init__(self, application: 'Application'):
@@ -50,10 +66,22 @@ class MessageService:
             task_id
         )
 
+        # completely filter out thinking
+        is_first_chunk = True
+        in_think = False
         async for chunk in llm_response_stream:
-            response_accumulator += chunk
-            msg_thread.add_response_partial(chunk) # Update thread with partial assistant response
-            yield chunk
+            if is_first_chunk:
+                is_first_chunk = False
+                if chunk == "<think>":
+                    in_think = True
+                    yield "Thinking..."
+            elif in_think:
+                if chunk == "</think>":
+                    in_think = False
+            else:
+                response_accumulator += chunk
+                msg_thread.add_response_partial(chunk) # Update thread with partial assistant response
+                yield chunk
 
         # Finalize the full response in the message thread
-        msg_thread.finalize_response(response_accumulator)
+        msg_thread.finalize_response(response_accumulator.strip())

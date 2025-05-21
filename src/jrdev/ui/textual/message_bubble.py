@@ -37,6 +37,7 @@ class MessageBubble(Vertical):
         super().__init__(id=id)
         self.message_content = message_content
         self.role = role
+        self.is_thinking = message_content == "Thinking..."
 
         border_color_map = {
             "user": "green",
@@ -89,4 +90,14 @@ class MessageBubble(Vertical):
 
     def append_chunk(self, chunk: str) -> None:
         """Appends a chunk of text to the message bubble's text area for streaming."""
+        # if this was previously in thinking state, clear the thinking message
+        if self.is_thinking:
+            self.text_area.clear()
+            self.is_thinking = False
+
+            # often the first chunks after thinking will be new lines
+            while chunk.startswith("\n"):
+                chunk = chunk.removeprefix("\n")
+
+        # add the new text
         self.text_area.append_text(chunk)

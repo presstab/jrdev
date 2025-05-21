@@ -517,14 +517,6 @@ class GitToolsScreen(ModalScreen):
     async def _generate_pr_content_base(self, pr_type: str, custom_prompt: str) -> Optional[str]:
         """Base coroutine logic for generating PR content (summary or review)."""
         args = ["/git", "pr", pr_type] # Base args
-        if custom_prompt:
-            # Split the custom prompt using shlex to handle quotes properly
-            try:
-                prompt_args = shlex.split(custom_prompt)
-                args.extend(prompt_args)
-            except ValueError as e:
-                # Raise error to be caught by the callback
-                raise ValueError(f"Error parsing custom prompt: {e}. Ensure quotes are balanced.") from e
 
         prompt_path = f"git/pr_{pr_type}"
         add_project_files = (pr_type == "review")
