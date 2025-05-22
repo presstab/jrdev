@@ -139,6 +139,7 @@ class TaskMonitor(Vertical):
     #task_monitor_table {
         height: 1fr;
         border: none;
+        scrollbar-size: 1 1;
     }
     #stop-button {
         height: 1;

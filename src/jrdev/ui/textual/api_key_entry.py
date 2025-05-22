@@ -242,8 +242,8 @@ class ApiKeyEntry(Screen[dict]):
                             yield Static() # Placeholder
 
             with Horizontal(id="footer"):
-                yield Button("Save", id="save", variant="success")
-                yield Button("Exit", id="exit", variant="error")
+                yield Button("Save", id="save", variant="success", tooltip="Save Changes")
+                yield Button("Exit", id="exit", variant="error", tooltip="Exit Application" if self.mode == "first_run" else "Close")
 
     async def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "save":
@@ -270,7 +270,10 @@ class ApiKeyEntry(Screen[dict]):
                     ret[env_key] = value
             self.dismiss(ret)
         elif event.button.id == "exit":
-            self.app.pop_screen()
+            if self.mode == "first_run":
+                self.app.exit()
+            else:
+                self.app.pop_screen()
         elif event.button.id and event.button.id.startswith("delete_"):
             # Handle delete button for a specific provider, but ask for confirmation first
             env_key = self.button_to_env_key.get(event.button.id)

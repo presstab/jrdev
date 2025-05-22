@@ -121,7 +121,7 @@ class JrDevUI(App[None]):
         }
 
         /* Apply consistent scrollbar styling */
-        TaskMonitor, ModelSelectionWidget, #diff-display, TerminalTextArea, #cmd_input, DirectoryTree, VerticalScroll {
+        TaskMonitor, ModelSelectionWidget, #diff-display, TerminalTextArea, #cmd_input, DirectoryTree, VerticalScroll, ChatInputWidget, FilteredDirectoryTree, DirectoryWidget {
             scrollbar-background: #1e1e1e;
             scrollbar-background-hover: #1e1e1e;
             scrollbar-background-active: #1e1e1e;
@@ -129,6 +129,7 @@ class JrDevUI(App[None]):
             scrollbar-color-active: #63f554;
             scrollbar-color-hover: #63f554 50%;
             scrollbar-size: 1 1;
+            scrollbar-size-horizontal: 1;
         }
         /* Make the container widget flexible */
         TerminalOutputWidget {
