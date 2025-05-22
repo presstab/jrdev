@@ -5,7 +5,6 @@ from openai import AsyncOpenAI
 import anthropic
 import json
 from pathlib import Path
-from jrdev.ui.ui import PrintType
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -37,13 +36,18 @@ class APIClients:
         if self._initialized:
             return
 
+        have_provider = False
         for provider in self._providers:
             env_key = provider["env_key"]
             api_key = env.get(env_key)
-            if provider["required"] and not api_key:
-                logger.error(f"Error: {env_key} not found")
-                sys.exit(1)
+            if api_key:
+                have_provider = True
             await self._init_client(provider["name"], api_key, provider["base_url"])
+        if not have_provider:
+            # no api keys found, unable to initialize
+            logger.info("ApiClients initialize: no api keys found")
+            return
+
         self._initialized = True
 
     async def _init_client(self, name: str, api_key: Optional[str], base_url: Optional[str]) -> None:

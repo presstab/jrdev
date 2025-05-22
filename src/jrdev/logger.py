@@ -46,6 +46,6 @@ def setup_logger(log_dir: Optional[str] = None) -> logging.Logger:
 
     # Log application start
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"JrDev application started at {timestamp}")
+    logger.info(f"-----------JrDev application started at {timestamp}-----------")
 
     return logger

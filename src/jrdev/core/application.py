@@ -84,7 +84,21 @@ class Application:
         self.state.model_list.set_model_list(load_hardcoded_models())
         self.state.context_manager = ContextManager()
         profile_config_path = f"{JRDEV_PACKAGE_DIR}/config/profile_strings.json"
-        self.state.model_profile_manager = ModelProfileManager(profile_strings_path=profile_config_path)
+        
+        # Determine active providers to inform ModelProfileManager's default profile selection
+        all_providers = self.state.clients.provider_list()
+        providers_with_keys_names = []
+        for provider in all_providers:
+            if os.getenv(provider["env_key"]):
+                providers_with_keys_names.append(provider["name"])
+
+        providers_path = f"{JRDEV_PACKAGE_DIR}/config/api_providers.json"
+
+        self.state.model_profile_manager = ModelProfileManager(
+            profile_strings_path=profile_config_path,
+            providers_path=providers_path,
+            active_provider_names=providers_with_keys_names
+        )
 
     def _load_environment(self):
         """Load environment variables"""
@@ -383,6 +397,16 @@ class Application:
         env_path = get_env_path()
         load_dotenv(dotenv_path=env_path)
         await self._initialize_api_clients()
+
+        # redo model profiles if they are default
+        all_providers = self.state.clients.provider_list()
+        providers_with_keys_names = []
+        for provider in all_providers:
+            if os.getenv(provider["env_key"]):
+                providers_with_keys_names.append(provider["name"])
+        profile_manager = self.profile_manager()
+        profile_manager.reload_if_using_fallback(providers_with_keys_names)
+
         self.state.need_first_time_setup = False
         return True
 

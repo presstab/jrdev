@@ -16,19 +16,24 @@ class ModelProfileManager:
     Profiles are stored in a JSON configuration file.
     """
 
-    def __init__(self, config_path: Optional[str] = None, profile_strings_path: Optional[str] = None):
+    def __init__(self, config_path: Optional[str] = None, 
+                 profile_strings_path: Optional[str] = None,
+                 providers_path: Optional[str] = None,
+                 active_provider_names: Optional[List[str]] = None):
         """
-        Initialize the profile manager with a path to the config file.
+        Initialize the profile manager.
 
         Args:
             config_path: Optional path to the JSON configuration file.
                          If not provided, uses the default in JRDEV_DIR.
             profile_strings_path: Optional path to the profile strings JSON file.
                                   If not provided, uses the default in config directory.
+            providers_path: Optional path to the api_providers.json file.
+                            If not provided, uses default in config directory.
+            active_provider_names: Optional list of provider names with active API keys.
         """
         # Initialize the configuration path
         self.config_path: str = os.path.join(JRDEV_DIR, "model_profiles.json")
-
         if config_path is not None:
             self.config_path = config_path
 
@@ -36,26 +41,43 @@ class ModelProfileManager:
         os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
 
         # Initialize profile strings path
-        self.profile_strings_path: str = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "config",
-            "profile_strings.json"
-        )
-
+        self.profile_strings_path: str
         if profile_strings_path is not None:
             self.profile_strings_path = profile_strings_path
+        else:
+            self.profile_strings_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "config",
+                "profile_strings.json"
+            )
+
+        # Initialize providers path
+        self.providers_path: str
+        if providers_path is not None:
+            self.providers_path = providers_path
+        else:
+            self.providers_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "config",
+                "api_providers.json"
+            )
+        
+        self.active_provider_names: List[str] = active_provider_names if active_provider_names is not None else []
+        self.provider_preference_order: List[str] = ["open_router", "openai", "anthropic", "venice", "deepseek"]
 
         self.profiles = self._load_profiles()
         self.profile_strings = self._load_profile_strings()
 
-    def _load_profiles(self) -> Dict[str, Any]:
+    def _load_profiles(self, remove_fallback=False) -> Dict[str, Any]:
         """
-        Load profile configuration from JSON with fallback to defaults.
+        Load profile configuration from JSON. If the user's config file doesn't exist,
+        it attempts to create one using defaults from an active provider based on
+        `provider_preference_order`. If that fails, it uses hardcoded defaults.
 
         Returns:
             Dictionary containing profiles configuration
         """
-        default_config: Dict[str, Any] = {
+        hardcoded_fallback_config: Dict[str, Any] = {
             "profiles": {
                 "advanced_reasoning": "deepseek-r1-671b",
                 "advanced_coding": "deepseek-r1-671b",
@@ -64,42 +86,87 @@ class ModelProfileManager:
                 "quick_reasoning": "qwen-2.5-coder-32b",
             },
             "default_profile": "advanced_coding",
-            "chat_model": "deepseek-r1-671b",
+            # chat_model will be derived from default_profile
         }
+        hardcoded_fallback_config["chat_model"] = hardcoded_fallback_config["profiles"].get(
+            hardcoded_fallback_config["default_profile"], "deepseek-r1-671b" # Ultimate fallback for chat_model
+        )
 
         try:
-            # Check if the config file exists
-            if os.path.exists(self.config_path):
-                config_path = self.config_path
+            if not remove_fallback and os.path.exists(self.config_path):
+                with open(self.config_path, "r") as f:
+                    config: Dict[str, Any] = json.load(f)
+
+                if not all(key in config for key in ["profiles", "default_profile", "chat_model"]):
+                    logger.warning(
+                        f"Profile configuration {self.config_path} missing required fields. Re-creating with defaults."
+                    )
+                    # Fall through to default creation logic by not returning here
+                else:
+                    logger.info(f"Successfully loaded profile configuration from {self.config_path}")
+                    return config
+            
+            # Config file does not exist or was invalid; create a new default one.
+            logger.info(
+                f"Profile configuration file {self.config_path} not found or invalid. Attempting to create one."
+            )
+            
+            determined_default_config: Optional[Dict[str, Any]] = None
+
+            if self.providers_path and os.path.exists(self.providers_path) and self.active_provider_names:
+                logger.info(f"Attempting to load defaults from providers specified in {self.providers_path}")
+                try:
+                    with open(self.providers_path, "r") as f_providers:
+                        providers_data = json.load(f_providers)
+                    
+                    all_provider_configs = providers_data.get("providers", [])
+                    
+                    for preferred_provider_name in self.provider_preference_order:
+                        if preferred_provider_name in self.active_provider_names:
+                            provider_config_entry = next((p for p in all_provider_configs if p.get("name") == preferred_provider_name), None)
+                            
+                            if provider_config_entry and "default_profiles" in provider_config_entry:
+                                provider_defaults = provider_config_entry["default_profiles"]
+                                if isinstance(provider_defaults, dict) and \
+                                   "profiles" in provider_defaults and isinstance(provider_defaults["profiles"], dict) and \
+                                   "default_profile" in provider_defaults and isinstance(provider_defaults["default_profile"], str):
+                                    
+                                    determined_default_config = provider_defaults.copy()
+                                    default_profile_key = determined_default_config["default_profile"]
+                                    
+                                    if default_profile_key in determined_default_config["profiles"]:
+                                        determined_default_config["chat_model"] = determined_default_config["profiles"][default_profile_key]
+                                    elif determined_default_config["profiles"]: # If default_profile key is bad, use first available
+                                        logger.warning(f"Default profile '{default_profile_key}' not found in profiles for provider '{preferred_provider_name}'. Using first available profile model as chat_model.")
+                                        determined_default_config["chat_model"] = next(iter(determined_default_config["profiles"].values()))
+                                    else: # No profiles defined, cannot use this provider's defaults
+                                        logger.warning(f"Provider '{preferred_provider_name}' has empty 'profiles' in 'default_profiles'. Skipping.")
+                                        determined_default_config = None
+                                        continue
+
+                                    logger.info(f"Using default profiles from active provider: {preferred_provider_name}")
+                                    break # Found a suitable provider default
+                                else:
+                                    logger.warning(f"Provider '{preferred_provider_name}' has malformed 'default_profiles' structure. Skipping.")
+                except Exception as e:
+                    logger.warning(f"Error reading or parsing providers_path '{self.providers_path}': {e}. Will use hardcoded defaults if necessary.")
+
+            final_config_to_save: Dict[str, Any]
+            if determined_default_config:
+                final_config_to_save = determined_default_config
+                logger.info(f"Selected provider-based defaults for {self.config_path}.")
             else:
-                logger.warning(
-                    f"Profile configuration file {self.config_path} not found, using defaults"
-                )
-                # Save the default config for future use
-                with open(self.config_path, "w") as f:
-                    json.dump(default_config, f, indent=2)
-                logger.info(
-                    f"Created default profile configuration at {self.config_path}"
-                )
-                return default_config
+                final_config_to_save = hardcoded_fallback_config
+                logger.info(f"No suitable active provider default found or providers_path not configured. Using hardcoded default profiles for {self.config_path}.")
 
-            with open(config_path, "r") as f:
-                config: Dict[str, Any] = json.load(f)
-
-            # Validate loaded config has required fields
-            if not all(key in config for key in ["profiles", "default_profile", "chat_model"]):
-                logger.warning(
-                    "Profile configuration missing required fields, using defaults"
-                )
-                return default_config
-
-            logger.info(f"Successfully loaded profile configuration from {config_path}")
-            return config
+            with open(self.config_path, "w") as f:
+                json.dump(final_config_to_save, f, indent=2)
+            logger.info(f"Created default profile configuration at {self.config_path}")
+            return final_config_to_save
 
         except Exception as e:
-            logger.error(f"Error loading profile configuration: {str(e)}")
-            # Error log only, UI feedback handled by caller
-            return default_config
+            logger.error(f"Critical error loading or creating profile configuration: {str(e)}. Returning emergency hardcoded defaults.")
+            return hardcoded_fallback_config
 
     def _load_profile_strings(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -296,3 +363,43 @@ class ModelProfileManager:
             Dictionary containing all profile metadata or empty dict if not found
         """
         return self.profile_strings.get(profile_name, {})
+
+    def reload_if_using_fallback(self, active_provider_names) -> bool:
+        """
+        Reload the profiles if the current profiles match the hardcoded fallback config.
+        This allows the correct provider-based defaults to be loaded after API keys are entered.
+        Returns True if reload occurred, False otherwise.
+        """
+        logger.info("*** reload_if_using_fallback")
+        self.active_provider_names: List[str] = active_provider_names if active_provider_names is not None else []
+        hardcoded_fallback_config = {
+            "profiles": {
+                "advanced_reasoning": "deepseek-r1-671b",
+                "advanced_coding": "deepseek-r1-671b",
+                "intermediate_reasoning": "llama-3.3-70b",
+                "intermediate_coding": "qwen-2.5-coder-32b",
+                "quick_reasoning": "qwen-2.5-coder-32b",
+            },
+            "default_profile": "advanced_coding",
+        }
+        hardcoded_fallback_config["chat_model"] = hardcoded_fallback_config["profiles"].get(
+            hardcoded_fallback_config["default_profile"], "deepseek-r1-671b"
+        )
+        # Only compare the relevant keys
+        current = self.profiles
+        is_fallback = (
+            current.get("profiles") == hardcoded_fallback_config["profiles"] and
+            current.get("default_profile") == hardcoded_fallback_config["default_profile"] and
+            current.get("chat_model") == hardcoded_fallback_config["chat_model"]
+        )
+        if is_fallback:
+            new_profiles = self._load_profiles(remove_fallback=True)
+            self.profiles = new_profiles
+            try:
+                with open(self.config_path, "w") as f:
+                    json.dump(self.profiles, f, indent=2)
+            except Exception as e:
+                logger.error(f"Failed to write reloaded profiles to file: {e}")
+            logger.info("Reloaded profiles from provider-based defaults after detecting fallback config.")
+            return True
+        return False
