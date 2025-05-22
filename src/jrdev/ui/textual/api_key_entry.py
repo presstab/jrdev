@@ -8,6 +8,7 @@ import logging
 import json
 import os
 from pathlib import Path
+import pyperclip
 
 from .yes_no_modal_screen import YesNoScreen
 
@@ -76,11 +77,24 @@ class ApiKeyEntry(Screen[dict]):
 
     /* Grid for inputs */
     #input-grid {
-        grid-size: 3; /* Label, Input, Button/Placeholder */
+        grid-size: 4; /* Paste, Label, Input, Button/Placeholder */
         grid-gutter: 1 2; /* Row gutter, Column gutter */
-        grid-columns: 16 1fr auto;
+        grid-columns: auto 1fr 3 3;
         margin-top: 1;
         height: auto; /* Grid height based on content */
+    }
+
+    /* Style for Paste Buttons within the grid */
+    #paste-button {
+        height: 1;
+        min-width: 3;
+        max-width: 3;
+        width: 3;
+        border: none;
+        margin: 0;
+        padding: 0;
+        align-vertical: middle;
+        text-align: center;
     }
 
     /* Style for Labels within the grid */
@@ -105,6 +119,7 @@ class ApiKeyEntry(Screen[dict]):
         height: 1;
         min-width: 3;
         max-width: 3;
+        width: 3;
         border: none;
         margin: 0;
         padding: 0;
@@ -140,6 +155,7 @@ class ApiKeyEntry(Screen[dict]):
         self.delete_buttons = []
         self.input_widgets = {}  # Map env_key to Input widget
         self.button_to_env_key = {}  # Map Button ID to env_key
+        self.paste_button_to_env_key = {}  # Map Paste Button ID to env_key
         self._pending_delete_env_key = None  # Track which key is pending delete confirmation
         self._pending_delete_provider_name = None
 
@@ -174,11 +190,12 @@ class ApiKeyEntry(Screen[dict]):
             with Vertical(id="content-area"):
                 with Grid(id="input-grid"):
                     for provider in self.providers:
+                        env_key = provider["env_key"]
+
                         # Provider Label
                         yield Label(f"{provider['name'].title()} Key:")
 
                         # Input Field
-                        env_key = provider["env_key"]
                         existing_value = self.existing_keys.get(env_key, "") if self.mode == "editor" else ""
                         masked = self._mask_key(existing_value) if self.mode == "editor" and existing_value else ""
                         input_widget = Input(id=f"{provider['name']}_key", password=True)
@@ -188,9 +205,14 @@ class ApiKeyEntry(Screen[dict]):
                         self.input_widgets[env_key] = input_widget
                         yield input_widget
 
+                        # Paste Button
+                        paste_button = Button("\u270e", id=f"paste_{env_key}", classes="paste-button", tooltip="Paste")
+                        self.paste_button_to_env_key[paste_button.id] = env_key
+                        yield paste_button
+
                         # Delete Button (Editor Mode Only)
                         if self.mode == "editor":
-                            button_delete = Button("X", id=f"delete_{env_key}", classes="delete-button")
+                            button_delete = Button("X", id=f"delete_{env_key}", classes="delete-button", tooltip="Delete")
                             self.delete_buttons.append(button_delete)
                             self.button_to_env_key[button_delete.id] = env_key
                             yield button_delete
@@ -202,9 +224,7 @@ class ApiKeyEntry(Screen[dict]):
                 yield Button("Save", id="save", variant="success")
                 yield Button("Exit", id="exit", variant="error")
 
-    # _on_mount removed as styling is handled by CSS
-
-    def on_button_pressed(self, event: Button.Pressed):
+    async def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "save":
             ret = {}
             for provider in self.providers:
@@ -276,3 +296,23 @@ class ApiKeyEntry(Screen[dict]):
             self._pending_delete_provider_name = provider_name
             prompt = f"Are you sure you want to delete API key for {provider_name.title()}?" # Use title case
             self.app.push_screen(YesNoScreen(prompt), handle_key_delete)
+        elif event.button.id and event.button.id.startswith("paste_"):
+            # Handle paste button: paste clipboard contents into the corresponding input
+            env_key = self.paste_button_to_env_key.get(event.button.id)
+            if not env_key:
+                self.notify(f"Could not map paste button {event.button.id} to env_key", severity="error")
+                return
+            input_widget: Input = self.input_widgets.get(env_key)
+            if not input_widget:
+                self.notify(f"Could not find input widget for {env_key}", severity="error")
+                return
+            # Use pyperclip to get clipboard contents
+            try:
+                clipboard_text = pyperclip.paste()
+            except Exception as e:
+                self.notify(f"Could not access clipboard: {e}", severity="error")
+                return
+            if clipboard_text is not None and clipboard_text != "":
+                input_widget.value = clipboard_text
+            else:
+                self.notify("Clipboard is empty or unavailable.", severity="warning")
