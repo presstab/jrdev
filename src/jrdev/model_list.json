@@ -17,6 +17,22 @@
             "context_tokens": 200000
         },
         {
+            "name": "claude-opus-4-20250514",
+            "provider": "anthropic",
+            "is_think": true,
+            "input_cost": 150,
+            "output_cost": 750,
+            "context_tokens": 200000
+        },
+        {
+            "name": "claude-sonnet-4-20250514",
+            "provider": "anthropic",
+            "is_think": true,
+            "input_cost": 30,
+            "output_cost": 150,
+            "context_tokens": 200000
+        },
+        {
             "name": "deepseek-reasoner",
             "provider": "deepseek",
             "is_think": true,
