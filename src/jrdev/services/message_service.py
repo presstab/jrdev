@@ -75,6 +75,10 @@ class MessageService:
                 if chunk == "<think>":
                     in_think = True
                     yield "Thinking..."
+                else:
+                    response_accumulator += chunk
+                    msg_thread.add_response_partial(chunk)  # Update thread with partial assistant response
+                    yield chunk
             elif in_think:
                 if chunk == "</think>":
                     in_think = False
