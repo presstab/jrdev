@@ -242,7 +242,7 @@ async def apply_file_changes(app, changes_json, code_processor):
     """
     Apply changes to files based on the provided JSON.
 
-    Args:fcvvvvvvvvvvvvvvvvvvv
+    Args:
         app: The Application instance
         changes_json: The JSON object containing changes
         code_processor: The CodeProcessor instance managing the task
