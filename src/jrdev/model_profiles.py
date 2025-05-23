@@ -370,7 +370,6 @@ class ModelProfileManager:
         This allows the correct provider-based defaults to be loaded after API keys are entered.
         Returns True if reload occurred, False otherwise.
         """
-        logger.info("*** reload_if_using_fallback")
         self.active_provider_names: List[str] = active_provider_names if active_provider_names is not None else []
         hardcoded_fallback_config = {
             "profiles": {
