@@ -1,7 +1,7 @@
 import time
 import tiktoken
 from typing import AsyncIterator
-
+from asyncio import CancelledError
 from jrdev.usage import get_instance
 
 
@@ -296,6 +296,9 @@ async def generate_llm_response(app, model, messages, task_id=None, print_stream
                 response_accumulator += chunk
 
         return response_accumulator
+    except CancelledError:
+        # worker.cancel() should kill everything
+        raise
     except Exception as e:
         app.logger.error(f"generate_llm_response: {e}")
         if attempts < 1:

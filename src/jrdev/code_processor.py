@@ -1,3 +1,4 @@
+from asyncio import CancelledError
 import json
 import os
 from typing import Any, Dict, List, Set
@@ -49,6 +50,9 @@ class CodeProcessor:
             raise
         except Reprompt as additional_prompt:
             await self.process(f"{user_task} {additional_prompt}")
+        except CancelledError:
+            # worker.cancel() should kill everything
+            raise
         except Exception as e:
             self.app.logger.error(f"Error in CodeProcessor: {str(e)}")
             self.app.ui.print_text(f"Error processing code: {str(e)}", PrintType.ERROR)
@@ -237,6 +241,9 @@ class CodeProcessor:
         except CodeTaskCancelled as e:
             self.app.ui.print_text(f"Code task cancelled by user: {str(e)}", PrintType.WARNING)
             raise
+        except CancelledError:
+            # worker.cancel() should kill everything
+            raise
         except Exception as e:
             self.app.ui.print_text(f"Step failed: {str(e)}", PrintType.ERROR)
             return []
@@ -309,8 +316,12 @@ class CodeProcessor:
         try:
             json_block = cutoff_string(response_text, "```json", "```")
             changes = json.loads(json_block)
+        except CancelledError:
+            # worker.cancel() should kill everything
+            raise
         except Exception as e:
             raise Exception(f"Parsing failed in code changes: {str(e)}\n Blob:{json_block}\n")
+
         if "cancel_step" in changes:
             # AI model has determined this step is already completed
             reason = changes["cancel_step"]

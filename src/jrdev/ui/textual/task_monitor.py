@@ -32,6 +32,11 @@ class TaskMonitorTable(DataTable):
             "git pr review",
             "git pr summary"
         ]
+        # --- Subtask tracking ---
+        # Maps subtask_id -> main_task_id
+        self.subtask_to_main = {}
+        # Maps main_task_id -> set of subtask_ids
+        self.main_to_subtasks = {}
 
     async def on_mount(self) -> None:
         # Apply scrollbar styling directly or via CSS if preferred
@@ -50,7 +55,7 @@ class TaskMonitorTable(DataTable):
     def truncate_cell_content(self, content: str, max_width: int) -> str:
         return content if len(content) <= max_width else content[:max_width - 1] + "…"
 
-    def add_task(self, task_id: str, task_name: str, model: str, sub_task_name: Optional[str] = None) -> None:
+    def add_task(self, task_id: str, task_name: str, model: str, sub_task_name: Optional[str] = None, parent_task_id: Optional[str] = None) -> None:
         if not sub_task_name and not task_name.startswith("/"):
             task_name = "chat"
         use_name = task_name
@@ -61,6 +66,17 @@ class TaskMonitorTable(DataTable):
         row_key = self.add_row(*row, key=task_id)
         self.row_key_workers[task_id] = row_key
         self.runtimes[task_id] = time.time()
+
+        # --- Subtask tracking logic ---
+        if parent_task_id:
+            self.subtask_to_main[task_id] = parent_task_id
+            if parent_task_id not in self.main_to_subtasks:
+                self.main_to_subtasks[parent_task_id] = set()
+            self.main_to_subtasks[parent_task_id].add(task_id)
+        else:
+            # If this is a main task, ensure it has an entry in main_to_subtasks
+            if task_id not in self.main_to_subtasks:
+                self.main_to_subtasks[task_id] = set()
 
         # add periodic update of runtimes
         if not self.update_timer:
@@ -109,6 +125,12 @@ class TaskMonitorTable(DataTable):
                 self.update_cell(row_key, "status", "done")
             elif state == WorkerState.CANCELLED:
                 self.update_cell(row_key, "status", "cancelled")
+                # --- Cancel all subtasks if this is a main task ---
+                subtasks = self.main_to_subtasks.get(worker.name, set())
+                for subtask_id in subtasks:
+                    sub_row_key = self.row_key_workers.get(subtask_id)
+                    if sub_row_key is not None:
+                        self.update_cell(sub_row_key, "status", "cancelled")
             elif state == WorkerState.ERROR:
                 self.update_cell(row_key, "status", "error")
 
@@ -191,7 +213,8 @@ class TaskMonitor(Vertical):
             # new sub task spawned
             sub_task_id = message.update.get("new_sub_task")
             description = message.update.get("description")
-            self.add_task(sub_task_id, task_name="init", model="", sub_task_name=description)
+            parent_task_id = message.worker_id
+            self.add_task(sub_task_id, task_name="init", model="", sub_task_name=description, parent_task_id=parent_task_id)
         elif "sub_task_finished" in message.update:
             self.set_task_finished(message.worker_id)
 
