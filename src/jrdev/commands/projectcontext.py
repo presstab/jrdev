@@ -332,19 +332,10 @@ async def _update_outdated_context_files(app: Any, worker_id: str) -> None:
     )
 
     # Create a concurrent batch update task
-    update_task = context_manager.batch_update_contexts(app, files)
+    update_task = context_manager.batch_update_contexts(app=app, file_paths=files, concurrency=5, worker_id=worker_id)
 
     # Track progress
     total_files = len(files)
-    updated_files = 0
-
-    while not update_task.done():
-        app.ui.print_text(
-            f"Updating file contexts: {updated_files}/{total_files}...",
-            PrintType.PROCESSING
-        )
-        await asyncio.sleep(1)
-        updated_files = min(updated_files + 1, total_files - 1)  # Estimate progress
 
     # Get results
     try:
