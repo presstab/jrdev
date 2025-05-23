@@ -145,6 +145,14 @@
             "context_tokens": 1000000
         },
         {
+            "name": "google/gemini-2.5-flash-preview",
+            "provider": "open_router",
+            "is_think": false,
+            "input_cost": 2,
+            "output_cost": 6,
+            "context_tokens": 1000000
+        },
+        {
             "name": "microsoft/mai-ds-r1:free",
             "provider": "open_router",
             "is_think": true,
