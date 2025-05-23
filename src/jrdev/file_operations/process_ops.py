@@ -8,8 +8,8 @@ from difflib import unified_diff
 from jrdev.file_operations.add import process_add_operation
 from jrdev.file_operations.delete import process_delete_operation
 from jrdev.file_operations.replace import process_replace_operation
+from jrdev.file_operations.diff_markup import apply_diff_markup
 from jrdev.file_utils import find_similar_file
-from jrdev.ui.diff_editor import curses_editor
 from jrdev.ui.ui import PrintType, display_diff
 
 # Get the global logger instance
@@ -84,7 +84,6 @@ def apply_diff_to_content(original_content, diff_lines):
             current_line += 1
 
     return '\n'.join(result_lines)
-
 
 async def write_with_confirmation(app, filepath, content, code_processor):
     """
@@ -165,236 +164,76 @@ async def write_with_confirmation(app, filepath, content, code_processor):
                 logger.info(f"Changes applied to {filepath} (Accept All)")
                 return 'accept_all', None
             elif response == 'edit':
+                marked_content = apply_diff_markup(original_content, diff)
 
-                # Display the full file content instead of just the diff
-                full_content_lines = original_content.splitlines()
+                # Open the editor using the UI wrapper
+                edited_content_list = await app.ui.prompt_for_text_edit(marked_content, "Edit the proposed changes:")
 
-                # Add diff markers to show which lines would be changed
-                diff_markers = {}
-                line_offset = 0
-                hunk_start = None
+                if edited_content_list is not None: # User saved, not cancelled
+                    content_changed = edited_content_list != marked_content
+                    if content_changed:
+                        # The user saved changes in the editor
+                        try:
+                            # Clean markers and display whitespace from edited content
+                            new_content_lines = []
 
-                # Debug information
-                logger.info(f"Processing diff with {len(diff)} lines")
+                            for i, line_content in enumerate(edited_content_list):
+                                logger.info(f"{line_content}")
+                                cleaned_line = line_content
+                                # line does not need to have \n on it
+                                if cleaned_line.endswith("\n"):
+                                    cleaned_line = cleaned_line.strip("\n")
 
-                # First pass: Parse the diff to understand where changes are
-                current_line = 0
-                hunk_data = []  # Store all parsed hunks for better processing
-
-                # Parse all hunks from the diff
-                while current_line < len(diff):
-                    line = diff[current_line]
-
-                    # Skip header lines
-                    if line.startswith('---') or line.startswith('+++') or line.startswith('diff'):
-                        current_line += 1
-                        continue
-
-                    # New hunk - extract line numbers
-                    if line.startswith('@@'):
-                        match = re.match(r'@@ -(\d+),(\d+) \+(\d+),(\d+) @@', line)
-                        if match:
-                            old_start, old_count, new_start, new_count = map(int, match.groups())
-                            hunk_start = old_start - 1  # 0-based indexing
-
-                            # Start tracking a new hunk
-                            current_hunk = {
-                                'start': hunk_start,
-                                'old_count': old_count,
-                                'lines': []
-                            }
-
-                            # Read all lines in this hunk and store them
-                            current_line += 1
-                            while current_line < len(diff) and not diff[current_line].startswith('@@'):
-                                current_hunk['lines'].append(diff[current_line])
-                                current_line += 1
-
-                            # Store the completed hunk
-                            hunk_data.append(current_hunk)
-                            continue
-                        else:
-                            # Invalid hunk format, skip this line
-                            current_line += 1
-                            continue
-
-                    # Any other line, just skip
-                    current_line += 1
-
-                # Process all hunks to build diff markers
-                for hunk in hunk_data:
-                    hunk_start = hunk['start']
-                    line_offset = 0
-
-                    # Process each line in the hunk
-                    for line in hunk['lines']:
-                        # Deleted line (starts with -)
-                        if line.startswith('-'):
-                            position = hunk_start + line_offset
-                            if 0 <= position < len(full_content_lines):
-                                diff_markers[position] = "delete"
-                            line_offset += 1
-
-                        # Added line (starts with '+')
-                        elif line.startswith('+'):
-                            position = hunk_start + line_offset
-                            # If we have a corresponding deletion, this is a replacement
-                            if position in diff_markers and diff_markers[position] == "delete":
-                                # This is a replacement (delete old, add new)
-                                diff_markers[position] = ("replace", line[1:])
-                            else:
-                                # This is a new line to be added
-                                if position >= len(full_content_lines):
-                                    # Append to the end
-                                    full_content_lines.append("+" + line[1:])
+                                # strip out added space, +, or -
+                                if cleaned_line.startswith(" ") or cleaned_line.startswith("+") or cleaned_line.startswith("-"):
+                                    new_content_lines.append(cleaned_line[1:])
                                 else:
-                                    # Insert before the current line
-                                    diff_markers[position] = ("add", line[1:])
-                            line_offset += 1
+                                    # user may have deleted space in front, just add raw line as default
+                                    new_content_lines.append(cleaned_line)
 
-                        # Context line (may start with space or be empty)
-                        elif len(line) > 0 and line[0] == ' ':
-                            # Regular context line
-                            line_offset += 1
-                        else:
-                            # Skip other lines (e.g., empty lines, no-newline indicators)
-                            line_offset += 1
-                            pass
+                            new_content_str = "\n".join(new_content_lines)
+                            logger.info(f"Processed edited content into {len(new_content_lines)} lines")
 
-                # Second pass: Prepare the content with markers
-                marked_content = []
-                insertions = {}  # Track insertions: {line_idx: [lines to insert before this line]}
+                            # Write the new content to a new temp file
+                            with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as new_temp_file:
+                                new_temp_path = new_temp_file.name
+                                new_temp_file.write(new_content_str)
 
-                # First handle insertions separately to avoid messing up indices
-                for idx in diff_markers:
-                    marker = diff_markers[idx]
-                    if isinstance(marker, tuple) and marker[0] == "add":
-                        # Store lines to be inserted
-                        if idx not in insertions:
-                            insertions[idx] = []
-                        insertions[idx].append("+" + marker[1])
+                            # Generate a new diff to show the user what will be applied
+                            new_diff = list(unified_diff(
+                                original_lines,
+                                new_content_str.splitlines(True),
+                                fromfile=f'a/{filepath}',
+                                tofile=f'b/{filepath}',
+                                n=3
+                            ))
 
-                # insertions have to be added into hunks - todo probably a better way to do this above instead of reprocess?
-                insertions_combined = {}
-                current_start = None
-                current_group = []
-                prev_line = None
+                            # Show the new diff
+                            app.ui.print_text("Updated changes:", PrintType.HEADER)
+                            display_diff(app, new_diff)
 
-                for line_num in sorted(insertions.keys()):
-                    if current_start is None:  # First entry
-                        current_start = line_num
-                        current_group = insertions[line_num].copy()
-                        prev_line = line_num
-                    elif line_num == prev_line + 1:  # Consecutive line number
-                        current_group.extend(insertions[line_num])
-                        prev_line = line_num
-                    else:  # Non-consecutive, start new group
-                        insertions_combined[current_start] = current_group
-                        current_start = line_num
-                        current_group = insertions[line_num].copy()
-                        prev_line = line_num
+                            # Update the temp file path to the new one
+                            os.unlink(temp_file_path)
+                            temp_file_path = new_temp_path
 
-                # Add the final group
-                if current_start is not None:
-                    insertions_combined[current_start] = current_group
-
-                # Now process the content with markers
-                for idx, line in enumerate(full_content_lines):
-
-                    # First add any inserted lines before this position
-                    if idx in insertions_combined:
-                        for inserted_line in insertions_combined[idx]:
-                            marked_content.append(inserted_line)
-
-                    # Then handle the current line
-                    if idx in diff_markers:
-                        marker = diff_markers[idx]
-                        if marker == "delete":
-                            # Line to be deleted
-                            marked_content.append("-" + line)
-                        elif isinstance(marker, tuple):
-                            if marker[0] == "replace":
-                                # Show both the deleted line and the replacement line
-                                marked_content.append("-" + line)  # Original line marked for deletion
-                                marked_content.append("+" + marker[1])  # New line marked as addition
-                            elif marker[0] == "add":
-                                # content already inserted in the insertions above, now add original line content
-                                marked_content.append(" " + line)
-                        else:
-                            # Any other marker type - treat as unchanged
-                            marked_content.append(" " + line)
-                    else:
-                        # Unchanged line
-                        marked_content.append(" " + line)
-
-                # Open the editor with the full marked content
-                edited_content = curses_editor(marked_content)
-
-                # Check if there were any actual changes made
-                # Compare the content that was sent to the editor with what came back
-                content_changed = edited_content != marked_content
-
-                if edited_content and content_changed:
-                    # The user saved changes in the editor
-                    try:
-                        # Clean markers and display whitespace from edited content
-                        new_content_lines = []
-
-                        for i, line in enumerate(edited_content):
-                            cleaned_line = line
-                            # line does not need to have \n on it
-                            if cleaned_line.endswith("\n"):
-                                cleaned_line = cleaned_line.strip("\n")
-
-                            # strip out added space, +, or -
-                            if cleaned_line.startswith(" ") or cleaned_line.startswith("+") or cleaned_line.startswith("-"):
-                                new_content_lines.append(cleaned_line[1:])
-                            else:
-                                # user may have deleted space in front, just add raw line as default
-                                new_content_lines.append(cleaned_line)
-
-                        new_content_str = "\n".join(new_content_lines)
-                        logger.info(f"Processed edited content into {len(new_content_lines)} lines")
-
-                        # Write the new content to a new temp file
-                        with tempfile.NamedTemporaryFile(delete=False, mode='w', encoding='utf-8') as new_temp_file:
-                            new_temp_path = new_temp_file.name
-                            new_temp_file.write(new_content_str)
-
-                        # Generate a new diff to show the user what will be applied
-                        new_diff = list(unified_diff(
-                            original_lines,
-                            new_content_str.splitlines(True),
-                            fromfile=f'a/{filepath}',
-                            tofile=f'b/{filepath}',
-                            n=3
-                        ))
-
-                        # Show the new diff
-                        app.ui.print_text("Updated changes:", PrintType.HEADER)
-                        display_diff(app, new_diff)
-
-                        # Update the temp file path to the new one
-                        os.unlink(temp_file_path)
-                        temp_file_path = new_temp_path
-
-                        # Continue the loop to prompt again with the updated diff
-                        app.ui.print_text("Edited changes prepared. Please confirm:", PrintType.INFO)
-                    except Exception as e:
-                        app.ui.print_text(f"Error applying diff: {str(e)}", PrintType.ERROR)
-                        continue
-                else:
-                    # User quit without saving or no changes were made
-                    if edited_content and not content_changed:
+                            # Continue the loop to prompt again with the updated diff
+                            app.ui.print_text("Edited changes prepared. Please confirm:", PrintType.INFO)
+                            # Update the main diff for the next confirmation prompt
+                            diff = new_diff 
+                        except Exception as e:
+                            app.ui.print_text(f"Error processing edited changes: {str(e)}", PrintType.ERROR)
+                        continue # Continue the confirmation loop
+                    else: # No changes were made
                         app.ui.print_text("No changes were made in the editor.", PrintType.INFO)
-                    else:
-                        app.ui.print_text("Edit cancelled.", PrintType.WARNING)
-                    # Continue the confirmation loop
-                    continue
+                        continue # Continue the confirmation loop
+                else: # User cancelled the edit (edited_content_list is None)
+                    app.ui.print_text("Edit cancelled.", PrintType.WARNING)
+                    continue # Continue the confirmation loop
 
     finally:
         # Clean up the temporary file
-        os.unlink(temp_file_path)
+        if os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
 
     return 'no', None # Default return if loop exits unexpectedly
 

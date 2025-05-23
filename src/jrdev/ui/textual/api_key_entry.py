@@ -8,6 +8,7 @@ import logging
 import json
 import os
 from pathlib import Path
+import pyperclip
 
 from .yes_no_modal_screen import YesNoScreen
 
@@ -76,11 +77,37 @@ class ApiKeyEntry(Screen[dict]):
 
     /* Grid for inputs */
     #input-grid {
-        grid-size: 3; /* Label, Input, Button/Placeholder */
+        grid-size: 5; /* Label, Input, Mask, Paste, Delete/Placeholder */
         grid-gutter: 1 2; /* Row gutter, Column gutter */
-        grid-columns: 16 1fr auto;
+        grid-columns: auto 1fr 3 3 3;
         margin-top: 1;
         height: auto; /* Grid height based on content */
+    }
+
+    /* Style for Paste Buttons within the grid */
+    #paste-button {
+        height: 1;
+        min-width: 3;
+        max-width: 3;
+        width: 3;
+        border: none;
+        margin: 0;
+        padding: 0;
+        align-vertical: middle;
+        text-align: center;
+    }
+
+    /* Style for Mask Toggle Buttons within the grid */
+    #mask-toggle-button {
+        height: 1;
+        min-width: 3;
+        max-width: 3;
+        width: 3;
+        border: none;
+        margin: 0;
+        padding: 0;
+        align-vertical: middle;
+        text-align: center;
     }
 
     /* Style for Labels within the grid */
@@ -105,6 +132,7 @@ class ApiKeyEntry(Screen[dict]):
         height: 1;
         min-width: 3;
         max-width: 3;
+        width: 3;
         border: none;
         margin: 0;
         padding: 0;
@@ -140,8 +168,11 @@ class ApiKeyEntry(Screen[dict]):
         self.delete_buttons = []
         self.input_widgets = {}  # Map env_key to Input widget
         self.button_to_env_key = {}  # Map Button ID to env_key
+        self.paste_button_to_env_key = {}  # Map Paste Button ID to env_key
+        self.mask_button_to_env_key = {}  # Map Mask Button ID to env_key
         self._pending_delete_env_key = None  # Track which key is pending delete confirmation
         self._pending_delete_provider_name = None
+        self._input_mask_state = {}  # Map env_key to bool (True=masked, False=unmasked)
 
     def _load_existing_keys(self):
         """
@@ -174,23 +205,35 @@ class ApiKeyEntry(Screen[dict]):
             with Vertical(id="content-area"):
                 with Grid(id="input-grid"):
                     for provider in self.providers:
+                        env_key = provider["env_key"]
+
                         # Provider Label
                         yield Label(f"{provider['name'].title()} Key:")
 
                         # Input Field
-                        env_key = provider["env_key"]
                         existing_value = self.existing_keys.get(env_key, "") if self.mode == "editor" else ""
                         masked = self._mask_key(existing_value) if self.mode == "editor" and existing_value else ""
-                        input_widget = Input(id=f"{provider['name']}_key", password=True)
+                        input_widget = Input(id=f"{provider['name']}_key", password=True, placeholder="Show/Hide Key")
                         if masked:
                             input_widget.value = masked
                             self._masked_keys[env_key] = masked
                         self.input_widgets[env_key] = input_widget
+                        self._input_mask_state[env_key] = True  # Start masked
                         yield input_widget
+
+                        # Mask Toggle Button
+                        mask_button = Button("*", id=f"mask_{env_key}", classes="mask-toggle-button", tooltip="Show/Hide Key")
+                        self.mask_button_to_env_key[mask_button.id] = env_key
+                        yield mask_button
+
+                        # Paste Button
+                        paste_button = Button("\u270e", id=f"paste_{env_key}", classes="paste-button", tooltip="Paste")
+                        self.paste_button_to_env_key[paste_button.id] = env_key
+                        yield paste_button
 
                         # Delete Button (Editor Mode Only)
                         if self.mode == "editor":
-                            button_delete = Button("X", id=f"delete_{env_key}", classes="delete-button")
+                            button_delete = Button("X", id=f"delete_{env_key}", classes="delete-button", tooltip="Delete")
                             self.delete_buttons.append(button_delete)
                             self.button_to_env_key[button_delete.id] = env_key
                             yield button_delete
@@ -199,12 +242,10 @@ class ApiKeyEntry(Screen[dict]):
                             yield Static() # Placeholder
 
             with Horizontal(id="footer"):
-                yield Button("Save", id="save", variant="success")
-                yield Button("Exit", id="exit", variant="error")
+                yield Button("Save", id="save", variant="success", tooltip="Save Changes")
+                yield Button("Exit", id="exit", variant="error", tooltip="Exit Application" if self.mode == "first_run" else "Close")
 
-    # _on_mount removed as styling is handled by CSS
-
-    def on_button_pressed(self, event: Button.Pressed):
+    async def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "save":
             ret = {}
             for provider in self.providers:
@@ -229,7 +270,10 @@ class ApiKeyEntry(Screen[dict]):
                     ret[env_key] = value
             self.dismiss(ret)
         elif event.button.id == "exit":
-            self.app.pop_screen()
+            if self.mode == "first_run":
+                self.app.exit()
+            else:
+                self.app.pop_screen()
         elif event.button.id and event.button.id.startswith("delete_"):
             # Handle delete button for a specific provider, but ask for confirmation first
             env_key = self.button_to_env_key.get(event.button.id)
@@ -276,3 +320,57 @@ class ApiKeyEntry(Screen[dict]):
             self._pending_delete_provider_name = provider_name
             prompt = f"Are you sure you want to delete API key for {provider_name.title()}?" # Use title case
             self.app.push_screen(YesNoScreen(prompt), handle_key_delete)
+        elif event.button.id and event.button.id.startswith("paste_"):
+            # Handle paste button: paste clipboard contents into the corresponding input
+            env_key = self.paste_button_to_env_key.get(event.button.id)
+            if not env_key:
+                self.notify(f"Could not map paste button {event.button.id} to env_key", severity="error")
+                return
+            input_widget: Input = self.input_widgets.get(env_key)
+            if not input_widget:
+                self.notify(f"Could not find input widget for {env_key}", severity="error")
+                return
+            # Use pyperclip to get clipboard contents
+            try:
+                clipboard_text = pyperclip.paste()
+            except Exception as e:
+                self.notify(f"Could not access clipboard: {e}", severity="error")
+                return
+            if clipboard_text is not None and clipboard_text != "":
+                input_widget.value = clipboard_text
+                # If the field was masked, unmask it so user can see what was pasted
+                self._input_mask_state[env_key] = False
+                input_widget.password = False
+            else:
+                self.notify("Clipboard is empty or unavailable.", severity="warning")
+        elif event.button.id and event.button.id.startswith("mask_"):
+            # Handle mask toggle button: toggle password masking for the corresponding input
+            env_key = self.mask_button_to_env_key.get(event.button.id)
+            if not env_key:
+                self.notify(f"Could not map mask button {event.button.id} to env_key", severity="error")
+                return
+            input_widget: Input = self.input_widgets.get(env_key)
+            if not input_widget:
+                self.notify(f"Could not find input widget for {env_key}", severity="error")
+                return
+            # Toggle mask state
+            current_masked = self._input_mask_state.get(env_key, True)
+            if current_masked:
+                # Unmask: show real value if available
+                if self.mode == "editor":
+                    # If the value is currently masked, replace with real value
+                    masked = self._masked_keys.get(env_key, None)
+                    if masked and input_widget.value == masked:
+                        real_value = self.existing_keys.get(env_key, "")
+                        input_widget.value = real_value
+                input_widget.password = False
+                self._input_mask_state[env_key] = False
+            else:
+                # Mask: show masked value if available
+                if self.mode == "editor":
+                    real_value = input_widget.value
+                    masked = self._mask_key(real_value)
+                    input_widget.value = masked
+                    self._masked_keys[env_key] = masked
+                input_widget.password = True
+                self._input_mask_state[env_key] = True

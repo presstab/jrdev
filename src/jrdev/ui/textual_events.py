@@ -77,6 +77,14 @@ class TextualEvents(UiWrapper):
             self.steps = steps
             self.future = future
 
+    class TextEditRequest(Message):
+        """Message to request the UI to show a text editor."""
+        def __init__(self, content_to_edit: List[str], prompt_message: str, future: asyncio.Future):
+            super().__init__()
+            self.content_to_edit = content_to_edit
+            self.prompt_message = prompt_message
+            self.future = future
+
     class ExitRequest(Message):
         """Signal to the Textual UI app that it should exit"""
         pass
@@ -126,6 +134,23 @@ class TextualEvents(UiWrapper):
         self.steps_future = asyncio.Future()
         self.app.post_message(self.StepsRequest(steps, self.steps_future))
         result = await self.steps_future
+        return result
+
+    async def prompt_for_text_edit(self, content_to_edit: List[str], prompt_message: str = "Edit File Content") -> Optional[List[str]]:
+        """
+        Prompts the user to edit a list of text lines using a modal editor.
+
+        Args:
+            content_to_edit: A list of strings representing the lines of content to be edited.
+            prompt_message: A message/title to display on the editor screen.
+
+        Returns:
+            A list of strings representing the edited lines if the user saves changes,
+            or None if the user cancels or an error occurs.
+        """
+        edit_future = asyncio.Future()
+        self.app.post_message(self.TextEditRequest(content_to_edit, prompt_message, edit_future))
+        result = await edit_future
         return result
 
     async def signal_no_keys(self):

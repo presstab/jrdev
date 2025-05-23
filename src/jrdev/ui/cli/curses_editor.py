@@ -125,6 +125,7 @@ class CursesEditor:
                     self.insert_text("    ")  # 4 spaces for tab
                 elif key == 27:  # ESC key (could be Alt combination or just ESC)
                     # Wait for another character
+                    stdscr.nodelay(True) # Don't block for the next key
                     try:
                         next_key = stdscr.getch()
                         if next_key == ord('s') or next_key == ord('S'):  # Alt+S (save)
@@ -133,17 +134,45 @@ class CursesEditor:
                         elif next_key == ord('q') or next_key == ord('Q'):  # Alt+Q (cancel)
                             self.cancelled = True
                             break
-                        else:  # Just ESC pressed (cancel)
+                        elif next_key == -1: # No other key followed ESC (plain ESC)
                             self.cancelled = True
                             break
-                    except:
-                        self.cancelled = True
+                        # If another key followed that wasn't s/S or q/Q, it might be part of an escape sequence
+                        # or an unhandled Alt combination. We can choose to ignore or handle further.
+                        # For now, treat as cancel if not a save/quit Alt combo.
+                        else:
+                            # To be safe, if it's not a recognized Alt combo, assume it was just ESC for cancel.
+                            # However, this might interfere with some terminal escape sequences if not handled carefully.
+                            # A more robust solution would involve a timeout or more complex escape sequence parsing.
+                            self.cancelled = True # Default to cancel for unrecognized sequences starting with ESC
+                            break
+                    except Exception: # Includes curses.error if getch fails in nodelay mode
+                        self.cancelled = True # If any error during Alt key check, cancel
                         break
+                    finally:
+                        stdscr.nodelay(False) # Restore blocking mode
+
                 elif key == ord('\x11') or key == 17:  # Ctrl+Q (cancel)
                     self.cancelled = True
                     break
                 elif 32 <= key <= 126:  # Printable ASCII characters
                     self.insert_text(chr(key))
+
+            # # Before saving, clean up self.lines to reduce consecutive empty lines to single empty lines.
+            # # This addresses issues where editing might inadvertently create multiple empty lines
+            # # when only one (or none) was intended, especially in diffs.
+            # if not self.cancelled and self.lines:
+            #     cleaned_lines_temp = []
+            #     if self.lines: # Ensure self.lines is not empty
+            #         cleaned_lines_temp.append(self.lines[0])
+            #         for i in range(1, len(self.lines)):
+            #             # Only add line if it's not an empty string immediately following another empty string
+            #             if not (self.lines[i] == "" and cleaned_lines_temp[-1] == ""):
+            #                 cleaned_lines_temp.append(self.lines[i])
+            #     self.lines = cleaned_lines_temp
+            
+            if not self.cancelled:
+                 self.saved_text = '\n'.join(self.lines)
 
             return (not self.cancelled, self.saved_text)
 
@@ -213,6 +242,10 @@ class CursesEditor:
             self.lines.pop(self.cursor_y)
             self.cursor_y -= 1
             self.cursor_x = prev_line_length
+        # If it's the first line and cursor_x is 0, do nothing.
+        # Also ensure self.lines is not empty or only contains one empty string that can't be further reduced by backspace.
+        elif len(self.lines) == 1 and self.lines[0] == "":
+            pass # Cannot backspace further
 
     def handle_delete(self):
         """Handle delete key."""
@@ -223,6 +256,9 @@ class CursesEditor:
             # Merge with next line
             self.lines[self.cursor_y] += self.lines[self.cursor_y + 1]
             self.lines.pop(self.cursor_y + 1)
+        # If it's the last line and cursor is at the end, or if the line is empty, do nothing.
+        elif len(self.lines) == 1 and self.lines[0] == "" and self.cursor_x == 0:
+            pass # Cannot delete further
 
 
 def is_curses_available() -> bool:

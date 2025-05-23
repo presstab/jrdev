@@ -4,6 +4,7 @@ from jrdev.commands.keys import check_existing_keys, run_first_time_setup
 from typing import Any, List, Optional, Tuple
 import sys
 import json
+from jrdev.ui.cli.curses_editor import is_curses_available, edit_text
 
 class CliEvents(UiWrapper):
     def __init__(self, app):  # Add app reference
@@ -55,12 +56,41 @@ class CliEvents(UiWrapper):
                 message = input("> ")
                 return 'request_change', message
             elif response in ('e', 'edit'):
-                self.print_text("Opening editor... (Ctrl+S/Alt+W to save, Ctrl+Q/Alt+Q/ESC to quit)", PrintType.INFO)
+                # This 'edit' response will lead to write_with_confirmation calling prompt_for_text_edit
                 return 'edit', None
             elif response in ('a', 'accept_all'):
                 return 'accept_all', None
             else:
                 self.print_text("Please enter 'y', 'n', 'r', 'e', or 'a'", PrintType.ERROR)
+
+    async def prompt_for_text_edit(self, content_to_edit: List[str], prompt_message: str = "Edit File Content") -> Optional[List[str]]:
+        """
+        Opens a text editor (curses-based for CLI) to allow the user to edit the provided content.
+
+        Args:
+            content_to_edit: A list of strings representing the lines of content to be edited.
+            prompt_message: A message to display to the user before opening the editor.
+
+        Returns:
+            A list of strings representing the edited lines if the user saves changes,
+            or None if the user cancels or an error occurs.
+        """
+        initial_text_str = "\n".join(content_to_edit)
+        self.print_text(prompt_message, PrintType.INFO)
+
+        if not is_curses_available():
+            self.print_text("Curses editor is not available. Cannot edit.", PrintType.ERROR)
+            return None
+
+        self.print_text("Opening editor... (Alt+S to save, Alt+Q/ESC to cancel)", PrintType.INFO)
+        
+        success, edited_text_str = edit_text(initial_text_str)
+
+        if success and edited_text_str is not None:
+            return edited_text_str.splitlines()
+        else:
+            self.print_text("Edit cancelled or no changes made.", PrintType.INFO)
+            return None
 
     async def prompt_steps(self, steps: Any) -> Any:
         """
@@ -95,40 +125,38 @@ class CliEvents(UiWrapper):
                 return {"choice": "accept_all", "steps": steps}
             elif choice in ("e", "edit"):
                 # Check if curses is available for a better editing experience
-                try:
-                    from jrdev.ui.cli.curses_editor import is_curses_available, edit_text
-                    if is_curses_available():
-                        self.print_text("\nOpening curses editor. Alt+S to save, Alt+Q or ESC to cancel.", PrintType.INFO)
+                if is_curses_available():
+                    self.print_text("\nOpening curses editor. Alt+S to save, Alt+Q or ESC to cancel.", PrintType.INFO)
+                    try:
+                        success, edited_text = edit_text(steps_json_str)
+                        if not success or edited_text is None:
+                            self.print_text("Editing cancelled. Returning to menu.", PrintType.WARNING)
+                            continue
+                        
                         try:
-                            success, edited_text = edit_text(steps_json_str)
-                            if not success or edited_text is None:
-                                self.print_text("Editing cancelled. Returning to menu.", PrintType.WARNING)
-                                continue
-                            
-                            try:
-                                edited_steps = json.loads(edited_text)
-                                # Validate structure
-                                if "steps" not in edited_steps:
-                                    raise ValueError("Failed to parse steps object: missing 'steps' key.")
-                                if not isinstance(edited_steps["steps"], list):
-                                    raise ValueError("Steps must be a list of dictionaries.")
-                                for step in edited_steps["steps"]:
-                                    if "operation_type" not in step:
-                                        raise ValueError("Missing operation_type in a step.")
-                                    if "filename" not in step:
-                                        raise ValueError("Missing filename in a step.")
-                                    if "target_location" not in step:
-                                        raise ValueError("Missing target_location in a step.")
-                                    if "description" not in step:
-                                        raise ValueError("Missing description in a step.")
-                                return {"choice": "edit", "steps": edited_steps}
-                            except Exception as e:
-                                self.print_text(f"Invalid JSON or structure: {e}", PrintType.ERROR)
-                                continue
+                            edited_steps = json.loads(edited_text)
+                            # Validate structure
+                            if "steps" not in edited_steps:
+                                raise ValueError("Failed to parse steps object: missing 'steps' key.")
+                            if not isinstance(edited_steps["steps"], list):
+                                raise ValueError("Steps must be a list of dictionaries.")
+                            for step in edited_steps["steps"]:
+                                if "operation_type" not in step:
+                                    raise ValueError("Missing operation_type in a step.")
+                                if "filename" not in step:
+                                    raise ValueError("Missing filename in a step.")
+                                if "target_location" not in step:
+                                    raise ValueError("Missing target_location in a step.")
+                                if "description" not in step:
+                                    raise ValueError("Missing description in a step.")
+                            return {"choice": "edit", "steps": edited_steps}
                         except Exception as e:
-                            self.print_text(f"Error using curses editor: {e}", PrintType.ERROR)
-                            # Fall back to standard input method
-                except ImportError:
+                            self.print_text(f"Invalid JSON or structure: {e}", PrintType.ERROR)
+                            continue
+                    except Exception as e:
+                        self.print_text(f"Error using curses editor: {e}", PrintType.ERROR)
+                        # Fall back to standard input method
+                else:
                     # Curses not available, fall back to standard input method
                     pass
                 

@@ -16,6 +16,7 @@ class ChatInputWidget(CommandTextArea):
         border: tall $border-blurred;
         width: 100%;
         height: 3;  /* Default to 3 lines of height */
+        scrollbar-size: 1 1;
 
         &:focus {
             border: tall $border;

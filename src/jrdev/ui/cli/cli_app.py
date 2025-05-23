@@ -9,7 +9,7 @@ from jrdev import __version__
 
 class CliApp:
     def __init__(self):
-        self.core_app = Application()
+        self.core_app = Application(ui_mode="cli")
         self.ui = CliEvents(self.core_app)
         self.core_app.ui = self.ui
         self.setup_readline()

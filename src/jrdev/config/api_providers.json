@@ -4,31 +4,81 @@
       "name": "venice",
       "env_key": "VENICE_API_KEY",
       "base_url": "https://api.venice.ai/api/v1",
-      "required": true
+      "required": false,
+      "default_profiles": {
+        "profiles": {
+          "advanced_reasoning": "deepseek-r1-671b",
+          "advanced_coding": "qwen3-235b",
+          "intermediate_reasoning": "qwen3-235b",
+          "intermediate_coding": "qwen3-235b",
+          "quick_reasoning": "llama-3.3-70b"
+        },
+        "default_profile": "advanced_coding"
+      }
     },
     {
       "name": "openai",
       "env_key": "OPENAI_API_KEY",
       "base_url": null,
-      "required": false
+      "required": false,
+      "default_profiles": {
+        "profiles": {
+          "advanced_reasoning": "o4-mini-2025-04-16",
+          "advanced_coding": "o4-mini-2025-04-16",
+          "intermediate_reasoning": "gpt-4.1-2025-04-14",
+          "intermediate_coding": "gpt-4.1-2025-04-14",
+          "quick_reasoning": "gpt-4.1-mini-2025-04-14"
+        },
+        "default_profile": "advanced_coding"
+      }
     },
     {
       "name": "anthropic",
       "env_key": "ANTHROPIC_API_KEY",
       "base_url": null,
-      "required": false
+      "required": false,
+      "default_profiles": {
+        "profiles": {
+          "advanced_reasoning": "claude-3-7-sonnet-20250219",
+          "advanced_coding": "claude-3-7-sonnet-20250219",
+          "intermediate_reasoning": "claude-3-5-haiku-20241022",
+          "intermediate_coding": "claude-3-5-haiku-20241022",
+          "quick_reasoning": "claude-3-5-haiku-20241022"
+        },
+        "default_profile": "advanced_coding"
+      }
     },
     {
       "name": "deepseek",
       "env_key": "DEEPSEEK_API_KEY",
       "base_url": "https://api.deepseek.com",
-      "required": false
+      "required": false,
+      "default_profiles": {
+        "profiles": {
+          "advanced_reasoning": "deepseek-reasoner",
+          "advanced_coding": "deepseek-reasoner",
+          "intermediate_reasoning": "deepseek-chat",
+          "intermediate_coding": "deepseek-chat",
+          "quick_reasoning": "deepseek-chat"
+        },
+        "default_profile": "advanced_coding"
+      }
     },
     {
       "name": "open_router",
       "env_key": "OPEN_ROUTER_KEY",
       "base_url": "https://openrouter.ai/api/v1",
-      "required": false
+      "required": false,
+      "default_profiles": {
+        "profiles": {
+          "advanced_reasoning": "google/gemini-2.5-pro-preview",
+          "advanced_coding": "google/gemini-2.5-pro-preview",
+          "intermediate_reasoning": "mistralai/mistral-medium-3",
+          "intermediate_coding": "mistralai/mistral-medium-3",
+          "quick_reasoning": "mistralai/mistral-medium-3"
+        },
+        "default_profile": "advanced_coding"
+      }
     }
   ]
 }

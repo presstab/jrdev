@@ -271,8 +271,29 @@ async def generate_llm_response(app, model, messages, task_id=None, print_stream
         llm_response_stream = stream_request(app, model, messages, task_id, print_stream, json_output, max_output_tokens)
 
         response_accumulator = ""
+        first_chunk = True
+        in_think = False
+        thinking_finish = False
         async for chunk in llm_response_stream:
-            response_accumulator += chunk
+            # filter out thinking
+            if first_chunk:
+                first_chunk = False
+                if chunk == "<think>":
+                    in_think = True
+                else:
+                    response_accumulator += chunk
+            elif in_think:
+                if chunk == "</think>":
+                    in_think = False
+                    thinking_finish = True
+            else:
+                if thinking_finish:
+                    # often the first chunks after thinking will be new lines
+                    while chunk.startswith("\n"):
+                        chunk = chunk.removeprefix("\n")
+                    thinking_finish = False
+
+                response_accumulator += chunk
 
         return response_accumulator
     except Exception as e:

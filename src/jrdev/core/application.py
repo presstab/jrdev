@@ -16,7 +16,6 @@ from jrdev.services.message_service import MessageService
 from jrdev.model_list import ModelList
 from jrdev.model_profiles import ModelProfileManager
 from jrdev.model_utils import load_hardcoded_models
-from jrdev.models import fetch_venice_models
 from jrdev.projectcontext.contextmanager import ContextManager
 from jrdev.treechart import generate_compact_tree
 from jrdev.ui.ui import PrintType
@@ -24,14 +23,14 @@ from jrdev.ui.ui_wrapper import UiWrapper
 
 
 class Application:
-    def __init__(self):
+    def __init__(self, ui_mode="textual"):
         # Initialize core components
         self.logger = setup_logger(JRDEV_DIR)
 
         # Load persisted threads before AppState initialization
         persisted_threads = self._load_persisted_threads()
 
-        self.state = AppState(persisted_threads=persisted_threads) # Pass loaded threads to AppState
+        self.state = AppState(persisted_threads=persisted_threads, ui_mode=ui_mode) # Pass loaded threads to AppState
         self.state.clients = APIClients()
         self.ui: UiWrapper = UiWrapper()
 
@@ -85,7 +84,21 @@ class Application:
         self.state.model_list.set_model_list(load_hardcoded_models())
         self.state.context_manager = ContextManager()
         profile_config_path = f"{JRDEV_PACKAGE_DIR}/config/profile_strings.json"
-        self.state.model_profile_manager = ModelProfileManager(profile_strings_path=profile_config_path)
+        
+        # Determine active providers to inform ModelProfileManager's default profile selection
+        all_providers = self.state.clients.provider_list()
+        providers_with_keys_names = []
+        for provider in all_providers:
+            if os.getenv(provider["env_key"]):
+                providers_with_keys_names.append(provider["name"])
+
+        providers_path = f"{JRDEV_PACKAGE_DIR}/config/api_providers.json"
+
+        self.state.model_profile_manager = ModelProfileManager(
+            profile_strings_path=profile_config_path,
+            providers_path=providers_path,
+            active_provider_names=providers_with_keys_names
+        )
 
     def _load_environment(self):
         """Load environment variables"""
@@ -182,10 +195,6 @@ class Application:
         """Start background services"""
         # Start task monitor
         self.state.task_monitor = asyncio.create_task(self._schedule_task_monitor())
-
-        # Start model update service
-        model_update_task = asyncio.create_task(self._schedule_model_updates())
-
         self.logger.info("Background services started")
 
     async def handle_command(self, command: Command):
@@ -288,88 +297,6 @@ class Application:
             if send_to_ui:
                 self.ui.model_changed(model)
 
-    async def update_model_names_cache(self):
-        """Update the model names cache in the background."""
-
-        try:
-            # Get current models from API
-            models = await fetch_venice_models(client=self.state.clients.venice)
-
-            if not models:
-                self.logger.warning("Failed to fetch models from API")
-                return
-
-            # Get current models
-            current_models = self.get_models()
-            current_model_names = [model["name"] for model in current_models]
-
-            # Find new models that aren't in the hardcoded list
-            new_models = [model for model in models if model["name"] not in current_model_names]
-
-            if new_models:
-                # Print new models in a nice format
-                self.logger.info("\nNew models discovered:")
-                for model in new_models:
-                    self.logger.info(f"  • {model['name']} ({model['provider']})")
-
-                # Update model_list.json file with new models
-                try:
-                    # Get the directory where the module is located
-                    current_dir = os.path.dirname(os.path.abspath(__file__))
-                    # Go up one directory to find jrdev/
-                    parent_dir = os.path.dirname(current_dir)
-                    json_path = os.path.join(parent_dir, "model_list.json")
-
-                    # Read the existing model list
-                    with open(json_path, "r") as f:
-                        model_list_data = json.load(f)
-
-                    # Add new models to the list
-                    for model in new_models:
-                        # Create a model entry with default values
-                        new_entry = {
-                            "name": model["name"],
-                            "provider": model["provider"],
-                            "is_think": model["is_think"],
-                            "input_cost": 0,  # Default to 0 for now
-                            "output_cost": 0,  # Default to 0 for now
-                            "context_tokens": model["context_tokens"]
-                        }
-                        model_list_data["models"].append(new_entry)
-
-                    # Write the updated list back to the file
-                    with open(json_path, "w") as f:
-                        json.dump(model_list_data, f, indent=4)
-
-                    self.logger.info(f"Updated model_list.json with {len(new_models)} new models")
-
-                    # add new models
-                    venice_models = [model for model in models if model["provider"] == "venice"]
-                    self.state.model_list.append_model_list(venice_models)
-                except Exception as e:
-                    self.logger.error(f"Error updating model_list.json: {e}")
-        except Exception as e:
-            self.logger.error(f"Error updating model names cache: {e}")
-
-    async def _schedule_model_updates(self):
-        """Background task to periodically update model list."""
-        try:
-            # Perform an immediate update when the terminal starts
-            await self.update_model_names_cache()
-        except Exception as e:
-            self.logger.error(f"Initial model update failed: {e}")
-
-        # Then enter the periodic update loop
-        while self.state.running:
-            try:
-                # Update every hour
-                await asyncio.sleep(3600)
-                await self.update_model_names_cache()
-            except Exception as e:
-                self.logger.error(f"Error in model update task: {e}")
-                # Wait a bit before retrying on error
-                await asyncio.sleep(60)
-
     def _check_gitignore(self):
         """
         Check if JRDEV_DIR is in the .gitignore file and add it if not.
@@ -470,6 +397,16 @@ class Application:
         env_path = get_env_path()
         load_dotenv(dotenv_path=env_path)
         await self._initialize_api_clients()
+
+        # redo model profiles if they are default
+        all_providers = self.state.clients.provider_list()
+        providers_with_keys_names = []
+        for provider in all_providers:
+            if os.getenv(provider["env_key"]):
+                providers_with_keys_names.append(provider["name"])
+        profile_manager = self.profile_manager()
+        profile_manager.reload_if_using_fallback(providers_with_keys_names)
+
         self.state.need_first_time_setup = False
         return True
 
@@ -499,29 +436,8 @@ class Application:
             error_msg = f"Failed to initialize API clients: {str(e)}"
             self.logger.error(error_msg)
             self.ui.print_text(f"Error: {error_msg}", PrintType.ERROR)
-            self.ui.print_text("Please restart the application and provide a valid Venice API key.", PrintType.INFO)
+            self.ui.print_text("Please restart the application and provide a valid API key.", PrintType.INFO)
             sys.exit(1)
-
-    # Client property accessors for backward compatibility
-    @property
-    def venice_client(self):
-        """Return the Venice client for backward compatibility"""
-        return self.state.clients.venice if self.state.clients else None
-
-    @property
-    def openai_client(self):
-        """Return the OpenAI client for backward compatibility"""
-        return self.state.clients.openai if self.state.clients else None
-
-    @property
-    def anthropic_client(self):
-        """Return the Anthropic client for backward compatibility"""
-        return self.state.clients.anthropic if self.state.clients else None
-
-    @property
-    def deepseek_client(self):
-        """Return the DeepSeek client for backward compatibility"""
-        return self.state.clients.deepseek if self.state.clients else None
 
     @property
     def context_manager(self):

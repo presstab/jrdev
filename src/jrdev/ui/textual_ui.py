@@ -9,6 +9,7 @@ from jrdev import __version__
 from jrdev.ui.textual_events import TextualEvents
 from jrdev.ui.textual.code_confirmation_screen import CodeConfirmationScreen
 from jrdev.ui.textual.steps_screen import StepsScreen
+from jrdev.ui.textual.code_edit_screen import CodeEditScreen
 from jrdev.ui.textual.filtered_directory_tree import DirectoryWidget, FilteredDirectoryTree
 from jrdev.ui.textual.api_key_entry import ApiKeyEntry
 from jrdev.ui.textual.model_selection_widget import ModelSelectionWidget
@@ -121,7 +122,7 @@ class JrDevUI(App[None]):
         }
 
         /* Apply consistent scrollbar styling */
-        TaskMonitor, ModelSelectionWidget, #diff-display, TerminalTextArea, #cmd_input, DirectoryTree, VerticalScroll {
+        TaskMonitor, ModelSelectionWidget, #diff-display, TerminalTextArea, #cmd_input, DirectoryTree, VerticalScroll, ChatInputWidget, FilteredDirectoryTree, DirectoryWidget {
             scrollbar-background: #1e1e1e;
             scrollbar-background-hover: #1e1e1e;
             scrollbar-background-active: #1e1e1e;
@@ -129,6 +130,7 @@ class JrDevUI(App[None]):
             scrollbar-color-active: #63f554;
             scrollbar-color-hover: #63f554 50%;
             scrollbar-size: 1 1;
+            scrollbar-size-horizontal: 1;
         }
         /* Make the container widget flexible */
         TerminalOutputWidget {
@@ -384,6 +386,16 @@ class JrDevUI(App[None]):
     def handle_steps_request(self, message: TextualEvents.StepsRequest):
         screen = StepsScreen(message.steps)
         screen.future = message.future
+        self.push_screen(screen)
+
+    @on(TextualEvents.TextEditRequest)
+    def handle_text_edit_request(self, message: TextualEvents.TextEditRequest) -> None:
+        """Handle a request to show the text editor screen."""
+        screen = CodeEditScreen(
+            content_lines=message.content_to_edit,
+            prompt_message=message.prompt_message,
+            future=message.future
+        )
         self.push_screen(screen)
 
     @on(TextualEvents.EnterApiKeys)
