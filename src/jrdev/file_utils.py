@@ -146,23 +146,38 @@ def pair_header_source_files(file_list):
 def get_file_contents(file_list, file_alias=None):
     """
     Reads the contents of a list of files. If a file doesn't exist, it attempts to find a similar file.
+    Ensures that the content of any single physical file is included only once.
     """
     file_contents = {}
-    for file_path in file_list:
-        try:
-            if os.path.exists(file_path) and os.path.isfile(file_path):
-                with open(file_path, "r") as f:
-                    file_contents[file_path] = f.read()
-            else:
-                similar_file = find_similar_file(file_path)
-                if similar_file:
-                    logger.warning(f"\nFound similar file: {similar_file} instead of {file_path}")
-                    with open(similar_file, "r") as f:
-                        file_contents[file_path] = f.read()
-                else:
-                    logger.error(f"Error reading file {file_path}: File not found")
-        except Exception as e:
-            logger.error(f"Error reading file {file_path}: {str(e)}")
+    processed_canonical_paths = set()
+
+    for original_path_in_list in file_list:
+        actual_file_to_read = None
+
+        if os.path.exists(original_path_in_list) and os.path.isfile(original_path_in_list):
+            actual_file_to_read = original_path_in_list
+        else:
+            similar_file = find_similar_file(original_path_in_list)
+            if similar_file:
+                logger.warning(f"\nFound similar file: {similar_file} instead of {original_path_in_list}")
+                actual_file_to_read = similar_file
+
+        if actual_file_to_read:
+            try:
+                canonical_path = os.path.abspath(actual_file_to_read)
+
+                if canonical_path in processed_canonical_paths:
+                    logger.info(f"Skipping file {original_path_in_list} as its content (from {actual_file_to_read}) has already been processed.")
+                    continue
+
+                with open(actual_file_to_read, "r", encoding='utf-8') as f:
+                    file_contents[original_path_in_list] = f.read()
+                processed_canonical_paths.add(canonical_path)
+
+            except Exception as e:
+                logger.error(f"Error reading file {actual_file_to_read} (originally requested as {original_path_in_list}): {str(e)}")
+        else:
+            logger.error(f"Error reading file {original_path_in_list}: File not found and no similar file could be determined.")
 
     formatted_content = ""
     for path, content in file_contents.items():
