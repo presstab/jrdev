@@ -145,7 +145,7 @@
             "context_tokens": 1000000
         },
         {
-            "name": "google/gemini-2.5-flash-preview",
+            "name": "google/gemini-2.5-flash-preview-05-20",
             "provider": "open_router",
             "is_think": false,
             "input_cost": 2,
