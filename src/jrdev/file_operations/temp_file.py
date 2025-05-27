@@ -25,23 +25,18 @@ class TempFileAccessError(TempFileManagerError):
 
 class TemporaryFile:
     """
-    Manages a temporary file, encapsulating the logic previously in
-    create_temp_file, overwrite_temp_file, convert_temp_file_to_file,
-    and unlink_temp_file helper functions.
+    Manages a temporary file
     """
 
     def __init__(self, initial_content: str = ""):
         """
         Initializes the TemporaryFile by creating a physical temporary file with initial_content.
-        Mimics `create_temp_file`.
         """
-        self.path: Optional[str] = None # Using Optional for type hinting
-        self._create_new_file_with_content(initial_content)
+        self.path: str = self._create_new_file_with_content(initial_content)
 
     def _create_new_file_with_content(self, content: str) -> str:
         """
         Core logic to create a new temporary file, write content, and return its path.
-        This is the heart of the original `create_temp_file`.
         The created file handle is closed after writing.
         """
         tf = None
@@ -69,7 +64,6 @@ class TemporaryFile:
         """
         Replaces the current temporary file with a new one containing new_content.
         The old temporary file is unlinked.
-        Mimics `overwrite_temp_file`.
         """
         old_path = self.path
         new_temp_path = None
@@ -86,8 +80,6 @@ class TemporaryFile:
                     os.unlink(old_path)
                 except OSError as e:
                     # Log the error but proceed, as the new file is now primary.
-                    # This matches the implicit behavior of the original overwrite_temp_file
-                    # which would return the new path even if unlinking the old one failed.
                     logger.warning(f"Could not unlink old temp file {old_path} during overwrite: {e}")
         except TempFileCreationError: # Propagate creation error for the new file
             # If new file creation failed, self.path should remain the old_path.
@@ -104,7 +96,6 @@ class TemporaryFile:
     def save_to(self, destination_path: str) -> None:
         """
         Creates destination directories if they don't exist.
-        Mimics `convert_temp_file_to_file`.
         """
         if not self.path or not os.path.exists(self.path):
             msg = f"Temporary file path '{self.path}' is invalid or file does not exist. Cannot save."
@@ -133,7 +124,6 @@ class TemporaryFile:
     def cleanup(self) -> None:
         """
         Deletes the current temporary file from the filesystem.
-        Mimics `unlink_temp_file`.
         """
         if self.path and os.path.exists(self.path):
             try:
