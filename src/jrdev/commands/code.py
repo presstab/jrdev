@@ -8,7 +8,7 @@ from typing import Any, List
 
 from jrdev.ui.ui import PrintType
 from jrdev.code_processor import CodeProcessor
-from jrdev.file_operations.process_ops import CodeTaskCancelled
+from jrdev.exceptions import CodeTaskCancelled
 
 
 async def handle_code(app: Any, args: List[str], worker_id: str) -> None:
