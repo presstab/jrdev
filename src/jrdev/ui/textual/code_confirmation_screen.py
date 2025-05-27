@@ -45,6 +45,14 @@ class CodeConfirmationScreen(ModalScreen[Tuple[str, Optional[str]]]):
         overflow: hidden;
     }
 
+    #error-message-label {
+        width: 100%;
+        padding: 1;
+        content-align: center middle;
+        text-align: center;
+        margin-bottom: 1;
+    }
+
     #diff-display {
         background: $surface-darken-1;
         border: round $panel;
@@ -82,10 +90,11 @@ class CodeConfirmationScreen(ModalScreen[Tuple[str, Optional[str]]]):
     }
     """
     
-    def __init__(self, prompt_text: str, diff_lines: Optional[List[str]] = None) -> None:
+    def __init__(self, prompt_text: str, diff_lines: Optional[List[str]] = None, error_msg: Optional[str] = None) -> None:
         super().__init__()
         self.prompt_text = prompt_text
         self.diff_lines = diff_lines or []
+        self.error_msg = error_msg
         self.input_value = ""
         self.show_input = False
         self.future = None  # Will be set by the JrDevUI class
@@ -96,6 +105,9 @@ class CodeConfirmationScreen(ModalScreen[Tuple[str, Optional[str]]]):
                 yield Label(self.prompt_text, id="prompt-text")
             
             with Vertical(id="main-content"):
+                if self.error_msg:
+                    error_display_text = f"[bold red]Error: {self.error_msg}\nClick No to cancel the task.[/bold red]"
+                    yield Label(error_display_text, id="error-message-label", markup=True)
                 if self.diff_lines:
                     yield RichLog(id="diff-display", highlight=False, markup=True)
             

@@ -1,4 +1,6 @@
 import re
+from difflib import unified_diff
+from typing import List
 
 
 def apply_diff_to_content(original_content, diff_lines):
@@ -64,3 +66,15 @@ def apply_diff_to_content(original_content, diff_lines):
             current_line += 1
 
     return '\n'.join(result_lines)
+
+def create_diff(original_content: str, new_content: str, filepath) -> List:
+    original_lines = original_content.splitlines(True)
+    new_lines = new_content.splitlines(True)
+
+    return list(unified_diff(
+        original_lines,
+        new_lines,
+        fromfile=f'a/{filepath}',
+        tofile=f'b/{filepath}',
+        n=3
+    ))

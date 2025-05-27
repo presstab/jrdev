@@ -137,3 +137,33 @@ def apply_diff_markup(original_content: str, diff: List[str]) -> List[str]:
             marked_content.append(line_to_insert)
 
     return marked_content
+
+def remove_diff_markup(edited_content_list: List[str]):
+    """
+    Takes code that has been marked up in diff format and removes the formatting.
+    Args:
+        edited_content_list: diff marked up code file split into line strings.
+
+    Returns: a single string with all diff markup removed.
+
+    """
+    # Clean markers and display whitespace from edited content
+    new_content_lines = []
+
+    for i, line_content in enumerate(edited_content_list):
+        cleaned_line = line_content
+        # line does not need to have \n on it
+        if cleaned_line.endswith("\n"):
+            cleaned_line = cleaned_line.strip("\n")
+
+        # strip out added space, +, or -
+        if cleaned_line.startswith(" ") or cleaned_line.startswith("+"):
+            new_content_lines.append(cleaned_line[1:])
+        elif cleaned_line.startswith("-"):
+            # this is a deletion, remove the line don't add the line
+            pass
+        else:
+            # user may have deleted space in front, just add raw line as default
+            new_content_lines.append(cleaned_line)
+
+    return "\n".join(new_content_lines)

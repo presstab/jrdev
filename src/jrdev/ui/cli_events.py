@@ -30,7 +30,7 @@ class CliEvents(UiWrapper):
         """
         terminal_print(chunk, PrintType.LLM, end="", flush=True)
         
-    async def prompt_for_confirmation(self, prompt_text: str = "Apply these changes?", diff_lines: Optional[List[str]] = None) -> Tuple[str, Optional[str]]:
+    async def prompt_for_confirmation(self, prompt_text: str = "Apply these changes?", diff_lines: Optional[List[str]] = None, error_msg: str = None) -> Tuple[str, Optional[str]]:
         """
         Prompt the user for confirmation with options to apply, reject, request changes,
         edit the changes in a text editor, or accept all subsequent changes.
@@ -38,6 +38,7 @@ class CliEvents(UiWrapper):
         Args:
             prompt_text: The text to display when prompting the user
             diff_lines: Optional list of diff lines (not used in CLI as diff is already displayed)
+            error_msg: Optional error message to display if something has failed on a previous attempt
             
         Returns:
             Tuple of (response, message):
@@ -45,6 +46,9 @@ class CliEvents(UiWrapper):
                 - message: User's feedback message when requesting changes,
                           or edited content when editing, None otherwise
         """
+        if error_msg:
+            self.print_text(f"Error: {error_msg}\nTry again or exit the code task by selecting 'no'")
+
         while True:
             response = input(f"\n{prompt_text} ✅ Yes [y] | ❌ No [n] | ✨ Accept All [a] | 🔄 Request Change [r] | ✏️  Edit [e]: ").lower().strip()
             if response in ('y', 'yes'):
