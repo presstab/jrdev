@@ -1,6 +1,8 @@
+from asyncio import CancelledError
 import json
 import os
 from typing import Any, Dict, List, Set
+from difflib import unified_diff
 
 from jrdev.llm_requests import generate_llm_response
 from jrdev.prompts.prompt_utils import PromptManager
@@ -28,6 +30,7 @@ class CodeProcessor:
         self.sub_task_count = 0
         self._accept_all_active = False  # Track if 'Accept All' is active for this instance
         self.files_validated = False
+        self.files_original: Dict[str, str] = {} # Stores original file content: {filepath: content}
 
         # get custom user set code context, which should be cleared from app state after fetching
         self.user_context = app.get_code_context()
@@ -49,6 +52,9 @@ class CodeProcessor:
             raise
         except Reprompt as additional_prompt:
             await self.process(f"{user_task} {additional_prompt}")
+        except CancelledError:
+            # worker.cancel() should kill everything
+            raise
         except Exception as e:
             self.app.logger.error(f"Error in CodeProcessor: {str(e)}")
             self.app.ui.print_text(f"Error processing code: {str(e)}", PrintType.ERROR)
@@ -107,8 +113,23 @@ class CodeProcessor:
         # Check that included files are sufficient
         files_to_send = await self.ask_files_sufficient(files_to_send, user_task)
 
-        # Send requested files and request STEPS to be created
         self.app.logger.info(f"File request detected: {files_to_send}")
+
+        # Store original content of files before any changes
+        for filepath_to_store in files_to_send:
+            if os.path.exists(filepath_to_store):
+                try:
+                    with open(filepath_to_store, 'r', encoding='utf-8') as f_original:
+                        original_content = f_original.read()
+                    self.files_original[filepath_to_store] = original_content
+                except Exception as e:
+                    self.app.logger.warning(f"CodeProcessor: Could not read original content for {filepath_to_store}: {e}")
+                    self.files_original[filepath_to_store] = "" # Store empty string if reading fails
+            else:
+                # File might be created by a 'NEW' operation, so its original content is empty
+                self.files_original[filepath_to_store] = ""
+
+        # Send requested files and request STEPS to be created
         file_response = await self.send_file_request(files_to_send, user_task, response_text)
         steps = None
         try:
@@ -158,9 +179,8 @@ class CodeProcessor:
                 PrintType.PROCESSING
             )
 
-            # create list of files to send for the coding task
-            coding_files = files_to_send
-            for file in changed_files:
+            coding_files = list(files_to_send) # Start with the initial context files
+            for file in changed_files: # Add any files already modified in this run
                 if file not in coding_files:
                     coding_files.append(file)
 
@@ -237,6 +257,9 @@ class CodeProcessor:
         except CodeTaskCancelled as e:
             self.app.ui.print_text(f"Code task cancelled by user: {str(e)}", PrintType.WARNING)
             raise
+        except CancelledError:
+            # worker.cancel() should kill everything
+            raise
         except Exception as e:
             self.app.ui.print_text(f"Step failed: {str(e)}", PrintType.ERROR)
             return []
@@ -309,8 +332,12 @@ class CodeProcessor:
         try:
             json_block = cutoff_string(response_text, "```json", "```")
             changes = json.loads(json_block)
+        except CancelledError:
+            # worker.cancel() should kill everything
+            raise
         except Exception as e:
             raise Exception(f"Parsing failed in code changes: {str(e)}\n Blob:{json_block}\n")
+
         if "cancel_step" in changes:
             # AI model has determined this step is already completed
             reason = changes["cancel_step"]
@@ -459,26 +486,62 @@ class CodeProcessor:
             steps_json["missing_files"] = missing_files
         return steps_json
 
-    async def review_changes(self, initial_prompt: str, files: Set[str], changed_files: Set[str]) -> None:
+    async def review_changes(self, initial_prompt: str, context_files: List[str], changed_files: Set[str]) -> str:
         """
         Review all changes and analyze whether the task has adequately been completed
         Args:
-            initial_prompt:
-            files:
+            initial_prompt: The user's original task prompt.
+            context_files: List of files initially provided as context for the task.
+            changed_files: Set of file paths that were actually modified or created.
 
         Returns:
+            str: The LLM's review response.
         """
-        full_file_list = files
-        for file in changed_files:
-            if file not in full_file_list:
-                full_file_list.append(file)
-        files_content = get_file_contents(list(changed_files))
+        full_file_list_for_context = list(context_files)
+        for filepath_changed in changed_files:
+            if filepath_changed not in full_file_list_for_context:
+                full_file_list_for_context.append(filepath_changed)
+
         builder = MessageBuilder(self.app)
         builder.load_system_prompt("review_changes")
 
+        all_diff_texts = []
+        for filepath in changed_files:
+            original_content_str = self.files_original.get(filepath, "")
+
+            current_content_str = ""
+            if os.path.exists(filepath):
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f_current:
+                        current_content_str = f_current.read()
+                except Exception as e:
+                    self.app.logger.warning(f"CodeProcessor: Could not read current content for {filepath} during review: {e}")
+
+            original_lines = original_content_str.splitlines(True)
+            current_lines = current_content_str.splitlines(True)
+
+            # Generate diff if there are any changes or if it's a new file
+            if original_lines != current_lines:
+                diff_output = list(unified_diff(
+                    original_lines,
+                    current_lines,
+                    fromfile=f"a/{filepath}",
+                    tofile=f"b/{filepath}",
+                    n=3
+                ))
+
+                if diff_output: # Ensure diff is not empty
+                    diff_text_for_file = "".join(diff_output)
+                    all_diff_texts.append(f"--- Diff for {filepath} ---\n{diff_text_for_file}\n")
+
+        if all_diff_texts:
+            full_diffs_report = "\n".join(all_diff_texts)
+            builder.append_to_user_section(f"\n\n**Summary of Changes Made (Diffs):**\n{full_diffs_report}")
+            self.app.logger.info(f"{full_diffs_report}")
+
         builder.append_to_user_section(f"***User Request***: {initial_prompt}")
-        for file in full_file_list:
-            builder.add_file(file)
+        for file_for_context in full_file_list_for_context:
+            builder.add_file(file_for_context) # This adds current content of files for LLM context
 
         messages = builder.build()
 
