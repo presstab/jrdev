@@ -245,6 +245,27 @@ class CliEvents(UiWrapper):
             else:
                 self.print_text("Invalid choice. Please enter c, e, r, a, or x.", PrintType.ERROR)
 
+    async def prompt_for_deletion(self, filepath: str) -> bool:
+        """
+        Prompt the user for confirmation before deleting a file.
+
+        Args:
+            filepath: The path to the file that will be deleted
+
+        Returns:
+            bool: True if the user confirms deletion, False otherwise
+        """
+        self.print_text(f"⚠️  DELETE operation requested for: {filepath}", PrintType.WARNING)
+
+        while True:
+            response = input(f"⚠️  Are you sure you want to delete '{filepath}'? [y/n]: ").strip().lower()
+            if response in ('y', 'yes'):
+                return True
+            elif response in ('n', 'no', ''):  # Default to no
+                return False
+            else:
+                self.print_text("Please enter 'y' for yes or 'n' for no", PrintType.ERROR)
+
     async def signal_no_keys(self):
         setup_success = await run_first_time_setup(self.app)
         if not setup_success:

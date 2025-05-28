@@ -1,7 +1,10 @@
 import logging
+import os
+from typing import Tuple, Optional
 
 from jrdev.file_operations.find_function import find_function
 from jrdev.string_utils import find_code_snippet
+from jrdev.ui.ui import PrintType
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -52,3 +55,50 @@ def process_delete_operation(lines, change):
     logger.info(message)
 
     return lines[:start_idx] + lines[end_idx:]
+
+
+async def delete_with_confirmation(app, filepath: str) -> Tuple[str, Optional[str]]:
+    """
+    Delete a file with user confirmation.
+    
+    Args:
+        app: The application instance
+        filepath: Path to the file to delete
+        
+    Returns:
+        Tuple of (response, message):
+            - response: 'yes' if file was deleted, 'no' if deletion was cancelled
+            - message: Always None for this operation
+    """
+    try:
+        # Check if file exists
+        if not os.path.exists(filepath):
+            app.ui.print_text(f"File not found: {filepath}", PrintType.WARNING)
+            logger.warning(f"Attempted to delete non-existent file: {filepath}")
+            return 'no', None
+        
+        # Prompt user for deletion confirmation
+        confirmed = await app.ui.prompt_for_deletion(filepath)
+        
+        if confirmed:
+            try:
+                # Perform the actual file deletion
+                os.remove(filepath)
+                app.ui.print_text(f"File deleted: {filepath}", PrintType.SUCCESS)
+                logger.info(f"File successfully deleted: {filepath}")
+                return 'yes', None
+            except OSError as e:
+                error_msg = f"Failed to delete file {filepath}: {e}"
+                app.ui.print_text(error_msg, PrintType.ERROR)
+                logger.error(f"Error deleting file {filepath}: {e}", exc_info=True)
+                return 'no', None
+        else:
+            app.ui.print_text(f"File deletion cancelled: {filepath}", PrintType.INFO)
+            logger.info(f"File deletion cancelled by user: {filepath}")
+            return 'no', None
+            
+    except Exception as e:
+        error_msg = f"Unexpected error during file deletion: {e}"
+        app.ui.print_text(error_msg, PrintType.ERROR)
+        logger.error(f"Unexpected error deleting file {filepath}: {e}", exc_info=True)
+        return 'no', None

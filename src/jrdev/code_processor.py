@@ -9,6 +9,7 @@ from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.file_utils import requested_files, get_file_contents, cutoff_string
 from jrdev.exceptions import CodeTaskCancelled
 from jrdev.file_operations.apply_changes import apply_file_changes
+from jrdev.file_operations.delete import delete_with_confirmation
 from jrdev.ui.ui import PrintType, print_steps
 from jrdev.message_builder import MessageBuilder
 
@@ -32,6 +33,7 @@ class CodeProcessor:
         self._accept_all_active = False  # Track if 'Accept All' is active for this instance
         self.files_validated = False
         self.files_original: Dict[str, str] = {} # Stores original file content: {filepath: content}
+        self.user_cancelled_deletions: List[str] = []  # Stores filenames that user chose not to delete
 
         # get custom user set code context, which should be cleared from app state after fetching
         self.user_context = app.get_code_context()
@@ -243,6 +245,29 @@ class CodeProcessor:
           - If the change isn’t accepted, optionally retry.
         Returns a list of files changed or an empty list if the step failed.
         """
+        op_type = step.get("operation_type", "").upper()
+        
+        # Handle DELETE operations specially - skip AI model and prompt user directly
+        if op_type == "DELETE":
+            filename = step.get("filename")
+            if not filename:
+                self.app.ui.print_text("DELETE step missing filename", PrintType.ERROR)
+                return []
+            
+            try:
+                # Use delete_with_confirmation function
+                response, _ = await delete_with_confirmation(self.app, filename)
+                if response == 'yes':
+                    return [filename]  # File was successfully deleted
+                else:
+                    # User cancelled deletion - track this separately and return special marker
+                    self.user_cancelled_deletions.append(filename)
+                    return ["__STEP_CANCELLED_BY_USER__"]  # Signals success but no files changed
+            except Exception as e:
+                self.app.ui.print_text(f"Failed to delete file {filename}: {str(e)}", PrintType.ERROR)
+                return []
+        
+        # Handle all other operations (existing logic)
         file_content = get_file_contents(files_to_send)
         code_response = await self.request_code(change_instruction=step, user_task=user_task, file_content=file_content, additional_prompt=retry_message)
         try:
@@ -500,6 +525,9 @@ class CodeProcessor:
         """
         full_file_list_for_context = list(context_files)
         for filepath_changed in changed_files:
+            # Skip special markers that aren't real file paths
+            if filepath_changed == "__STEP_CANCELLED_BY_USER__":
+                continue
             if filepath_changed not in full_file_list_for_context:
                 full_file_list_for_context.append(filepath_changed)
 
@@ -507,8 +535,23 @@ class CodeProcessor:
         builder.load_system_prompt("review_changes")
 
         all_diff_texts = []
+        
+        # Add information about user-cancelled deletions
+        for cancelled_file in self.user_cancelled_deletions:
+            all_diff_texts.append(f"--- DELETE Operation Cancelled by User: {cancelled_file} Consider this part of the task complete ---\n")
+        
         for filepath in changed_files:
+            # Skip special marker for user-cancelled DELETE operations
+            if filepath == "__STEP_CANCELLED_BY_USER__":
+                continue
+                
             original_content_str = self.files_original.get(filepath, "")
+
+            # Check if file was deleted (existed originally but doesn't exist now)
+            if original_content_str and not os.path.exists(filepath):
+                # File was deleted - add a simple formatted line instead of generating diff
+                all_diff_texts.append(f"--- File Deleted: {filepath} ---\n")
+                continue
 
             current_content_str = ""
             if os.path.exists(filepath):
