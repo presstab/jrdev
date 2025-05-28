@@ -2,7 +2,7 @@ import time
 import tiktoken
 from typing import AsyncIterator
 from asyncio import CancelledError
-from jrdev.usage import get_instance
+from jrdev.core.usage import get_instance
 
 
 async def stream_openai_format(app, model, messages, task_id=None, print_stream=True, json_output=False, max_output_tokens=None) -> AsyncIterator[str]:

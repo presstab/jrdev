@@ -5,7 +5,7 @@ Test script to compare tree outputs.
 """
 
 import os
-from src.jrdev.treechart import generate_tree, generate_compact_tree
+from jrdev.utils.treechart import generate_tree, generate_compact_tree
 
 # Get current directory
 current_dir = os.getcwd()

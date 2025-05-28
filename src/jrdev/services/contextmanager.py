@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 from jrdev.file_operations.file_utils import JRDEV_DIR
 from jrdev.services.llm_requests import generate_llm_response
 from jrdev.prompts.prompt_utils import PromptManager
-from jrdev.string_utils import contains_chinese
+from jrdev.utils.string_utils import contains_chinese
 
 # Create an asyncio lock for safe file access
 context_file_lock = asyncio.Lock()

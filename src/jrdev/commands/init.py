@@ -18,7 +18,7 @@ from jrdev.file_operations.file_utils import (
 from jrdev.services.llm_requests import generate_llm_response
 from jrdev.languages.utils import detect_language, is_headers_language
 from jrdev.prompts.prompt_utils import PromptManager
-from jrdev.string_utils import contains_chinese
+from jrdev.utils.string_utils import contains_chinese
 from jrdev.ui.ui import PrintType
 from jrdev.messages.message_builder import MessageBuilder
 

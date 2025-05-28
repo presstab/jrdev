@@ -7,7 +7,7 @@ from difflib import unified_diff
 from jrdev.services.llm_requests import generate_llm_response
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.file_operations.file_utils import requested_files, get_file_contents, cutoff_string
-from jrdev.exceptions import CodeTaskCancelled
+from jrdev.core.exceptions import CodeTaskCancelled
 from jrdev.file_operations.apply_changes import apply_file_changes
 from jrdev.file_operations.delete import delete_with_confirmation
 from jrdev.ui.ui import PrintType, print_steps

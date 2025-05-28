@@ -16,8 +16,8 @@ from jrdev.services.message_service import MessageService
 from jrdev.models.model_list import ModelList
 from jrdev.models.model_profiles import ModelProfileManager
 from jrdev.models.model_utils import load_hardcoded_models
-from jrdev.projectcontext.contextmanager import ContextManager
-from jrdev.treechart import generate_compact_tree
+from jrdev.services.contextmanager import ContextManager
+from jrdev.utils.treechart import generate_compact_tree
 from jrdev.ui.ui import PrintType
 from jrdev.ui.ui_wrapper import UiWrapper
 

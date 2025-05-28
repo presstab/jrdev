@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Protocol
 
 from pydantic import BaseModel, Field, ValidationError
 
-from jrdev.colors import Colors
+from jrdev.ui.colors import Colors
 from jrdev.file_operations.file_utils import JRDEV_DIR
 from jrdev.ui.ui import PrintType
 
