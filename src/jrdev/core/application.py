@@ -83,8 +83,8 @@ class Application:
         self.state.model_list = ModelList()
         self.state.model_list.set_model_list(load_hardcoded_models())
         self.state.context_manager = ContextManager()
-        profile_config_path = f"{JRDEV_PACKAGE_DIR}/config/profile_strings.json"
-        
+        profile_config_path = os.path.join(JRDEV_PACKAGE_DIR, "config", "profile_strings.json")
+
         # Determine active providers to inform ModelProfileManager's default profile selection
         all_providers = self.state.clients.provider_list()
         providers_with_keys_names = []
@@ -92,7 +92,7 @@ class Application:
             if os.getenv(provider["env_key"]):
                 providers_with_keys_names.append(provider["name"])
 
-        providers_path = f"{JRDEV_PACKAGE_DIR}/config/api_providers.json"
+        providers_path = os.path.join(JRDEV_PACKAGE_DIR, "config", "api_providers.json")
 
         self.state.model_profile_manager = ModelProfileManager(
             profile_strings_path=profile_config_path,

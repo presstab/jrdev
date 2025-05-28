@@ -178,7 +178,7 @@ class ModelProfileManager:
 
         try:
             if os.path.exists(self.profile_strings_path):
-                with open(self.profile_strings_path, "r") as f:
+                with open(self.profile_strings_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     profiles = data.get("profiles", [])
                     return {p["name"]: p for p in profiles}
