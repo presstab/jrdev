@@ -9,132 +9,119 @@ def apply_diff_markup(original_content: str, diff: List[str]) -> List[str]:
 
     diff_markers: Dict[int, Any] = {}  # Stores "delete" or ("replace", new_text_stripped)
     insertions: Dict[int, List[str]] = {}  # Stores {line_idx: ["+stripped_content", ...]}
-    hunk_start = None
 
-    logger.info(f"Processing diff with {len(diff)} lines")
+    # Part 1: Parse diff into hunks with necessary information
+    parsed_hunks = []
+    current_diff_line_idx = 0
+    while current_diff_line_idx < len(diff):
+        diff_line = diff[current_diff_line_idx]
 
-    current_line_idx_in_diff = 0
-    hunk_data = []
-
-    while current_line_idx_in_diff < len(diff):
-        line_from_diff = diff[current_line_idx_in_diff]
-
-        if line_from_diff.startswith('---') or line_from_diff.startswith('+++') or line_from_diff.startswith('diff'):
-            current_line_idx_in_diff += 1
+        if diff_line.startswith('---') or diff_line.startswith('+++') or diff_line.startswith('diff '):
+            current_diff_line_idx += 1
             continue
 
-        if line_from_diff.startswith('@@'):
-            match = re.match(r'@@ -(\d+),(\d+) \+(\d+),(\d+) @@', line_from_diff)
+        if diff_line.startswith('@@'):
+            # Guidance 1: Use regex that handles optional line counts
+            match = re.match(r'@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@', diff_line)
             if match:
-                old_start, old_count, new_start, new_count = map(int, match.groups())
-                hunk_start_original_idx = old_start - 1
+                old_start_str, _old_count_str, _new_start_str, _new_count_str = match.groups()
+                old_start = int(old_start_str)
+                
+                # Guidance 1: Calculate hunk_original_start_idx (0-based)
+                # If old_start is 0 (e.g., diff against /dev/null or adding to empty file),
+                # hunk_original_start_idx will be -1.
+                hunk_original_start_idx = old_start - 1
 
-                current_hunk = {
-                    'start': hunk_start_original_idx,
-                    'old_count': old_count,
-                    'lines': []
-                }
-
-                current_line_idx_in_diff += 1
-                while current_line_idx_in_diff < len(diff) and not diff[current_line_idx_in_diff].startswith('@@'):
-                    current_hunk['lines'].append(diff[current_line_idx_in_diff])
-                    current_line_idx_in_diff += 1
-
-                hunk_data.append(current_hunk)
-                continue
+                hunk_lines_content = []
+                current_diff_line_idx += 1 # Move past the @@ line
+                while current_diff_line_idx < len(diff) and not diff[current_diff_line_idx].startswith('@@'):
+                    hunk_lines_content.append(diff[current_diff_line_idx])
+                    current_diff_line_idx += 1
+                
+                parsed_hunks.append({
+                    'hunk_original_start_idx': hunk_original_start_idx,
+                    'lines': hunk_lines_content
+                })
+                # current_diff_line_idx is now at the start of the next hunk or EOF, so continue outer loop
+                continue 
             else:
-                current_line_idx_in_diff += 1
+                # Malformed hunk header. For robustness, skip and continue.
+                # In a stricter system, this might log an error or raise an exception.
+                current_diff_line_idx += 1
                 continue
-        current_line_idx_in_diff += 1
+        
+        # If a line is not a diff header, hunk header, or part of a hunk, skip it.
+        # This handles cases like index lines or other metadata if present, though
+        # create_diff usually produces a clean unified diff.
+        current_diff_line_idx += 1 
 
-    for hunk in hunk_data:
-        hunk_original_start_idx = hunk['start']
-        current_original_offset = 0  # Offset within the original lines this hunk refers to
+    # Part 2: Process each parsed hunk (Guidance 2)
+    for hunk in parsed_hunks:
+        hunk_original_start_idx = hunk['hunk_original_start_idx']
+        current_original_offset = 0  # 0-based offset within the original lines this hunk section refers to
 
-        for diff_op_line in hunk['lines']:  # e.g., "-old line\n", "+new line\n", " context\n"
-            if diff_op_line.startswith('-'):
-                # This deletion applies to original line: hunk_original_start_idx + current_original_offset
+        for diff_op_line_raw in hunk['lines']:
+            # diff_op_line_raw is a line from the diff, e.g., "-old_line\n", "+new_line\n", " context_line\n"
+            
+            if diff_op_line_raw.startswith('-'):
                 position_in_original = hunk_original_start_idx + current_original_offset
                 diff_markers[position_in_original] = "delete"
                 current_original_offset += 1
-            elif diff_op_line.startswith('+'):
-                # This addition is inserted *before* original line: hunk_original_start_idx + current_original_offset
-                # Or, if it follows a delete at the same position, it's part of a replace.
-                position_in_original_for_insertion = hunk_original_start_idx + current_original_offset
-
-                # THE KEY FIX: Strip trailing whitespace (including \n, \r\n) from the content
-                content_to_add_or_replace = diff_op_line[1:].rstrip()
-
-                if diff_markers.get(position_in_original_for_insertion) == "delete":
-                    # This is a replacement for the line we just marked as "delete"
-                    diff_markers[position_in_original_for_insertion] = ("replace", content_to_add_or_replace)
+            elif diff_op_line_raw.startswith('+'):
+                # Guidance 2: Remove '+' prefix and trailing newlines for the content
+                content_to_add = diff_op_line_raw[1:].rstrip('\r\n')
+                
+                # Guidance 2: Check if this addition is part of a replacement
+                # A replacement occurs if a '-' line for an original line is immediately followed by a '+' line.
+                # The 'current_original_offset' would have been incremented by the preceding '-' line.
+                idx_of_potentially_deleted_line = hunk_original_start_idx + current_original_offset - 1
+                
+                if diff_markers.get(idx_of_potentially_deleted_line) == "delete":
+                    diff_markers[idx_of_potentially_deleted_line] = ("replace", content_to_add)
                 else:
-                    # This is a pure addition
-                    if position_in_original_for_insertion not in insertions:
-                        insertions[position_in_original_for_insertion] = []
-                    insertions[position_in_original_for_insertion].append("+" + content_to_add_or_replace)
-                # Note: Additions do not increment current_original_offset because they don't consume an original line
-            elif diff_op_line.startswith(' ') or diff_op_line == ' ':  # Context line
+                    # Pure addition
+                    insertion_idx = hunk_original_start_idx + current_original_offset
+                    # Guidance 2: Special case for insertion_idx when hunk_original_start_idx is -1
+                    if hunk_original_start_idx == -1: # Indicates additions to an empty file or at the very start
+                        insertion_idx = 0
+                    
+                    insertions.setdefault(insertion_idx, []).append("+" + content_to_add)
+                # Added lines do NOT increment current_original_offset
+            elif diff_op_line_raw.startswith(' '):
+                # Context line
                 current_original_offset += 1
-            elif diff_op_line == '' or diff_op_line.startswith('\\'):  # Empty line in diff or "\ No newline..."
-                pass  # Context lines handle their own offset. No-newline doesn't affect offset.
-            else:  # Should not happen in a well-formed diff hunk line
-                current_original_offset += 1
+            elif diff_op_line_raw.startswith('\\'): # "\ No newline at end of file"
+                pass # This diff directive does not affect markup or offsets of content lines
+            # Other lines (e.g., empty lines within hunk content if they occur) are ignored if they don't match known prefixes.
 
-    # Consolidate consecutive insertions
-    insertions_combined = {}
-    current_insertion_start_idx = None
-    current_insertion_group = []
-    prev_insertion_line_num = -2  # Initialize to a value that won't match 0
-
-    for line_num in sorted(insertions.keys()):
-        if current_insertion_start_idx is None:
-            current_insertion_start_idx = line_num
-            current_insertion_group = insertions[line_num].copy()
-            prev_insertion_line_num = line_num
-        elif line_num == prev_insertion_line_num:  # Multiple insertions before the SAME original line
-            current_insertion_group.extend(insertions[line_num])
-            # prev_insertion_line_num remains the same
-        elif line_num == prev_insertion_line_num + 1 and False:  # This logic for consecutive lines was complex;
-            # insertions are keyed by the original line they precede.
-            # Simpler: group all insertions for the *same* original line index.
-            pass  # The original grouping logic might need review if complex multi-line insertions are not grouped as expected.
-            # For now, the current logic groups insertions that occur *before the same original line index*.
-        else:  # New insertion point
-            if current_insertion_start_idx is not None:  # Ensure group is not empty
-                insertions_combined[current_insertion_start_idx] = current_insertion_group
-            current_insertion_start_idx = line_num
-            current_insertion_group = insertions[line_num].copy()
-            prev_insertion_line_num = line_num
-
-    if current_insertion_start_idx is not None:
-        insertions_combined[current_insertion_start_idx] = current_insertion_group
-
+    # Part 3: Assemble the final marked-up content (Guidance 4)
+    # Guidance 3: The `insertions_combined` step is removed by building `insertions` correctly.
     marked_content = []
-    for idx, original_line_content in enumerate(full_content_lines):  # original_line_content has no \n
+    for idx, original_line_content in enumerate(full_content_lines):
+        # 1. Add insertions that come *before* this original line
+        if idx in insertions:
+            marked_content.extend(insertions[idx])
 
-        if idx in insertions_combined:
-            for line_to_insert in insertions_combined[idx]:  # line_to_insert is "+stripped_content"
-                marked_content.append(line_to_insert)
-
+        # 2. Process the original line itself (delete, replace, or context)
         if idx in diff_markers:
             marker_action = diff_markers[idx]
             if marker_action == "delete":
                 marked_content.append("-" + original_line_content)
             elif isinstance(marker_action, tuple) and marker_action[0] == "replace":
-                new_text_stripped = marker_action[1]  # This is already stripped
+                new_text_stripped = marker_action[1]
                 marked_content.append("-" + original_line_content)
                 marked_content.append("+" + new_text_stripped)
-            # else: # This case should not be hit if diff_markers only has "delete" or ("replace",...)
-            #     marked_content.append(" " + original_line_content) # Fallback for safety
-        else:  # Unchanged line
+            # If marker_action was just "delete" but an insertion happened at idx (handled above),
+            # this original line is still processed for its deletion marker.
+        else:  # Unchanged line (not marked for deletion or replacement)
             marked_content.append(" " + original_line_content)
 
-    # Handle insertions after the last line of the original file
-    eof_original_idx = len(full_content_lines)
-    if eof_original_idx in insertions_combined:
-        for line_to_insert in insertions_combined[eof_original_idx]:
-            marked_content.append(line_to_insert)
+    # Handle insertions that occur *after* the very last line of the original file
+    # This also covers the case where the original file was empty (len(full_content_lines) == 0),
+    # and all lines are insertions at index 0.
+    eof_insertion_idx = len(full_content_lines)
+    if eof_insertion_idx in insertions:
+        marked_content.extend(insertions[eof_insertion_idx])
 
     return marked_content
 
