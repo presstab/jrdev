@@ -7,12 +7,11 @@ Compacts conversation history to reduce token usage.
 
 import json
 import logging
-from threading import current_thread
 from typing import Any, List, Protocol
 
-from jrdev.file_utils import cutoff_string
-from jrdev.llm_requests import generate_llm_response
-from jrdev.message_builder import MessageBuilder
+from jrdev.file_operations.file_utils import cutoff_string
+from jrdev.services.llm_requests import generate_llm_response
+from jrdev.messages.message_builder import MessageBuilder
 from jrdev.ui.ui import PrintType
 
 

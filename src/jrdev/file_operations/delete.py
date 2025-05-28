@@ -3,7 +3,7 @@ import os
 from typing import Tuple, Optional
 
 from jrdev.file_operations.find_function import find_function
-from jrdev.string_utils import find_code_snippet
+from jrdev.utils.string_utils import find_code_snippet
 from jrdev.ui.ui import PrintType
 
 # Get the global logger instance

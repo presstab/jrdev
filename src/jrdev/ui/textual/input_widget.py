@@ -8,7 +8,7 @@ from typing import ClassVar
 import json
 import logging
 import os
-from jrdev.file_utils import get_persistent_storage_path
+from jrdev.file_operations.file_utils import get_persistent_storage_path
 
 
 class CommandTextArea(TextArea):

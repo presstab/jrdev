@@ -3,8 +3,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-from jrdev.file_utils import JRDEV_DIR
-from jrdev.ui.ui import PrintType
+from jrdev.file_operations.file_utils import JRDEV_DIR, JRDEV_PACKAGE_DIR
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -46,7 +45,7 @@ class ModelProfileManager:
             self.profile_strings_path = profile_strings_path
         else:
             self.profile_strings_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                JRDEV_PACKAGE_DIR,
                 "config",
                 "profile_strings.json"
             )
@@ -57,7 +56,7 @@ class ModelProfileManager:
             self.providers_path = providers_path
         else:
             self.providers_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                JRDEV_PACKAGE_DIR,
                 "config",
                 "api_providers.json"
             )
@@ -225,7 +224,7 @@ class ModelProfileManager:
         """
         # Import ModelList only if needed for validation
         if model_list is None:
-            from jrdev.model_list import ModelList
+            from jrdev.models.model_list import ModelList
             # Create ModelList to validate the model exists
             model_list = ModelList()
         

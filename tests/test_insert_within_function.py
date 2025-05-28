@@ -2,7 +2,7 @@
 import sys
 import os
 sys.path.append('/home/pt/workspace/jrdev')
-from src.jrdev.file_utils import insert_within_function
+from jrdev.file_operations.file_utils import insert_within_function
 import logging
 from jrdev.logger import setup_logger
 

@@ -1,0 +1,162 @@
+Screen {
+    background: #1e1e1e;
+}
+Button {
+    background: #2a2a2a;
+    border: none;
+    text-style: none;
+    color: #63f554;
+    text-align: center;
+    height: 1;
+    padding: 0 0 0 0;
+}
+Button:hover {
+    background: #656565;
+    border: none;
+}
+#copy_button:hover {
+    background: #656565;
+    border: none;
+}
+.sidebar_button {
+    background: #2a2a2a;
+    border: none;
+    text-style: none;
+    color: #63f554;
+    text-align: center;
+    height: 1;
+    padding: 0 0 0 0;
+}
+.sidebar_button:hover {
+    background: #656565;
+    border: none;
+}
+.sidebar_button.active {
+    color:  #27dfd0;
+    background: #2a2a2a;
+    border: none;
+    text-style: none;
+    text-align: center;
+    height: 1;
+    padding: 0 0 0 0;
+}
+.sidebar_button.active:hover {
+    background: #656565;
+    border: none;
+}
+RadioSet {
+    border: tall $border-blurred;
+    background: #1e1e1e;
+    border-title-background: #1e1e1e;
+    padding: 0;
+    height: auto;
+    width: auto;
+
+    & > RadioButton {
+        background: #1e1e1e;
+        border: none;
+        padding: 0 0 0 0;
+
+        & > .toggle--button {
+            color: #444444;
+            background: #1e1e1e;
+            border: none;
+            padding: 0 0;
+        }
+
+        &.-selected {
+            background: #1e1e1e;
+            border: none;
+        }
+    }
+
+    & > RadioButton.-on .toggle--button {
+        color: #63f554;
+        background: #1e1e1e;
+        border: none;
+    }
+
+    &:focus {
+        /* The following rules/styles mimic similar ToggleButton:focus rules in
+        * ToggleButton. If those styles ever get updated, these should be too.
+        */
+        border: none;
+        background-tint: #1e1e1e;
+        & > RadioButton.-selected {
+            color: #1e1e1e;
+            text-style: $block-cursor-text-style;
+            background: #1e1e1e;
+        }
+    }
+}
+
+/* Apply consistent scrollbar styling */
+TaskMonitor, ModelSelectionWidget, #diff-display, TerminalTextArea, #cmd_input, DirectoryTree, VerticalScroll, ChatInputWidget, FilteredDirectoryTree, DirectoryWidget {
+    scrollbar-background: #1e1e1e;
+    scrollbar-background-hover: #1e1e1e;
+    scrollbar-background-active: #1e1e1e;
+    scrollbar-color: #63f554 30%;
+    scrollbar-color-active: #63f554;
+    scrollbar-color-hover: #63f554 50%;
+    scrollbar-size: 1 1;
+    scrollbar-size-horizontal: 1;
+}
+/* Make the container widget flexible */
+TerminalOutputWidget {
+    height: 100%;
+    background: #1e1e1e;
+    border-title-background: #1e1e1e;
+}
+/* Make the inner text area fill its parent and remove border */
+#terminal_output {
+     height: 1fr;
+     border: none;
+     background: #1e1e1e;
+     border-title-background: #1e1e1e;
+}
+/* Style the copy button */
+#copy_button {
+    height: 1;
+    margin-top: 0;
+    dock: bottom;
+    background: #2a2a2a;
+}
+
+#add_chat_context_button, #add_code_context_button {
+    min-width: 3;
+}
+
+ContentSwitcher {
+    height: 1fr;
+}
+
+/* Ensure consistent background for all containers and widgets */
+Vertical, Horizontal, DirectoryWidget, FilteredDirectoryTree, TaskMonitor,
+ModelSelectionWidget, ButtonContainer, DirectoryTree {
+    background: #1e1e1e;
+    border-title-background: #1e1e1e;
+}
+
+/* Ensure consistent background for directory widget components */
+#directory_widget_container, #directory_widget_buttons {
+    background: #1e1e1e;
+    border-title-background: #1e1e1e;
+}
+
+/* Ensure all widgets with borders have matching border backgrounds */
+#task_monitor, #cmd_input, #model_list, #directory_widget, #button_container, #chat_list {
+    border-title-background: #1e1e1e;
+}
+
+#button_container, #chat_list {
+    height: auto;
+}
+
+Horizontal {
+    layout: horizontal;
+}
+
+#chat_view {
+    height: 1fr;
+    width: 100%;
+}

@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 
-from jrdev.file_utils import JRDEV_DIR
+from jrdev.file_operations.file_utils import JRDEV_DIR
 
 THREADS_DIR = os.path.join(JRDEV_DIR, "threads")
 os.makedirs(THREADS_DIR, exist_ok=True)

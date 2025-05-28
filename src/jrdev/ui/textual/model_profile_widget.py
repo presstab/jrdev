@@ -1,15 +1,12 @@
-from textual.widgets import Button, Label, ListView, ListItem, Static, RichLog
-from textual.containers import Vertical, Horizontal, Grid
+from textual.widgets import Button, Label, RichLog
+from textual.containers import Vertical, Horizontal
 from textual.screen import ModalScreen
-from textual import on, events, work
-from textual.color import Color
-from typing import Any, Dict, List, Optional, Callable
-from jrdev.model_profiles import ModelProfileManager
+from textual import on
+from typing import Any, Dict, List, Optional
+from jrdev.models.model_profiles import ModelProfileManager
 from jrdev.ui.ui import PrintType, terminal_print
 from jrdev.ui.textual.model_selection_widget import ModelSelectionWidget
 import logging
-import json
-import os
 
 logger = logging.getLogger("jrdev")
 

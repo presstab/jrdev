@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import sys
 sys.path.append('/home/pt/workspace/jrdev')
-from src.jrdev.file_utils import manual_json_parse, apply_file_changes
+from jrdev.file_operations.file_utils import manual_json_parse, apply_file_changes
 import os
 import tempfile
 

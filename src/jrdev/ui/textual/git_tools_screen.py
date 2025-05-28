@@ -5,13 +5,12 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Label, Input, Static, MarkdownViewer, LoadingIndicator
 from textual import on, work # Import work
 from textual.worker import Worker, WorkerState # Import WorkerState
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional
 import logging
-import shlex
 
 from jrdev.commands.git_config import get_git_config, save_git_config, DEFAULT_GIT_CONFIG
 from jrdev.services.git_pr_service import generate_pr_analysis, GitPRServiceError
-from jrdev.file_utils import JRDEV_ROOT_DIR # Import JRDEV_ROOT_DIR
+from jrdev.file_operations.file_utils import JRDEV_ROOT_DIR # Import JRDEV_ROOT_DIR
 from jrdev.ui.textual.terminal_output_widget import TerminalOutputWidget # Import the new widget
 
 logger = logging.getLogger("jrdev")

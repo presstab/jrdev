@@ -7,7 +7,6 @@ Displays current application state information.
 
 from typing import Any, List
 
-from jrdev.file_utils import JRDEV_DIR
 from jrdev.ui.ui import PrintType
 
 

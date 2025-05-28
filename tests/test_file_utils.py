@@ -2,16 +2,14 @@ import os
 import sys
 import unittest
 import asyncio
-import json
 import shutil
 import tempfile
-from typing import Any, Dict, List, Optional, cast
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch
 
 # Add src to the path so we can import jrdev modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 
-from jrdev.file_utils import *
+from jrdev.file_operations.file_utils import *
 from jrdev.commands.code import parse_steps
 
 

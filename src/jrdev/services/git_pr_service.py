@@ -1,9 +1,8 @@
-import logging
 import subprocess
 import shlex
 from typing import Optional, Tuple, Dict, Any
-from jrdev.message_builder import MessageBuilder
-from jrdev.llm_requests import generate_llm_response
+from jrdev.messages.message_builder import MessageBuilder
+from jrdev.services.llm_requests import generate_llm_response
 
 
 class GitPRServiceError(Exception):

@@ -1,9 +1,9 @@
 """Command implementation for cost tracking."""
 from typing import List, Dict, Any, cast
 
-from jrdev.model_utils import get_model_cost, VCU_Value
+from jrdev.models.model_utils import get_model_cost, VCU_Value
 from jrdev.ui.ui import PrintType
-from jrdev.usage import get_instance
+from jrdev.core.usage import get_instance
 
 
 def handle_cost_format_cost_line(label: str, dollar: float, vcu: float, show_vcu: bool) -> str:

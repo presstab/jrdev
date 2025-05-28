@@ -8,12 +8,12 @@ Provides functionality to get, set, and list git configuration settings.
 import json
 import os
 import logging
-from typing import Any, Awaitable, Dict, List, Optional, Protocol
+from typing import Any, Dict, List, Protocol
 
 from pydantic import BaseModel, Field, ValidationError
 
-from jrdev.colors import Colors
-from jrdev.file_utils import JRDEV_DIR
+from jrdev.ui.colors import Colors
+from jrdev.file_operations.file_utils import JRDEV_DIR
 from jrdev.ui.ui import PrintType
 
 # Define a Protocol for Application to avoid circular imports

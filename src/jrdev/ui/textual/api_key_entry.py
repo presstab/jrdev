@@ -11,12 +11,13 @@ from pathlib import Path
 import pyperclip
 
 from .yes_no_modal_screen import YesNoScreen
+from jrdev.file_operations.file_utils import get_env_path
 
 logger = logging.getLogger("jrdev")
 
 # Helper function to remove a key from .env file (if present)
 def remove_key_from_env_file(env_key, env_path=None):
-    env_path = env_path or os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env")
+    env_path = env_path or get_env_path()
     if not os.path.exists(env_path):
         return
     try:

@@ -3,7 +3,7 @@ import os
 from jrdev.core.application import Application
 from jrdev.ui.cli_events import CliEvents
 from jrdev.ui.ui import PrintType
-from jrdev.colors import Colors
+from jrdev.ui.colors import Colors
 from jrdev import __version__
 
 

@@ -29,170 +29,8 @@ import logging
 logger = logging.getLogger("jrdev")
 
 class JrDevUI(App[None]):
-    CSS = """
-        Screen {
-            background: #1e1e1e;
-        }
-        Button {
-            background: #2a2a2a;
-            border: none;
-            text-style: none;
-            color: #63f554;
-            text-align: center;
-            height: 1;
-            padding: 0 0 0 0;
-        }
-        Button:hover {
-            background: #656565;
-            border: none;
-        }
-        #copy_button:hover {
-            background: #656565;
-            border: none;
-        }
-        .sidebar_button {
-            background: #2a2a2a;
-            border: none;
-            text-style: none;
-            color: #63f554;
-            text-align: center;
-            height: 1;
-            padding: 0 0 0 0;
-        }
-        .sidebar_button:hover {
-            background: #656565;
-            border: none;
-        }
-        .sidebar_button.active {
-            color:  #27dfd0;
-            background: #2a2a2a;
-            border: none;
-            text-style: none;
-            text-align: center;
-            height: 1;
-            padding: 0 0 0 0;
-        }
-        .sidebar_button.active:hover {
-            background: #656565;
-            border: none;
-        }
-        RadioSet {
-            border: tall $border-blurred;
-            background: #1e1e1e;
-            border-title-background: #1e1e1e;
-            padding: 0;
-            height: auto;
-            width: auto;
-    
-            & > RadioButton {
-                background: #1e1e1e;
-                border: none;
-                padding: 0 0 0 0;
-    
-                & > .toggle--button {
-                    color: #444444;
-                    background: #1e1e1e;
-                    border: none;
-                    padding: 0 0;
-                }
-    
-                &.-selected {
-                    background: #1e1e1e;
-                    border: none;
-                }
-            }
-    
-            & > RadioButton.-on .toggle--button {
-                color: #63f554;
-                background: #1e1e1e;
-                border: none;
-            }
-    
-            &:focus {
-                /* The following rules/styles mimic similar ToggleButton:focus rules in
-                * ToggleButton. If those styles ever get updated, these should be too.
-                */
-                border: none;
-                background-tint: #1e1e1e;
-                & > RadioButton.-selected {
-                    color: #1e1e1e;
-                    text-style: $block-cursor-text-style;
-                    background: #1e1e1e;
-                }
-            }
-        }
+    CSS_PATH = "textual_ui.tcss"
 
-        /* Apply consistent scrollbar styling */
-        TaskMonitor, ModelSelectionWidget, #diff-display, TerminalTextArea, #cmd_input, DirectoryTree, VerticalScroll, ChatInputWidget, FilteredDirectoryTree, DirectoryWidget {
-            scrollbar-background: #1e1e1e;
-            scrollbar-background-hover: #1e1e1e;
-            scrollbar-background-active: #1e1e1e;
-            scrollbar-color: #63f554 30%;
-            scrollbar-color-active: #63f554;
-            scrollbar-color-hover: #63f554 50%;
-            scrollbar-size: 1 1;
-            scrollbar-size-horizontal: 1;
-        }
-        /* Make the container widget flexible */
-        TerminalOutputWidget {
-            height: 100%;
-            background: #1e1e1e;
-            border-title-background: #1e1e1e;
-        }
-        /* Make the inner text area fill its parent and remove border */
-        #terminal_output {
-             height: 1fr;
-             border: none;
-             background: #1e1e1e;
-             border-title-background: #1e1e1e;
-        }
-        /* Style the copy button */
-        #copy_button {
-            height: 1;
-            margin-top: 0;
-            dock: bottom;
-            background: #2a2a2a;
-        }
-        
-        #add_chat_context_button, #add_code_context_button {
-            min-width: 3;
-        }
-        
-        ContentSwitcher {
-            height: 1fr;
-        }
-        
-        /* Ensure consistent background for all containers and widgets */
-        Vertical, Horizontal, DirectoryWidget, FilteredDirectoryTree, TaskMonitor, 
-        ModelSelectionWidget, ButtonContainer, DirectoryTree {
-            background: #1e1e1e;
-            border-title-background: #1e1e1e;
-        }
-        
-        /* Ensure consistent background for directory widget components */
-        #directory_widget_container, #directory_widget_buttons {
-            background: #1e1e1e;
-            border-title-background: #1e1e1e;
-        }
-        
-        /* Ensure all widgets with borders have matching border backgrounds */
-        #task_monitor, #cmd_input, #model_list, #directory_widget, #button_container, #chat_list {
-            border-title-background: #1e1e1e;
-        }
-        
-        #button_container, #chat_list {
-            height: auto;
-        }
-        
-        Horizontal {
-            layout: horizontal;
-        }
-        
-        #chat_view {
-            height: 1fr;
-            width: 100%;
-        }
-    """
     def compose(self) -> Generator[Any, None, None]:
         self.jrdev = Application()
         self.jrdev.ui = TextualEvents(self)
@@ -201,9 +39,8 @@ class JrDevUI(App[None]):
         self.vlayout_terminal = Vertical()
         self.vlayout_right = Vertical()
         self.vlayout_left = Vertical()
-        # Give the widget an ID for easier CSS targeting
         self.terminal_output_widget = TerminalOutputWidget(id="terminal_output_container")
-        self.task_monitor = TaskMonitor() # This is now the container widget
+        self.task_monitor = TaskMonitor()
         self.directory_widget = DirectoryWidget(core_app=self.jrdev, id="directory_widget")
         self.model_list = ModelSelectionWidget(id="model_list")
         self.task_count = 0
@@ -231,46 +68,16 @@ class JrDevUI(App[None]):
         # init state of project context for chat widget
         self.chat_view.set_project_context_on(self.jrdev.state.use_project_context)
 
-        # directory widget styling
-        self.directory_widget.border_title = "Project Files"
-        self.directory_widget.styles.border = ("round", Color.parse("#5e5e5e"))
-        self.directory_widget.styles.border_title_color = "#fabd2f"
-        self.directory_widget.styles.height = "50%"
-        self.directory_widget.update_highlights()
+        self._setup_styles()
 
-        self.button_container.border_title = "Settings"
-        self.button_container.styles.border = ("round", Color.parse("#5e5e5e"))
-        self.button_container.styles.border_title_color = "#fabd2f"
-        self.chat_list.border_title = "Chats"
-        self.chat_list.styles.border = ("round", Color.parse("#5e5e5e"))
-        self.chat_list.styles.border_title_color = "#fabd2f"
-
-        # Horizontal Layout Splits
-        self.vlayout_terminal.styles.width = "60%"
-        self.vlayout_terminal.styles.height = "1fr"
-        self.vlayout_left.styles.width = "15%"
-
-        # --- Vertical Layout Splits within vlayout_terminal ---
-        # Apply height styling to the TaskMonitor container widget
-        self.task_monitor.styles.height = "25%" # Fixed percentage
-
+        # init jrdev core and setup AI models
         await self.jrdev.initialize_services()
-
-        models = self.jrdev.get_models()
-
-        # Set up the model list widget with the models
-        await self.model_list.setup_models(models)
-
-        # Set the current model as selected if available
-        if self.jrdev.state.model:
-            self.model_list.set_model_selected(self.jrdev.state.model)
-
-        self.model_list.styles.height = "50%" # Relative to parent vlayout_right
+        await self._setup_models()
 
         await self.init_chat_list()
 
+        # Final setup
         self.jrdev.setup_complete()
-
         self.print_welcome()
 
     def print_welcome(self):
@@ -298,6 +105,42 @@ class JrDevUI(App[None]):
             await self.chat_list.add_thread(thr)
         current_thread = self.jrdev.get_current_thread()
         self.chat_list.set_active(current_thread.thread_id)
+
+    async def _setup_models(self):
+        """Initialize the models in the core app"""
+        models = self.jrdev.get_models()
+
+        # Set up the model list widget with the models
+        await self.model_list.setup_models(models)
+
+        # Set the current model as selected if available
+        if self.jrdev.state.model:
+            self.model_list.set_model_selected(self.jrdev.state.model)
+
+        self.model_list.styles.height = "50%"  # Relative to parent vlayout_right
+
+    def _setup_styles(self):
+        # directory widget styling
+        self.directory_widget.border_title = "Project Files"
+        self.directory_widget.styles.border = ("round", Color.parse("#5e5e5e"))
+        self.directory_widget.styles.border_title_color = "#fabd2f"
+        self.directory_widget.styles.height = "50%"
+        self.directory_widget.update_highlights()
+
+        self.button_container.border_title = "Settings"
+        self.button_container.styles.border = ("round", Color.parse("#5e5e5e"))
+        self.button_container.styles.border_title_color = "#fabd2f"
+        self.chat_list.border_title = "Chats"
+        self.chat_list.styles.border = ("round", Color.parse("#5e5e5e"))
+        self.chat_list.styles.border_title_color = "#fabd2f"
+
+        # Horizontal Layout Splits
+        self.vlayout_terminal.styles.width = "60%"
+        self.vlayout_terminal.styles.height = "1fr"
+        self.vlayout_left.styles.width = "15%"
+
+        # Apply height styling to the TaskMonitor container widget
+        self.task_monitor.styles.height = "25%"
 
     @on(CommandTextArea.Submitted, "#cmd_input")
     async def accept_input(self, event: CommandTextArea.Submitted) -> None:

@@ -6,24 +6,21 @@ Init command implementation for the JrDev application.
 import asyncio
 import os
 import time
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any
 
-
-from jrdev.file_utils import (
+from jrdev.file_operations.file_utils import (
     find_similar_file,
     pair_header_source_files,
     requested_files,
     JRDEV_DIR,
     write_string_to_file,  # Import the function
 )
-from jrdev.llm_requests import generate_llm_response
+from jrdev.services.llm_requests import generate_llm_response
 from jrdev.languages.utils import detect_language, is_headers_language
 from jrdev.prompts.prompt_utils import PromptManager
-from jrdev.string_utils import contains_chinese
+from jrdev.utils.string_utils import contains_chinese
 from jrdev.ui.ui import PrintType
-from jrdev.message_builder import MessageBuilder
-from jrdev.model_profiles import ModelProfileManager
-
+from jrdev.messages.message_builder import MessageBuilder
 
 # Create an asyncio lock for safe file access
 context_file_lock = asyncio.Lock()
