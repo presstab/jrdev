@@ -289,8 +289,6 @@ class FilteredDirectoryTree(DirectoryTree):
                     current_dir = os.getcwd()
                     abs_path = str(node.data.path)
                     relative_path = os.path.relpath(abs_path, current_dir)
-                    # Normalize path separators if necessary (optional, depends on context)
-                    relative_path = relative_path.replace(os.sep, '/')
 
                     if relative_path in self.indexed_paths:
                         label.stylize("italic green")
