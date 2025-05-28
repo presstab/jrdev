@@ -11,7 +11,7 @@ from jrdev.ui.ui import PrintType
 JRDEV_DIR = "jrdev/"
 
 # Get the absolute path to the jrdev package directory
-JRDEV_PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+JRDEV_PACKAGE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JRDEV_ROOT_DIR = os.path.dirname(os.path.dirname(JRDEV_PACKAGE_DIR))  # Move up to the project root
 
 
