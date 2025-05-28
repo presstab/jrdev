@@ -59,11 +59,12 @@ class TextualEvents(UiWrapper):
             self.chunk = chunk
 
     class ConfirmationRequest(Message):
-        def __init__(self, prompt_text: str, future: asyncio.Future, diff_lines: Optional[List[str]] = None):
+        def __init__(self, prompt_text: str, future: asyncio.Future, diff_lines: Optional[List[str]] = None, error_msg: str = None):
             super().__init__()
             self.prompt_text = prompt_text
             self.future = future
             self.diff_lines = diff_lines or []
+            self.error_msg = error_msg
             
     class ConfirmationResponse(Message):
         def __init__(self, response: str, message: Optional[str] = None):
@@ -106,14 +107,14 @@ class TextualEvents(UiWrapper):
     def update_task_info(self, worker_id: str, update: dict = None) -> None:
         self.app.post_message(self.TaskUpdate(worker_id, update))
 
-    async def prompt_for_confirmation(self, prompt_text: str = "Apply these changes?", diff_lines: Optional[List[str]] = None) -> Tuple[str, Optional[str]]:
+    async def prompt_for_confirmation(self, prompt_text: str = "Apply these changes?", diff_lines: Optional[List[str]] = None, error_msg: None = "") -> Tuple[str, Optional[str]]:
         """
         Prompt the user for confirmation with options using Textual widgets.
         
         Args:
             prompt_text: The text to display when prompting the user
             diff_lines: Optional list of diff lines to display in the dialog
-        
+            error_msg: Optional error message to display if something has failed on a previous attempt
         Returns:
             Tuple of (response, message):
                 - response: 'yes', 'no', 'request_change', 'edit', or 'accept_all'
@@ -124,7 +125,7 @@ class TextualEvents(UiWrapper):
         self.confirmation_future = asyncio.Future()
         
         # Send a message to the UI to show the confirmation dialog
-        self.app.post_message(self.ConfirmationRequest(prompt_text, self.confirmation_future, diff_lines))
+        self.app.post_message(self.ConfirmationRequest(prompt_text, self.confirmation_future, diff_lines, error_msg))
         
         # Wait for the confirmation response
         result = await self.confirmation_future

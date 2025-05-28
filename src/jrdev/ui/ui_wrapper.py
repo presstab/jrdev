@@ -23,7 +23,7 @@ class UiWrapper:
         """
         raise NotImplementedError("Subclasses must implement stream_chunk()")
         
-    async def prompt_for_confirmation(self, prompt_text: str = "Apply these changes?", diff_lines: Optional[List[str]] = None) -> Tuple[str, Optional[str]]:
+    async def prompt_for_confirmation(self, prompt_text: str = "Apply these changes?", diff_lines: Optional[List[str]] = None, error_msg: str = None) -> Tuple[str, Optional[str]]:
         """
         Prompt the user for confirmation with options to apply, reject, request changes,
         edit the changes, or accept all subsequent changes.
@@ -31,6 +31,7 @@ class UiWrapper:
         Args:
             prompt_text: The text to display when prompting the user
             diff_lines: Optional list of diff lines to display in the dialog
+            error_msg: Optional error message to display if something has failed on a previous attempt
             
         Returns:
             Tuple of (response, message):

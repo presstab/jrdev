@@ -374,7 +374,7 @@ class JrDevUI(App[None]):
     @on(TextualEvents.ConfirmationRequest)
     def handle_confirmation_request(self, message: TextualEvents.ConfirmationRequest) -> None:
         """Handle a request for code confirmation from the backend"""
-        screen = CodeConfirmationScreen(message.prompt_text, message.diff_lines)
+        screen = CodeConfirmationScreen(message.prompt_text, message.diff_lines, message.error_msg)
 
         # Store the future so we can set the result when the screen is dismissed
         screen.future = message.future
