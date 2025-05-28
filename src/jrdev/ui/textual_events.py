@@ -94,6 +94,13 @@ class TextualEvents(UiWrapper):
         """Signal to the UI that Api Keys need to be entered"""
         pass
 
+    class DeletionRequest(Message):
+        """Request confirmation for file deletion"""
+        def __init__(self, filepath: str, future: asyncio.Future):
+            super().__init__()
+            self.filepath = filepath
+            self.future = future
+
     def print_text(self, message: Any, print_type: PrintType = PrintType.INFO, end: str = "\n", prefix: Optional[str] = None, flush: bool = False):
         # Post custom message when print is called
         self.app.post_message(self.PrintMessage(message))
@@ -194,3 +201,18 @@ class TextualEvents(UiWrapper):
     def stream_chunk(self, thread_id: str, chunk: str) -> None:
         """Post a chunk event into Textual's event bus."""
         self.app.post_message(self.StreamChunk(thread_id, chunk))
+
+    async def prompt_for_deletion(self, filepath: str) -> bool:
+        """
+        Prompt the user for confirmation before deleting a file.
+        
+        Args:
+            filepath: The path to the file that will be deleted
+            
+        Returns:
+            bool: True if the user confirms deletion, False otherwise
+        """
+        deletion_future = asyncio.Future()
+        self.app.post_message(self.DeletionRequest(filepath, deletion_future))
+        result = await deletion_future
+        return result

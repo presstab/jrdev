@@ -22,6 +22,7 @@ from jrdev.ui.textual.model_profile_widget import ModelProfileScreen
 from jrdev.ui.textual.command_request import CommandRequest
 from jrdev.ui.textual.chat_view_widget import ChatViewWidget
 from jrdev.ui.textual.bordered_switcher import BorderedSwitcher
+from jrdev.ui.textual.file_deletion_screen import FileDeletionScreen
 
 from typing import Any, Generator
 import logging
@@ -396,6 +397,13 @@ class JrDevUI(App[None]):
             prompt_message=message.prompt_message,
             future=message.future
         )
+        self.push_screen(screen)
+
+    @on(TextualEvents.DeletionRequest)
+    def handle_deletion_request(self, message: TextualEvents.DeletionRequest) -> None:
+        """Handle a request for file deletion confirmation"""
+        screen = FileDeletionScreen(message.filepath)
+        screen.future = message.future
         self.push_screen(screen)
 
     @on(TextualEvents.EnterApiKeys)

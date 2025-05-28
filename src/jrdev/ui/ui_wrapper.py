@@ -101,3 +101,15 @@ class UiWrapper:
     def project_context_changed(self, is_enabled: bool) -> None:
         """Project Context has been toggled on or off"""
         raise NotImplementedError("Subclasses must implement project_context_changed")
+
+    async def prompt_for_deletion(self, filepath: str) -> bool:
+        """
+        Prompt the user for confirmation before deleting a file.
+        
+        Args:
+            filepath: The path to the file that will be deleted
+            
+        Returns:
+            bool: True if the user confirms deletion, False otherwise
+        """
+        raise NotImplementedError("Subclasses must implement prompt_for_deletion")
