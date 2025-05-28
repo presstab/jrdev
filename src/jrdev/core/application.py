@@ -2,20 +2,20 @@ import asyncio
 import json
 import os
 import sys
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List
 from dotenv import load_dotenv
 
 from jrdev.core.clients import APIClients
 from jrdev.core.commands import Command, CommandHandler
 from jrdev.core.state import AppState
-from jrdev.file_utils import add_to_gitignore, JRDEV_DIR, JRDEV_PACKAGE_DIR, get_env_path
-from jrdev.commands.keys import check_existing_keys, save_keys_to_env, run_first_time_setup
+from jrdev.file_operations.file_utils import add_to_gitignore, JRDEV_DIR, JRDEV_PACKAGE_DIR, get_env_path
+from jrdev.commands.keys import check_existing_keys, save_keys_to_env
 from jrdev.logger import setup_logger
 from jrdev.messages.thread import USER_INPUT_PREFIX, MessageThread, THREADS_DIR # Added MessageThread, THREADS_DIR
 from jrdev.services.message_service import MessageService
-from jrdev.model_list import ModelList
-from jrdev.model_profiles import ModelProfileManager
-from jrdev.model_utils import load_hardcoded_models
+from jrdev.models.model_list import ModelList
+from jrdev.models.model_profiles import ModelProfileManager
+from jrdev.models.model_utils import load_hardcoded_models
 from jrdev.projectcontext.contextmanager import ContextManager
 from jrdev.treechart import generate_compact_tree
 from jrdev.ui.ui import PrintType

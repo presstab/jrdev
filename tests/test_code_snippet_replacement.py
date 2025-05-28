@@ -3,12 +3,11 @@ import sys
 import unittest
 import tempfile
 import shutil
-from typing import List
 
 # Add src to the path so we can import jrdev modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "src")))
 
-from jrdev.file_utils import manual_json_parse, apply_file_changes
+from jrdev.file_operations.file_utils import manual_json_parse, apply_file_changes
 
 
 class TestCodeSnippetReplacement(unittest.TestCase):

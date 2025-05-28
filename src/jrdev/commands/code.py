@@ -7,7 +7,7 @@ Code command implementation for the JrDev application.
 from typing import Any, List
 
 from jrdev.ui.ui import PrintType
-from jrdev.code_processor import CodeProcessor
+from jrdev.services.code_processor import CodeProcessor
 from jrdev.exceptions import CodeTaskCancelled
 
 

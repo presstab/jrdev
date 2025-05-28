@@ -78,7 +78,7 @@ def find_similar_file(file_path):
     # Strategy 1: Look for exact filename in any directory
     try:
         matches = []
-        for root, _, files in os.walk('.'):
+        for root, _, files in os.walk('..'):
             if original_filename in files:
                 matches.append(os.path.join(root, original_filename))
         if len(matches) == 1:

@@ -180,7 +180,7 @@ While many functions are accessible via UI elements, some core commands are stil
 JrDev is designed to work with a variety of Large Language Model (LLM) providers. The list of available models is dynamically populated based on your configured API keys and the models defined in the application's configuration.
 
 **Model Configuration:**
-The primary list of supported models is managed in the `src/jrdev/model_list.json` file. This JSON file allows for easy addition, removal, or modification of model entries. Each entry typically specifies the model name, its provider, cost information, context window size, and whether it's designated as a "think" model (suitable for complex reasoning tasks).
+The primary list of supported models is managed in the `src/jrdev/config/model_list.json` file. This JSON file allows for easy addition, removal, or modification of model entries. Each entry typically specifies the model name, its provider, cost information, context window size, and whether it's designated as a "think" model (suitable for complex reasoning tasks).
 
 **Supported API Providers:**
 To use models from a specific provider, you'll need to configure the corresponding API key in JrDev (either via the TUI's "API Keys" screen or by setting environment variables in the `.env` file).

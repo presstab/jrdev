@@ -21,7 +21,8 @@ def load_hardcoded_models() -> List[Dict[str, Any]]:
     try:
         # Get the directory where this file is located
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        json_path = os.path.join(current_dir, "model_list.json")
+        # Navigate up one level to jrdev/, then into config/
+        json_path = os.path.join(current_dir, "..", "config", "model_list.json")
 
         with open(json_path, "r") as f:
             data = json.load(f)

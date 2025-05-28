@@ -2,7 +2,7 @@
 import sys
 import os
 sys.path.append('/home/pt/workspace/jrdev')
-from src.jrdev.file_utils import insert_after_function
+from jrdev.file_operations.file_utils import insert_after_function
 
 # Create a test file with a simple C++ function
 test_cpp_content = """

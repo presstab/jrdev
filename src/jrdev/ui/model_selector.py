@@ -13,7 +13,7 @@ except ImportError:
     curses = None
     CURSES_AVAILABLE = False
 
-from jrdev.model_utils import VCU_Value
+from jrdev.models.model_utils import VCU_Value
 from jrdev.ui.ui import PrintType
 
 

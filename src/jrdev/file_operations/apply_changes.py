@@ -5,7 +5,7 @@ from jrdev.file_operations.confirmation import write_with_confirmation
 from jrdev.file_operations.delete import process_delete_operation
 from jrdev.exceptions import CodeTaskCancelled
 from jrdev.file_operations.replace import process_replace_operation
-from jrdev.file_utils import find_similar_file
+from jrdev.file_operations.file_utils import find_similar_file
 from jrdev.ui.ui import PrintType
 import logging
 logger = logging.getLogger("jrdev")

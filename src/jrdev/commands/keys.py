@@ -5,11 +5,10 @@ import asyncio
 import os
 import logging
 from getpass import getpass
-from typing import Dict, Optional, Tuple, Any, Callable
+from typing import Dict, Optional, Tuple, Any
 from dotenv import load_dotenv
-from functools import partial
 
-from jrdev.file_utils import add_to_gitignore, get_env_path
+from jrdev.file_operations.file_utils import add_to_gitignore, get_env_path
 from jrdev.ui.ui import PrintType
 
 logger = logging.getLogger("jrdev")

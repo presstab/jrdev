@@ -1,8 +1,8 @@
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-from jrdev.model_profiles import ModelProfileManager
+from jrdev.models.model_profiles import ModelProfileManager
 from jrdev.ui.ui import PrintType, terminal_print
 
 # Get the global logger instance

@@ -4,7 +4,7 @@ import os
 import json
 from typing import Any, Dict, List, Optional, Set
 
-from jrdev.file_utils import JRDEV_DIR
+from jrdev.file_operations.file_utils import JRDEV_DIR
 from jrdev.messages.thread import MessageThread
 
 

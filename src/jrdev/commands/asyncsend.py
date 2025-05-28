@@ -11,7 +11,7 @@ import asyncio
 import uuid
 from typing import Any, List
 from jrdev.ui.ui import PrintType
-from jrdev.file_utils import JRDEV_DIR
+from jrdev.file_operations.file_utils import JRDEV_DIR
 
 RESPONSES_DIR = os.path.join(JRDEV_DIR, "responses")
 

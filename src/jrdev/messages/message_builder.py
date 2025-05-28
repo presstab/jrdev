@@ -1,8 +1,7 @@
 import os
-from typing import Dict, List, Set, Optional, Any
+from typing import Dict, List, Set, Any
 from jrdev.prompts.prompt_utils import PromptManager
-from jrdev.file_utils import get_file_contents
-from jrdev.ui.ui import PrintType
+from jrdev.file_operations.file_utils import get_file_contents
 
 import logging
 # Get the global logger instance

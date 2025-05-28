@@ -1,6 +1,6 @@
 from typing import AsyncIterator, TYPE_CHECKING
-from jrdev.message_builder import MessageBuilder
-from jrdev.llm_requests import stream_request
+from jrdev.messages.message_builder import MessageBuilder
+from jrdev.services.llm_requests import stream_request
 from jrdev.messages.thread import MessageThread
 import re
 
