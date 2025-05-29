@@ -61,11 +61,10 @@ class CodeConfirmationScreen(ModalScreen[Tuple[str, Optional[str]]]):
     }
     
     #request-input-container {
-        dock: bottom;
         width: 100%;
         padding: 1;
         background: $surface;
-        /* border-top: solid $panel; */ /* Optional: line above input */
+        border-top: solid $panel;
         display: none; /* Initially hidden */
         height: auto;
     }
