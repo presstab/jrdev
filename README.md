@@ -2,6 +2,8 @@
 
 JrDev is a powerful, AI-driven assistant designed to integrate seamlessly into your development workflow. It offers a rich Textual User Interface (TUI) for interacting with various Large Language Models (LLMs) like those from OpenAI, Anthropic, and Venice. Streamline your coding, review, and project understanding tasks directly from your terminal.
 
+JrDev is free and open source. All of your data is routed directly through your API provider.
+
 While a basic command-line interface (`jrdev-cli`) is available, the primary and recommended way to use JrDev is through its interactive TUI, launched with the `jrdev` command.
 
 
@@ -39,6 +41,10 @@ https://github.com/user-attachments/assets/127f26d0-c4f6-4f43-8609-0685a1db1ab6
 
 *   **Centralized Configuration**: Manage API keys and model profiles through dedicated TUI screens.
 *   **Persistent History**: Command history in the terminal input and chat history within threads are saved.
+
+## 🚨Early Access Software🚨
+
+JrDev is in early development and may undergo rapid changes, including breaking changes and experimental features. This tool can modify your project files, and will prompt for confirmation unless placed in "Accept All" mode. **It is strongly recommended to use version control (e.g., Git) and commit your work before using JrDev.**
 
 ## Requirements
 
