@@ -242,7 +242,7 @@ cd jrdev
 
 # Install in development mode
 pip install -e .
-# Also ensure dev dependencies are installed (e.g., from requirements-dev.txt if available)
+# Also ensure dev dependencies are installed
 ```
 
 ### Development Commands
@@ -260,7 +260,6 @@ black src/ tests/
 # Sort imports (example)
 isort src/ tests/
 ```
-(Please adapt these to your project's actual linting/formatting setup as defined in your contribution guidelines or dev tooling.)
 
 ## License
 
