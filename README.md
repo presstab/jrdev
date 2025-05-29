@@ -4,6 +4,12 @@ JrDev is a powerful, AI-driven assistant designed to integrate seamlessly into y
 
 While a basic command-line interface (`jrdev-cli`) is available, the primary and recommended way to use JrDev is through its interactive TUI, launched with the `jrdev` command.
 
+
+
+https://github.com/user-attachments/assets/345d59fb-35b1-4f11-91d3-f58cb5177ec7
+
+
+
 ## Key Features
 
 *   **Interactive Chat Interface**: Engage in multi-threaded conversations with AI models. Each chat maintains its own context, including selected files.
@@ -15,11 +21,22 @@ While a basic command-line interface (`jrdev-cli`) is available, the primary and
     *   **Confirmation**: View diffs of proposed changes and approve, reject, or request revisions before any code is written to your files. Use Auto-Accept to bypass confirmations.
     *   **Validation**: The AI model performs a final review and validation of the changes.
 *   **Git Integration**: Configure your base Git branch and generate PR summaries or code reviews directly within the TUI.
+
+
+https://github.com/user-attachments/assets/8eb586ad-138b-400e-a9fa-aa30876f5252
+
+
+  
 *   **Versatile Model Management**:
     *   Easily select from a list of available LLMs from different providers.
     *   Configure Model Profiles to assign specific models to different tasks (e.g. one model for task planning, another for complex code generation, and a different model for file indexing).
 *   **Real-time Task Monitoring**: Keep an eye on ongoing AI operations, including token usage and status, with the ability to cancel tasks.
 *   **Intuitive File Navigation**: Browse your project's file tree, and easily add files to the AI's context for chat or code operations.
+  
+
+https://github.com/user-attachments/assets/127f26d0-c4f6-4f43-8609-0685a1db1ab6
+
+
 *   **Centralized Configuration**: Manage API keys and model profiles through dedicated TUI screens.
 *   **Persistent History**: Command history in the terminal input and chat history within threads are saved.
 
