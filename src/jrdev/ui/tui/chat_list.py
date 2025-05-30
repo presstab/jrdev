@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 import logging
 
 from jrdev.messages.thread import MessageThread
-from jrdev.ui.textual.command_request import CommandRequest
+from jrdev.ui.tui.command_request import CommandRequest
 
 logger = logging.getLogger("jrdev")
 

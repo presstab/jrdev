@@ -7,22 +7,22 @@ from textual.color import Color
 from jrdev.core.application import Application
 from jrdev import __version__
 from jrdev.ui.textual_events import TextualEvents
-from jrdev.ui.textual.code_confirmation_screen import CodeConfirmationScreen
-from jrdev.ui.textual.steps_screen import StepsScreen
-from jrdev.ui.textual.code_edit_screen import CodeEditScreen
-from jrdev.ui.textual.filtered_directory_tree import DirectoryWidget, FilteredDirectoryTree
-from jrdev.ui.textual.api_key_entry import ApiKeyEntry
-from jrdev.ui.textual.model_selection_widget import ModelSelectionWidget
-from jrdev.ui.textual.task_monitor import TaskMonitor
-from jrdev.ui.textual.terminal_output_widget import TerminalOutputWidget
-from jrdev.ui.textual.input_widget import CommandTextArea
-from jrdev.ui.textual.button_container import ButtonContainer
-from jrdev.ui.textual.chat_list import ChatList
-from jrdev.ui.textual.model_profile_widget import ModelProfileScreen
-from jrdev.ui.textual.command_request import CommandRequest
-from jrdev.ui.textual.chat_view_widget import ChatViewWidget
-from jrdev.ui.textual.bordered_switcher import BorderedSwitcher
-from jrdev.ui.textual.file_deletion_screen import FileDeletionScreen
+from jrdev.ui.tui.code_confirmation_screen import CodeConfirmationScreen
+from jrdev.ui.tui.steps_screen import StepsScreen
+from jrdev.ui.tui.code_edit_screen import CodeEditScreen
+from jrdev.ui.tui.filtered_directory_tree import DirectoryWidget, FilteredDirectoryTree
+from jrdev.ui.tui.api_key_entry import ApiKeyEntry
+from jrdev.ui.tui.model_selection_widget import ModelSelectionWidget
+from jrdev.ui.tui.task_monitor import TaskMonitor
+from jrdev.ui.tui.terminal_output_widget import TerminalOutputWidget
+from jrdev.ui.tui.input_widget import CommandTextArea
+from jrdev.ui.tui.button_container import ButtonContainer
+from jrdev.ui.tui.chat_list import ChatList
+from jrdev.ui.tui.model_profile_widget import ModelProfileScreen
+from jrdev.ui.tui.command_request import CommandRequest
+from jrdev.ui.tui.chat_view_widget import ChatViewWidget
+from jrdev.ui.tui.bordered_switcher import BorderedSwitcher
+from jrdev.ui.tui.file_deletion_screen import FileDeletionScreen
 
 from typing import Any, Generator
 import logging

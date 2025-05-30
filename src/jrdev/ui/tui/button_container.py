@@ -6,7 +6,7 @@ from typing import Dict, Optional
 import logging
 
 # Import the new screen
-from jrdev.ui.textual.git_tools_screen import GitToolsScreen
+from jrdev.ui.tui.git_tools_screen import GitToolsScreen
 
 logger = logging.getLogger("jrdev")
 

@@ -8,8 +8,8 @@ from typing import Optional
 import logging
 import pyperclip
 
-from jrdev.ui.textual.input_widget import CommandTextArea
-from jrdev.ui.textual.terminal_text_area import TerminalTextArea
+from jrdev.ui.tui.input_widget import CommandTextArea
+from jrdev.ui.tui.terminal_text_area import TerminalTextArea
 
 logger = logging.getLogger("jrdev")
 

@@ -11,7 +11,7 @@ import logging
 from jrdev.commands.git_config import get_git_config, save_git_config, DEFAULT_GIT_CONFIG
 from jrdev.services.git_pr_service import generate_pr_analysis, GitPRServiceError
 from jrdev.file_operations.file_utils import JRDEV_ROOT_DIR # Import JRDEV_ROOT_DIR
-from jrdev.ui.textual.terminal_output_widget import TerminalOutputWidget # Import the new widget
+from jrdev.ui.tui.terminal_output_widget import TerminalOutputWidget # Import the new widget
 
 logger = logging.getLogger("jrdev")
 
