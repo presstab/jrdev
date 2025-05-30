@@ -3,6 +3,7 @@ import logging
 import os
 import re
 from difflib import SequenceMatcher
+from pathlib import Path
 
 from jrdev.languages.utils import detect_language, is_headers_language
 from jrdev.ui.ui import PrintType
@@ -290,7 +291,7 @@ def get_persistent_storage_path():
     using os.path.expanduser to ensure cross-platform compatibility.
     Creates the directory if it doesn't exist.
     """
-    path = os.path.expanduser("~/.jrdev/")
+    path = Path.home() / ".jrdev"
     # Ensure directory exists
     if not os.path.exists(path):
         os.makedirs(path)
