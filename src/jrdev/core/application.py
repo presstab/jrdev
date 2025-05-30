@@ -15,7 +15,7 @@ from jrdev.messages.thread import USER_INPUT_PREFIX, MessageThread, THREADS_DIR 
 from jrdev.services.message_service import MessageService
 from jrdev.models.model_list import ModelList
 from jrdev.models.model_profiles import ModelProfileManager
-from jrdev.models.model_utils import load_hardcoded_models
+from jrdev.models.model_utils import load_user_preferred_models, ignore_model, unignore_model, get_ignored_model_names
 from jrdev.services.contextmanager import ContextManager
 from jrdev.utils.treechart import generate_compact_tree
 from jrdev.ui.ui import PrintType
@@ -81,7 +81,7 @@ class Application:
         self._load_environment()
         # Initialize state components
         self.state.model_list = ModelList()
-        self.state.model_list.set_model_list(load_hardcoded_models())
+        self.state.model_list.set_model_list(load_user_preferred_models())
         self.state.context_manager = ContextManager()
         profile_config_path = os.path.join(JRDEV_PACKAGE_DIR, "config", "profile_strings.json")
 
