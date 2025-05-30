@@ -232,7 +232,8 @@ def get_env_path() -> str:
     Returns:
         Path to the .env file
     """
-    return os.path.join(JRDEV_ROOT_DIR, '.env')
+    storage_dir = get_persistent_storage_path()
+    return os.path.join(storage_dir, '.env')
 
 def add_to_gitignore(gitignore_path: str, ignore_str: str, create_if_dne: bool = False) -> bool:
     """
