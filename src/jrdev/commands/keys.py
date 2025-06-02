@@ -108,7 +108,7 @@ def check_existing_keys(app: Any) -> bool:
         True if at least one API key exists, False otherwise
     """
     # 1. Identify All Possible Keys
-    all_possible_env_keys = [provider["env_key"] for provider in app.state.clients._providers]
+    all_possible_env_keys = [provider.env_key for provider in app.state.clients.provider_list()]
 
     # 2. Check Environment Variables
     for key_name in all_possible_env_keys:
@@ -140,8 +140,8 @@ def _find_provider_by_service(app: Any, service: str) -> Optional[Dict[str, Any]
     Returns:
         Provider dictionary if found, None otherwise
     """
-    for provider in app.state.clients._providers:
-        if service.lower() == provider["name"].lower() or service.upper() == provider["env_key"]:
+    for provider in app.state.clients.provider_list():
+        if service.lower() == provider.name.lower() or service.upper() == provider.env_key:
             return provider
     return None
 

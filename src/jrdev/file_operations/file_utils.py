@@ -285,13 +285,13 @@ def add_to_gitignore(gitignore_path: str, ignore_str: str, create_if_dne: bool =
         return False
 
 
-def get_persistent_storage_path():
+def get_persistent_storage_path(test_mode=False) -> Path:
     """
     Returns the path to the persistent input history file (~/.jrdev),
     using os.path.expanduser to ensure cross-platform compatibility.
     Creates the directory if it doesn't exist.
     """
-    path = Path.home() / ".jrdev"
+    path = JRDEV_ROOT_DIR / tests if test_mode else Path.home() / ".jrdev"
     # Ensure directory exists
     if not os.path.exists(path):
         os.makedirs(path)

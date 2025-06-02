@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 import pyperclip
 
-from .yes_no_modal_screen import YesNoScreen
+from jrdev.ui.tui.yes_no_modal_screen import YesNoScreen
 from jrdev.file_operations.file_utils import get_env_path
 
 logger = logging.getLogger("jrdev")
@@ -181,7 +181,7 @@ class ApiKeyEntry(Screen[dict]):
         """
         keys = {}
         for provider in self.providers:
-            env_key = provider["env_key"]
+            env_key = provider.env_key
             value = os.environ.get(env_key, "")
             if value:
                 keys[env_key] = value
@@ -206,15 +206,15 @@ class ApiKeyEntry(Screen[dict]):
             with Vertical(id="content-area"):
                 with Grid(id="input-grid"):
                     for provider in self.providers:
-                        env_key = provider["env_key"]
+                        env_key = provider.env_key
 
                         # Provider Label
-                        yield Label(f"{provider['name'].title()} Key:")
+                        yield Label(f"{provider.name.title()} Key:")
 
                         # Input Field
                         existing_value = self.existing_keys.get(env_key, "") if self.mode == "editor" else ""
                         masked = self._mask_key(existing_value) if self.mode == "editor" and existing_value else ""
-                        input_widget = Input(id=f"{provider['name']}_key", password=True, placeholder="Show/Hide Key")
+                        input_widget = Input(id=f"{provider.name}_key", password=True, placeholder="Show/Hide Key")
                         if masked:
                             input_widget.value = masked
                             self._masked_keys[env_key] = masked
@@ -250,7 +250,7 @@ class ApiKeyEntry(Screen[dict]):
         if event.button.id == "save":
             ret = {}
             for provider in self.providers:
-                env_key = provider["env_key"]
+                env_key = provider.env_key
                 # Use the stored input widget reference
                 input_widget = self.input_widgets.get(env_key)
                 if not input_widget:
@@ -264,8 +264,8 @@ class ApiKeyEntry(Screen[dict]):
                     if masked and value == masked:
                         # User did not change the field, keep the original value
                         value = self.existing_keys.get(env_key, "")
-                if provider["required"] and not value:
-                    self.notify(f"Must Enter An Api Key For {provider['name'].title()}", severity="warning")
+                if provider.required and not value:
+                    self.notify(f"Must Enter An Api Key For {provider.name.title()}", severity="warning")
                     return
                 if value:
                     ret[env_key] = value
@@ -284,8 +284,8 @@ class ApiKeyEntry(Screen[dict]):
 
             provider_name = None
             for provider in self.providers:
-                if provider["env_key"] == env_key:
-                    provider_name = provider["name"]
+                if provider.env_key == env_key:
+                    provider_name = provider.name
                     break
             if provider_name is None:
                 self.notify(f"Unknown provider for env_key {env_key}", severity="error")

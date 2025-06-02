@@ -82,22 +82,17 @@ class Application:
         # Initialize state components
         self.state.model_list = ModelList()
         self.state.model_list.set_model_list(load_user_preferred_models())
-        self.state.context_manager = ContextManager()
-        profile_config_path = os.path.join(JRDEV_PACKAGE_DIR, "config", "profile_strings.json")
-
-        # Determine active providers to inform ModelProfileManager's default profile selection
         all_providers = self.state.clients.provider_list()
-        providers_with_keys_names = []
-        for provider in all_providers:
-            if os.getenv(provider["env_key"]):
-                providers_with_keys_names.append(provider["name"])
+        provider_names = [provider.name for provider in all_providers]
+        self.state.model_list.set_providers(provider_names)
 
-        providers_path = os.path.join(JRDEV_PACKAGE_DIR, "config", "api_providers.json")
+        self.state.context_manager = ContextManager()
 
+        # Instantiate ModelProfileManager
+        profile_string_config_path = os.path.join(JRDEV_PACKAGE_DIR, "config", "profile_strings.json")
         self.state.model_profile_manager = ModelProfileManager(
-            profile_strings_path=profile_config_path,
-            providers_path=providers_path,
-            active_provider_names=providers_with_keys_names
+            providers=all_providers,
+            profile_strings_path=profile_string_config_path
         )
 
     def _load_environment(self):
@@ -402,8 +397,8 @@ class Application:
         all_providers = self.state.clients.provider_list()
         providers_with_keys_names = []
         for provider in all_providers:
-            if os.getenv(provider["env_key"]):
-                providers_with_keys_names.append(provider["name"])
+            if os.getenv(provider.env_key):
+                providers_with_keys_names.append(provider.name)
         profile_manager = self.profile_manager()
         profile_manager.reload_if_using_fallback(providers_with_keys_names)
 
@@ -425,7 +420,7 @@ class Application:
         """Initialize all API clients"""
         # Create a dictionary of environment variables
         self.logger.info("initializing api clients")
-        provider_env_keys = [provider["env_key"] for provider in self.state.clients.provider_list()]
+        provider_env_keys = [provider.env_key for provider in self.state.clients.provider_list()]
         env = {key: os.getenv(key) for key in provider_env_keys}
 
         # Initialize all clients using the APIClients class

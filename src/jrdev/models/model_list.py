@@ -23,6 +23,16 @@ class ModelList:
                     continue
                 self._model_list.append(m)
 
+    def set_providers(self, providers: List[str]) -> None:
+        """Update the model list to only include models under the given list of providers"""
+        with self._lock:
+            updated_list = []
+            for m in self._model_list:
+                if m["provider"] not in providers:
+                    continue
+                updated_list.append(m)
+            self._model_list = updated_list
+
     def validate_model_exists(self, model_name: str) -> bool:
         """
         Check if a model exists in the model list.
