@@ -1,4 +1,5 @@
 # JrDev Terminal - AI-Powered Developer Assistant
+![code-fast](https://github.com/user-attachments/assets/5efa7671-c2bd-4343-8338-bb2d482cb02f)
 
 JrDev is a powerful, AI-driven assistant designed to integrate seamlessly into your development workflow. It offers a rich Textual User Interface (TUI) for interacting with various Large Language Models (LLMs) like those from OpenAI, Anthropic, and Venice. Streamline your coding, review, and project understanding tasks directly from your terminal.
 
@@ -6,9 +7,11 @@ JrDev is free and open source. All of your data is routed directly through your 
 
 While a basic command-line interface (`jrdev-cli`) is available, the primary and recommended way to use JrDev is through its interactive TUI, launched with the `jrdev` command.
 
+![jrdev-cli-tui](https://github.com/user-attachments/assets/609defda-521c-4ada-a9d8-d0c0efa56381)
 
 
-https://github.com/user-attachments/assets/345d59fb-35b1-4f11-91d3-f58cb5177ec7
+
+
 
 
 
