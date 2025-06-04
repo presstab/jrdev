@@ -59,28 +59,34 @@ class ProviderWidget(Widget):
         self.env_key = env_key
         self.edit_mode = False
 
-        # Buttons
-        self.btn_edit = Button("Edit", id=f"btn-edit", variant="success", classes="action-button")
-        self.btn_remove = Button("Remove", id=f"btn-remove", variant="success", classes="action-button")
-        self.btn_save = Button("Save Edits", id=f"btn-save", variant="success", classes="action-button")
-        self.btn_cancel = Button("Cancel", id=f"btn-cancel", variant="success", classes="action-button")
+        # Buttons for edit mode
+        self.btn_edit = Button("Edit", id="btn-edit", variant="success", classes="action-button")
+        self.btn_remove = Button("Remove", id="btn-remove", variant="success", classes="action-button")
+        self.btn_save = Button("Save Edits", id="btn-save", variant="success", classes="action-button")
+        self.btn_cancel = Button("Cancel", id="btn-cancel", variant="success", classes="action-button")
         self.btn_save.display = False
         self.btn_cancel.display = False
+
+        # Buttons for removal confirmation
+        self.btn_confirm_remove = Button("Confirm Removal", id="btn-confirm-remove", variant="error", classes="action-button")
+        self.btn_cancel_remove = Button("Cancel", id="btn-cancel-remove", variant="error", classes="action-button")
+        self.btn_confirm_remove.display = False
+        self.btn_cancel_remove.display = False
 
     def compose(self) -> ComposeResult:
         with Vertical(id="widget-container"):
             yield Label(f"{self.provider_name}", classes="form-header-label")
             with Horizontal(classes="form-row"):
-                # Base URL Row
-                yield Label(f"Base URL:", classes="form-label")
-                yield Input(value=f"{self.base_url}", id=f"input-url", classes="detail-input", disabled=True)
+                yield Label("Base URL:", classes="form-label")
+                yield Input(value=f"{self.base_url}", id="input-url", classes="detail-input", disabled=True, tooltip="Base URL of the API provider.")
             with Horizontal(classes="form-row"):
-                # Env Key Row
-                yield Label(f"Env Key: ", classes="form-label")
-                yield Input(value=f"{self.env_key}", id=f"input-envkey", classes="detail-input", disabled=True)
+                yield Label("Env Key: ", classes="form-label")
+                yield Input(value=f"{self.env_key}", id="input-envkey", classes="detail-input", disabled=True, tooltip="Name of the environment variable that holds the API key, not the API key itself.")
             with Horizontal(classes="form-row"):
                 yield self.btn_edit
                 yield self.btn_remove
+                yield self.btn_confirm_remove
+                yield self.btn_cancel_remove
                 yield self.btn_save
                 yield self.btn_cancel
 
@@ -100,11 +106,11 @@ class ProviderWidget(Widget):
         input_url = self.query_one("#input-url", Input)
         input_envkey = self.query_one("#input-envkey", Input)
 
-        # enable the input widgets
+        # enable or disable the input widgets
         input_url.disabled = not input_url.disabled
         input_envkey.disabled = not input_envkey.disabled
 
-        # change button mode
+        # toggle button visibility
         self.btn_edit.display = not self.btn_edit.display
         self.btn_remove.display = not self.btn_remove.display
         self.btn_save.display = not self.btn_save.display
@@ -131,15 +137,37 @@ class ProviderWidget(Widget):
         self.set_edit_mode(True)
 
     @on(Button.Pressed, "#btn-remove")
-    async def handle_remove_clicked(self, event: Button.Pressed):
+    async def handle_remove_clicked(self, event: Button.Pressed) -> None:
+        # Prompt for removal confirmation
+        self.btn_edit.display = False
+        self.btn_remove.display = False
+        self.btn_confirm_remove.display = True
+        self.btn_cancel_remove.display = True
+
+    @on(Button.Pressed, "#btn-confirm-remove")
+    async def handle_confirm_remove(self, event: Button.Pressed) -> None:
+        # Perform removal
         self.post_message(CommandRequest(f"/provider remove {self.provider_name}"))
+        # Restore original buttons
+        self.btn_confirm_remove.display = False
+        self.btn_cancel_remove.display = False
+        self.btn_edit.display = True
+        self.btn_remove.display = True
+
+    @on(Button.Pressed, "#btn-cancel-remove")
+    async def handle_cancel_remove(self, event: Button.Pressed) -> None:
+        # Cancel removal and restore buttons
+        self.btn_confirm_remove.display = False
+        self.btn_cancel_remove.display = False
+        self.btn_edit.display = True
+        self.btn_remove.display = True
 
     @on(Button.Pressed, "#btn-cancel")
-    async def handle_cancel_clicked(self, event: Button.Pressed):
+    async def handle_cancel_clicked(self, event: Button.Pressed) -> None:
         self.set_edit_mode(False)
 
     @on(Button.Pressed, "#btn-save")
-    async def handle_save_clicked(self, event:Button.Pressed):
+    async def handle_save_clicked(self, event: Button.Pressed) -> None:
         #todo input validation
         base_url = self.query_one("#input-url", Input).value
         env_key_name = self.query_one("#input-envkey", Input).value

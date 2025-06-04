@@ -52,6 +52,14 @@ class ProvidersScreen(ModalScreen[bool]):
         padding: 1;
         overflow-y: auto;
         overflow-x: hidden; /* Prevent horizontal scroll */
+        scrollbar-background: #1e1e1e;
+        scrollbar-background-hover: #1e1e1e;
+        scrollbar-background-active: #1e1e1e;
+        scrollbar-color: #63f554 30%;
+        scrollbar-color-active: #63f554;
+        scrollbar-color-hover: #63f554 50%;
+        scrollbar-size: 1 1;
+        scrollbar-size-horizontal: 1;
     }
     
     #providers-list-content-area { /* Inner container for actual content */
@@ -123,15 +131,16 @@ class ProvidersScreen(ModalScreen[bool]):
                 with Vertical(id="new-provider-form-container"):
                     # Create "Add Provider" Form
                     yield Label("Add New Provider", classes="section-header-label")
+                    yield Label("Note: A valid API key must be entered after adding a new provider.", classes="detail-label")
                     with Horizontal(classes="detail-row"):
                         yield Label("Name:", classes="detail-label")
-                        yield Input(placeholder="e.g., openai_new", id="new-provider-name-input", classes="detail-input")
+                        yield Input(placeholder="e.g., openai_new", id="new-provider-name-input", classes="detail-input", tooltip="Name of the provider, used to reference it.")
                     with Horizontal(classes="detail-row"):
                         yield Label("Base URL:", classes="detail-label")
-                        yield Input(placeholder="API URL", id="new-provider-baseurl-input", classes="detail-input")
+                        yield Input(placeholder="API URL", id="new-provider-baseurl-input", classes="detail-input", tooltip="Base URL of the API provider.")
                     with Horizontal(classes="detail-row"):
                         yield Label("Env Key:", classes="detail-label")
-                        yield Input(placeholder="e.g., OPENAI_API_KEY_NEW", id="new-provider-envkey-input", classes="detail-input")
+                        yield Input(placeholder="e.g., OPENAI_API_KEY_NEW", id="new-provider-envkey-input", classes="detail-input", tooltip="Name of the environment variable that holds the API key, not the API key itself.")
                     yield Button("Save Provider", id="btn-add-new-provider-action", classes="save-new-button")
 
                 # Create all existing providers
@@ -188,7 +197,6 @@ class ProvidersScreen(ModalScreen[bool]):
                     if widget.base_url != app_provider.base_url or \
                        widget.env_key != app_provider.env_key:
                         await widget.update_provider_details(app_provider.name, app_provider.base_url, app_provider.env_key)
-
 
     @on(Button.Pressed, "#btn-add-new-provider-action")
     def handle_save_pressed(self):
