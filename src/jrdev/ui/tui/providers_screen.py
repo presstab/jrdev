@@ -10,6 +10,7 @@ from textual.widgets import Button, Label, Input, Static
 
 from jrdev.ui.tui.command_request import CommandRequest
 from jrdev.ui.tui.provider_widget import ProviderWidget
+from jrdev.ui.tui.api_key_entry import ApiKeyEntry
 
 logger = logging.getLogger("jrdev")
 
@@ -140,6 +141,7 @@ class ProvidersScreen(ModalScreen[bool]):
                     yield self.provider_widgets[provider.name]
 
             with Horizontal(id="footer"):
+                yield Button("Edit Api Keys", id="edit-api-keys-btn", variant="default")
                 yield Button("Close", id="close-providers-btn", variant="default")
 
     async def on_mount(self) -> None:
@@ -204,6 +206,15 @@ class ProvidersScreen(ModalScreen[bool]):
         name_input.value = ""
         env_key_input.value = ""
         base_url_input.value = ""
+
+    @on(Button.Pressed, "#edit-api-keys-btn")
+    def handle_edit_api_keys_button_press(self) -> None:
+        def save_keys(keys: dict):
+            self.core_app.save_keys(keys)
+            self.parent.run_worker(self.core_app.reload_api_clients())
+
+        providers = self.core_app.provider_list()
+        self.app.push_screen(ApiKeyEntry(core_app=self.core_app, providers=providers, mode="editor"), save_keys)
 
     @on(Button.Pressed, "#close-providers-btn")
     def handle_close_button_press(self) -> None:

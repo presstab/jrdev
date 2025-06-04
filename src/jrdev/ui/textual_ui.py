@@ -291,6 +291,11 @@ class JrDevUI(App[None]):
     def handle_model_selected(self, event: RadioSet.Changed):
         self.jrdev.set_model(str(event.pressed.label), send_to_ui=False)
 
+    @on(TextualEvents.ModelListUpdated)
+    async def handle_model_list_updated(self):
+        models = self.jrdev.get_models()
+        await self.model_list.update_models(models)
+
     @on(TextualEvents.ChatThreadUpdate)
     async def handle_chat_update(self, message: TextualEvents.ChatThreadUpdate):
         """a chat thread has been updated, notify the directory widget to check for context changes"""
@@ -334,9 +339,9 @@ class JrDevUI(App[None]):
         """Handle the Providers button press by opening the ProvidersScreen."""
         if not self.provider_screen:
             self.provider_screen = ProvidersScreen(core_app=self.jrdev)
-            self.app.push_screen(self.provider_screen, self.handle_provider_screen_closed())
+            self.app.push_screen(screen=self.provider_screen, callback=self.handle_provider_screen_closed)
 
-    def handle_provider_screen_closed(self) -> None:
+    def handle_provider_screen_closed(self, success: bool) -> None:
         """Called when ProvidersScreen is dismissed; clear the reference."""
         self.provider_screen = None
 

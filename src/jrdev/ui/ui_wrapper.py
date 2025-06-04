@@ -77,6 +77,12 @@ class UiWrapper:
         """
         raise NotImplementedError("Subclasses must implement model_changed")
 
+    def model_list_updated(self) -> None:
+        """
+        Signal to the UI that the list of models has changed
+        """
+        raise NotImplementedError("Subclasses must implement model_list_updated")
+
     def chat_thread_update(self, thread_id):
         """
         Signal to the UI that a chat thread has been updated

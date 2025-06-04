@@ -299,3 +299,6 @@ class CliEvents(UiWrapper):
 
     def providers_updated(self) -> None:
         pass
+
+    def model_list_updated(self) -> None:
+        pass

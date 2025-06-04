@@ -49,6 +49,7 @@ async def handle_provider(app: Any, args: list[str], worker_id: str) -> None:
             clients.add_provider(provider_data)
             app.ui.print_text(f"Provider '{name}' added successfully.", PrintType.SUCCESS)
             app.ui.providers_updated()
+            app.refresh_model_list()
         except Exception as e:
             app.ui.print_text(f"Error adding provider: {e}", PrintType.ERROR)
 
@@ -79,6 +80,7 @@ async def handle_provider(app: Any, args: list[str], worker_id: str) -> None:
             clients.remove_provider(name)
             app.ui.print_text(f"Provider '{name}' removed successfully.", PrintType.SUCCESS)
             app.ui.providers_updated()
+            app.refresh_model_list()
         except Exception as e:
             app.ui.print_text(f"Error removing provider: {e}", PrintType.ERROR)
     else:

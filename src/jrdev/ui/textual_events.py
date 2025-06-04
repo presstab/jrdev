@@ -37,6 +37,10 @@ class TextualEvents(UiWrapper):
             super().__init__()
             self.text = model
 
+    class ModelListUpdated(Message):
+        """Notify UI that model list has changed"""
+        pass
+
     class ChatThreadUpdate(Message):
         def __init__(self, thread_id: str):
             super().__init__()
@@ -185,6 +189,12 @@ class TextualEvents(UiWrapper):
             model: llm model selected in state
         """
         self.app.post_message(self.ModelChanged(model))
+
+    def model_list_updated(self) -> None:
+        """
+        Signal to UI that model list has changed
+        """
+        self.app.post_message(self.ModelListUpdated())
 
     def chat_thread_update(self, thread_id):
         """

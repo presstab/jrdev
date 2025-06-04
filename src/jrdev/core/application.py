@@ -293,6 +293,20 @@ class Application:
             if send_to_ui:
                 self.ui.model_changed(model)
 
+    def refresh_model_list(self):
+        # 1) grab every model from disk/config
+        models = load_user_preferred_models()
+
+        # 2) overwrite our in-memory list
+        self.state.model_list.set_model_list(models)
+
+        # 3) filter down to only providers we have keys for
+        provider_names = [p.name for p in self.state.clients.provider_list()]
+        self.state.model_list.set_providers(provider_names)
+
+        # 4) if you have a UI hook, call it here:
+        self.ui.model_list_updated()   # ← implement this callback in your
+
     def _check_gitignore(self):
         """
         Check if JRDEV_DIR is in the .gitignore file and add it if not.
