@@ -12,6 +12,7 @@ from jrdev.file_operations.file_utils import add_to_gitignore, JRDEV_DIR, JRDEV_
 from jrdev.commands.keys import check_existing_keys, save_keys_to_env
 from jrdev.logger import setup_logger
 from jrdev.messages.thread import USER_INPUT_PREFIX, MessageThread, THREADS_DIR # Added MessageThread, THREADS_DIR
+from jrdev.models.api_provider import ApiProvider
 from jrdev.services.message_service import MessageService
 from jrdev.models.model_list import ModelList
 from jrdev.models.model_profiles import ModelProfileManager
@@ -409,7 +410,7 @@ class Application:
         save_keys_to_env(keys)
         self.state.need_api_keys = not check_existing_keys(self)
 
-    def provider_list(self):
+    def provider_list(self) -> List[ApiProvider]:
         return self.state.clients.provider_list()
 
     async def reload_api_clients(self):

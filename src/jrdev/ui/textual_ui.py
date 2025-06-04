@@ -8,6 +8,7 @@ from jrdev.core.application import Application
 from jrdev import __version__
 from jrdev.ui.textual_events import TextualEvents
 from jrdev.ui.tui.code_confirmation_screen import CodeConfirmationScreen
+from jrdev.ui.tui.providers_screen import ProvidersScreen
 from jrdev.ui.tui.steps_screen import StepsScreen
 from jrdev.ui.tui.code_edit_screen import CodeEditScreen
 from jrdev.ui.tui.filtered_directory_tree import DirectoryWidget, FilteredDirectoryTree
@@ -30,6 +31,10 @@ logger = logging.getLogger("jrdev")
 
 class JrDevUI(App[None]):
     CSS_PATH = "textual_ui.tcss"
+
+    def __init__(self):
+        super().__init__()
+        self.provider_screen = None
 
     def compose(self) -> Generator[Any, None, None]:
         self.jrdev = Application()
@@ -323,6 +328,22 @@ class JrDevUI(App[None]):
     def handle_exit_request(self, message: TextualEvents.ExitRequest) -> None:
         """Handle a request to exit the application"""
         self.exit()
+
+    @on(Button.Pressed, "#button_providers")
+    def handle_providers_pressed(self, event: Button.Pressed) -> None:
+        """Handle the Providers button press by opening the ProvidersScreen."""
+        if not self.provider_screen:
+            self.provider_screen = ProvidersScreen(core_app=self.jrdev)
+            self.app.push_screen(self.provider_screen, self.handle_provider_screen_closed())
+
+    def handle_provider_screen_closed(self) -> None:
+        """Called when ProvidersScreen is dismissed; clear the reference."""
+        self.provider_screen = None
+
+    @on(TextualEvents.ProvidersUpdate)
+    async def handle_providers_update(self):
+        if self.provider_screen:
+            await self.provider_screen.handle_providers_updated()
 
     @on(ChatViewWidget.ShowTerminal)
     def handle_show_terminal(self):

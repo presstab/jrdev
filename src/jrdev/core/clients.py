@@ -17,9 +17,12 @@ class APIClients:
 
     def __init__(self):
         self._clients: Dict[str, Any] = {}
-        self._providers: List[Any] = []
+        self._providers: List[ApiProvider] = []
         self._initialized = False
         self._load_provider_config()
+
+    def get_client(self, name):
+        return self._clients.get(name, None)
 
     def _load_provider_config(self):
         """Load provider configurations from api_providers.json"""
@@ -27,6 +30,7 @@ class APIClients:
         if not user_config_path.exists():
             # save defaults to user_config path
             default_config_path = Path(JRDEV_PACKAGE_DIR) / "config" / "api_providers.json"
+            logger.info("Loading API providers from system config")
             try:
                 with open(default_config_path, 'r') as f:
                     config = json.load(f)
@@ -44,6 +48,7 @@ class APIClients:
                     try:
                         provider = ApiProvider.from_dict(p)
                         self._providers.append(provider)
+                        logger.info(f"Added provider: {provider.name} url: {provider.base_url}")
                     except Exception as e:
                         logger.error(f"Failed to import provider {p}")
 
@@ -88,7 +93,7 @@ class APIClients:
             return self._clients[name]
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
-    def provider_list(self):
+    def provider_list(self) -> List[ApiProvider]:
         """A list of all provider names"""
         return self._providers
 
@@ -106,3 +111,58 @@ class APIClients:
 
     def set_client_null(self, provider_name):
         self._clients[provider_name] = None
+
+    # New provider management methods
+    def list_providers(self) -> List[ApiProvider]:
+        """Get a list of all API providers"""
+        return self._providers
+
+    def add_provider(self, provider_data: Dict[str, Any]) -> None:
+        """Add a new API provider"""
+        provider = ApiProvider.from_dict(provider_data)
+        self._providers.append(provider)
+        self._clients[provider.name] = None
+        self.set_dirty()
+        self._save_provider_config()
+        logger.info(f"Added new provider: {provider.name}")
+
+    def edit_provider(self, name: str, updated_fields: Dict[str, Any]) -> None:
+        """Edit an existing API provider"""
+        for idx, provider in enumerate(self._providers):
+            if provider.name == name:
+                old_name = provider.name
+                provider_dict = provider.to_dict()
+                provider_dict.update(updated_fields)
+                new_provider = ApiProvider.from_dict(provider_dict)
+                self._providers[idx] = new_provider
+                if old_name in self._clients:
+                    del self._clients[old_name]
+                self._clients[new_provider.name] = None
+                self.set_dirty()
+                self._save_provider_config()
+                logger.info(f"Edited provider: {old_name} -> {new_provider.name}")
+                return
+        logger.warning(f"Provider not found: {name}")
+
+    def remove_provider(self, name: str) -> None:
+        """Remove an API provider"""
+        initial_count = len(self._providers)
+        self._providers = [p for p in self._providers if p.name != name]
+        if name in self._clients:
+            del self._clients[name]
+        if len(self._providers) < initial_count:
+            self.set_dirty()
+            self._save_provider_config()
+            logger.info(f"Removed provider: {name}")
+        else:
+            logger.warning(f"Provider not found: {name}")
+
+    def _save_provider_config(self) -> None:
+        """Persist the provider configuration to the user config file"""
+        user_config_path = get_persistent_storage_path() / "user_api_providers.json"
+        try:
+            with open(user_config_path, "w") as f:
+                json.dump({"providers": [p.to_dict() for p in self._providers]}, f, indent=2)
+            logger.info("Saved API providers configuration")
+        except Exception as e:
+            logger.error(f"Failed to save provider config: {e}")

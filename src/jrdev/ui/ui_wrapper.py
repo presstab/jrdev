@@ -102,6 +102,10 @@ class UiWrapper:
         """Project Context has been toggled on or off"""
         raise NotImplementedError("Subclasses must implement project_context_changed")
 
+    def providers_updated(self) -> None:
+        """The list of providers has been updated (add/edit/delete)"""
+        raise NotImplementedError("Subclasses must implement providers_updated")
+
     async def prompt_for_deletion(self, filepath: str) -> bool:
         """
         Prompt the user for confirmation before deleting a file.

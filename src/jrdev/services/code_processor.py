@@ -268,6 +268,8 @@ class CodeProcessor:
                 return []
         
         # Handle all other operations (existing logic)
+        self.app.logger.info(f"complete_step: sending with files: {str(files_to_send)}")
+
         file_content = get_file_contents(files_to_send)
         code_response = await self.request_code(change_instruction=step, user_task=user_task, file_content=file_content, additional_prompt=retry_message)
         try:
