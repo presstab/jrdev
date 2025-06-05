@@ -1,17 +1,16 @@
 from textual import on
 from textual.app import App
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, Input, RadioSet, TextArea
-from textual.worker import Worker, WorkerState
+from textual.widgets import Button, RadioSet
+from textual.worker import Worker
 from textual.color import Color
 from jrdev.core.application import Application
 from jrdev import __version__
 from jrdev.ui.textual_events import TextualEvents
 from jrdev.ui.tui.code_confirmation_screen import CodeConfirmationScreen
-from jrdev.ui.tui.providers_screen import ProvidersScreen
 from jrdev.ui.tui.steps_screen import StepsScreen
 from jrdev.ui.tui.code_edit_screen import CodeEditScreen
-from jrdev.ui.tui.filtered_directory_tree import DirectoryWidget, FilteredDirectoryTree
+from jrdev.ui.tui.filtered_directory_tree import DirectoryWidget
 from jrdev.ui.tui.api_key_entry import ApiKeyEntry
 from jrdev.ui.tui.model_selection_widget import ModelSelectionWidget
 from jrdev.ui.tui.task_monitor import TaskMonitor
@@ -24,6 +23,7 @@ from jrdev.ui.tui.command_request import CommandRequest
 from jrdev.ui.tui.chat_view_widget import ChatViewWidget
 from jrdev.ui.tui.bordered_switcher import BorderedSwitcher
 from jrdev.ui.tui.file_deletion_screen import FileDeletionScreen
+from jrdev.ui.tui.settings_screen import SettingsScreen
 
 from typing import Any, Generator
 import logging
@@ -34,7 +34,7 @@ class JrDevUI(App[None]):
 
     def __init__(self):
         super().__init__()
-        self.provider_screen = None
+        self.settings_screen = None
 
     def compose(self) -> Generator[Any, None, None]:
         self.jrdev = Application()
@@ -85,7 +85,7 @@ class JrDevUI(App[None]):
         self.jrdev.setup_complete()
         self.print_welcome()
 
-    def print_welcome(self):
+    def print_welcome(self) -> None:
         """Print startup messages"""
         # More welcoming and includes a tagline
         self.terminal_output_widget.append_text(f"Welcome to JrDev Terminal v{__version__}!\n")
@@ -103,7 +103,7 @@ class JrDevUI(App[None]):
         # Clear exit instructions
         self.terminal_output_widget.append_text("Quit: Type /exit or press Ctrl+Q.\n\n")
 
-    async def init_chat_list(self):
+    async def init_chat_list(self) -> None:
         """Add all chat threads to chat list widget, mark current thread"""
         message_threads = self.jrdev.get_all_threads()
         for thr in message_threads:
@@ -111,7 +111,7 @@ class JrDevUI(App[None]):
         current_thread = self.jrdev.get_current_thread()
         self.chat_list.set_active(current_thread.thread_id)
 
-    async def _setup_models(self):
+    async def _setup_models(self) -> None:
         """Initialize the models in the core app"""
         models = self.jrdev.get_models()
 
@@ -124,7 +124,7 @@ class JrDevUI(App[None]):
 
         self.model_list.styles.height = "50%"  # Relative to parent vlayout_right
 
-    def _setup_styles(self):
+    def _setup_styles(self) -> None:
         # directory widget styling
         self.directory_widget.border_title = "Project Files"
         self.directory_widget.styles.border = ("round", Color.parse("#5e5e5e"))
@@ -198,7 +198,7 @@ class JrDevUI(App[None]):
         """Pass a command to the core app through a worker"""
         worker = self.run_worker(self.jrdev.process_input(event.command))
 
-    def get_new_task_id(self):
+    def get_new_task_id(self) -> str:
         id = self.task_count
         self.task_count += 1
         return str(id)
@@ -232,7 +232,7 @@ class JrDevUI(App[None]):
         self.push_screen(screen)
 
     @on(TextualEvents.StepsRequest)
-    def handle_steps_request(self, message: TextualEvents.StepsRequest):
+    def handle_steps_request(self, message: TextualEvents.StepsRequest) -> None:
         screen = StepsScreen(message.steps)
         screen.future = message.future
         self.push_screen(screen)
@@ -255,7 +255,7 @@ class JrDevUI(App[None]):
         self.push_screen(screen)
 
     @on(TextualEvents.EnterApiKeys)
-    def handle_enter_api_keys(self, message: TextualEvents.EnterApiKeys):
+    def handle_enter_api_keys(self, message: TextualEvents.EnterApiKeys) -> None:
         def check_keys(keys: dict):
             self.jrdev.save_keys(keys)
             if self.jrdev.state.need_first_time_setup:
@@ -266,7 +266,7 @@ class JrDevUI(App[None]):
         self.push_screen(ApiKeyEntry(core_app=self.jrdev, providers=providers), check_keys)
 
     @on(Button.Pressed, "#button_api_keys")
-    def handle_edit_api_keys(self):
+    def handle_edit_api_keys(self) -> None:
         def save_keys(keys: dict):
             self.jrdev.save_keys(keys)
             self.run_worker(self.jrdev.reload_api_clients())
@@ -275,29 +275,29 @@ class JrDevUI(App[None]):
         self.push_screen(ApiKeyEntry(core_app=self.jrdev, providers=providers, mode="editor"), save_keys)
 
     @on(Button.Pressed, "#stop-button")
-    def handle_stop_button(self):
+    def handle_stop_button(self) -> None:
         self.workers.cancel_all()
 
     @on(Button.Pressed, "#button_profiles")
-    def handle_profiles_pressed(self):
+    def handle_profiles_pressed(self) -> None:
         """Open the model profile management screen"""
         self.app.push_screen(ModelProfileScreen(self.jrdev))
 
     @on(TextualEvents.ModelChanged)
-    def handle_model_change(self, message: TextualEvents.ModelChanged):
+    def handle_model_change(self, message: TextualEvents.ModelChanged) -> None:
         self.model_list.set_model_selected(message.text)
 
     @on(RadioSet.Changed, "#model_list")
-    def handle_model_selected(self, event: RadioSet.Changed):
+    def handle_model_selected(self, event: RadioSet.Changed) -> None:
         self.jrdev.set_model(str(event.pressed.label), send_to_ui=False)
 
     @on(TextualEvents.ModelListUpdated)
-    async def handle_model_list_updated(self):
+    async def handle_model_list_updated(self) -> None:
         models = self.jrdev.get_models()
         await self.model_list.update_models(models)
 
     @on(TextualEvents.ChatThreadUpdate)
-    async def handle_chat_update(self, message: TextualEvents.ChatThreadUpdate):
+    async def handle_chat_update(self, message: TextualEvents.ChatThreadUpdate) -> None:
         """a chat thread has been updated, notify the directory widget to check for context changes"""
         self.directory_widget.reload_highlights()
         # get the thread
@@ -315,17 +315,17 @@ class JrDevUI(App[None]):
             await self.chat_view.on_thread_switched()
 
     @on(TextualEvents.CodeContextUpdate)
-    def handle_code_context_update(self, message: TextualEvents.CodeContextUpdate):
+    def handle_code_context_update(self, message: TextualEvents.CodeContextUpdate) -> None:
         """The staged code context has been updated, notify directory widget to check for context changes"""
         self.directory_widget.reload_highlights()
 
     @on(TextualEvents.ProjectContextUpdate)
-    def handle_project_context_update(self, event: TextualEvents.ProjectContextUpdate):
+    def handle_project_context_update(self, event: TextualEvents.ProjectContextUpdate) -> None:
         """Project context has been turned on or off"""
         self.chat_view.handle_external_update(event.is_enabled)
 
     @on(TextualEvents.TaskUpdate)
-    def handle_task_update(self, message: TextualEvents.TaskUpdate):
+    def handle_task_update(self, message: TextualEvents.TaskUpdate) -> None:
         """An update to a task/worker is being sent from the core app"""
         self.task_monitor.handle_task_update(message)
 
@@ -334,24 +334,31 @@ class JrDevUI(App[None]):
         """Handle a request to exit the application"""
         self.exit()
 
-    @on(Button.Pressed, "#button_providers")
-    def handle_providers_pressed(self, event: Button.Pressed) -> None:
-        """Handle the Providers button press by opening the ProvidersScreen."""
-        if not self.provider_screen:
-            self.provider_screen = ProvidersScreen(core_app=self.jrdev)
-            self.app.push_screen(screen=self.provider_screen, callback=self.handle_provider_screen_closed)
+    # Add Settings button handler
+    @on(Button.Pressed, "#button_settings")
+    def handle_settings_pressed(self) -> None:
+        """Open the SettingsScreen with Providers tab active by default."""
+        if not self.settings_screen:
+            self.settings_screen = SettingsScreen(core_app=self.jrdev)
+            self.settings_screen.active_view = "providers"
+            self.app.push_screen(screen=self.settings_screen, callback=self.handle_settings_screen_closed)
 
-    def handle_provider_screen_closed(self, success: bool) -> None:
-        """Called when ProvidersScreen is dismissed; clear the reference."""
-        self.provider_screen = None
+    def handle_settings_screen_closed(self, success: bool) -> None:
+        """Called when SettingsScreen is dismissed; clear the reference."""
+        self.settings_screen = None
 
     @on(TextualEvents.ProvidersUpdate)
-    async def handle_providers_update(self):
-        if self.provider_screen:
-            await self.provider_screen.handle_providers_updated()
+    async def handle_providers_update(self) -> None:
+        if self.settings_screen:
+            await self.settings_screen.providers_widget.handle_providers_updated()
+
+    @on(TextualEvents.ModelListUpdated)
+    async def handle_models_update(self) -> None:
+        if self.settings_screen:
+            await self.settings_screen.models_widget.handle_models_updated()
 
     @on(ChatViewWidget.ShowTerminal)
-    def handle_show_terminal(self):
+    def handle_show_terminal(self) -> None:
         """Switch to terminal view"""
         self.content_switcher.current = "terminal_output_container"
 

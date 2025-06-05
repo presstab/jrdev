@@ -3,9 +3,8 @@ from typing import Any, Optional
 
 from textual import on
 from textual.app import ComposeResult
-from textual.binding import Binding
 from textual.containers import Vertical, Horizontal, ScrollableContainer
-from textual.screen import ModalScreen
+from textual.widget import Widget
 from textual.widgets import Button, Label, Input, Static
 
 from jrdev.ui.tui.command_request import CommandRequest
@@ -14,20 +13,20 @@ from jrdev.ui.tui.api_key_entry import ApiKeyEntry
 
 logger = logging.getLogger("jrdev")
 
-class ProvidersScreen(ModalScreen[bool]):
-    """Modal screen for managing API Providers."""
+class ProvidersWidget(Widget):
+    """Widget for managing API Providers (list, add, edit, remove)."""
 
     DEFAULT_CSS = """
-    ProvidersScreen {
+    ProvidersWidget {
         align: center middle;
     }
 
     #providers-container {
-        width: 90%;
-        max-width: 120; /* Max width for better readability */
-        height: 90%;
+        width: 100%;
+        max-width: 120;
+        height: 100%;
         background: $surface;
-        border: round $accent;
+        border: none;
         padding: 0;
         margin: 0;
         layout: vertical;
@@ -36,7 +35,7 @@ class ProvidersScreen(ModalScreen[bool]):
     #header {
         dock: top;
         height: 3;
-        padding: 0 1; /* Added padding for consistency */
+        padding: 0 1;
         border-bottom: solid $accent;
     }
 
@@ -47,11 +46,11 @@ class ProvidersScreen(ModalScreen[bool]):
         color: $accent;
     }
 
-    #providers-list-scrollable-container { /* Renamed for clarity */
-        height: 1fr; /* Takes remaining space */
+    #providers-list-scrollable-container {
+        height: 1fr;
         padding: 1;
         overflow-y: auto;
-        overflow-x: hidden; /* Prevent horizontal scroll */
+        overflow-x: hidden;
         scrollbar-background: #1e1e1e;
         scrollbar-background-hover: #1e1e1e;
         scrollbar-background-active: #1e1e1e;
@@ -62,9 +61,9 @@ class ProvidersScreen(ModalScreen[bool]):
         scrollbar-size-horizontal: 1;
     }
     
-    #providers-list-content-area { /* Inner container for actual content */
+    #providers-list-content-area {
         width: 100%;
-        height: auto; /* Grows with content */
+        height: auto;
     }
 
     .provider-section-container, #new-provider-form-container {
@@ -75,7 +74,7 @@ class ProvidersScreen(ModalScreen[bool]):
         height: auto;
     }
 
-    .section-header-label { /* General header for provider or 'Add New' */
+    .section-header-label {
         text-style: bold;
         color: #63f554;
         margin-bottom: 1;
@@ -97,24 +96,7 @@ class ProvidersScreen(ModalScreen[bool]):
         align-horizontal: left;
         margin-right: 1;
     }
-
-    #footer {
-        dock: bottom;
-        height: 3;
-        padding: 0 1;
-        border-top: solid $accent;
-        align: left middle; /* Align buttons to the left */
-    }
-
-    #footer Button {
-        margin-right: 1; /* Add margin to the right of buttons */
-        border: none;
-    }
     """
-
-    BINDINGS = [
-        Binding("escape", "close_screen", "Close", show=False),
-    ]
 
     def __init__(self, core_app: Any, name: Optional[str] = None, id: Optional[str] = None, classes: Optional[str] = None) -> None:
         super().__init__(name=name, id=id, classes=classes)
@@ -124,9 +106,6 @@ class ProvidersScreen(ModalScreen[bool]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="providers-container"):
-            with Horizontal(id="header"):
-                yield Label("API Providers Management", id="header-title")
-
             with self.provider_container:
                 with Vertical(id="new-provider-form-container"):
                     # Create "Add Provider" Form
@@ -151,10 +130,8 @@ class ProvidersScreen(ModalScreen[bool]):
 
             with Horizontal(id="footer"):
                 yield Button("Edit Api Keys", id="edit-api-keys-btn", variant="default")
-                yield Button("Close", id="close-providers-btn", variant="default")
 
     async def on_mount(self) -> None:
-        """Load existing providers and populate the view."""
         self.style_input(self.query_one("#new-provider-name-input", Input))
         self.style_input(self.query_one("#new-provider-envkey-input", Input))
         self.style_input(self.query_one("#new-provider-baseurl-input", Input))
@@ -164,7 +141,6 @@ class ProvidersScreen(ModalScreen[bool]):
         input_widget.styles.height = 1
 
     async def handle_providers_updated(self) -> None:
-        # get current list of providers from core app
         providers = self.core_app.provider_list()
         if len(providers) > len(self.provider_widgets.keys()):
             # provider has been added
@@ -177,34 +153,30 @@ class ProvidersScreen(ModalScreen[bool]):
             # provider has been removed
             removed_name = None
             provider_names = [provider.name for provider in providers]
-            for provider_name in self.provider_widgets.keys():
+            for provider_name in list(self.provider_widgets.keys()):
                 if provider_name not in provider_names:
-                    # mark for removal
                     removed_name = provider_name
                     break
-
-            # Remove widget
-            if removed_name and removed_name in self.provider_widgets: # Ensure widget exists before removal
+            if removed_name and removed_name in self.provider_widgets:
                 await self.provider_widgets[removed_name].remove()
                 self.provider_widgets.pop(removed_name)
         else:
-            # Provider details might have been edited (number of providers is the same)
+            # Provider details might have been edited
             app_providers_list = self.core_app.provider_list()
             for app_provider in app_providers_list:
                 if app_provider.name in self.provider_widgets:
                     widget = self.provider_widgets[app_provider.name]
-                    # Check if details have changed
                     if widget.base_url != app_provider.base_url or \
                        widget.env_key != app_provider.env_key:
                         await widget.update_provider_details(app_provider.name, app_provider.base_url, app_provider.env_key)
 
     @on(Button.Pressed, "#btn-add-new-provider-action")
     def handle_save_pressed(self):
-        # Send command to core app to add a new provider
         name_input = self.query_one("#new-provider-name-input", Input)
         env_key_input = self.query_one("#new-provider-envkey-input", Input)
         base_url_input = self.query_one("#new-provider-baseurl-input", Input)
 
+        # Send command to core app to add a new provider
         name = name_input.value
         env_key_name = env_key_input.value
         base_url = base_url_input.value
@@ -223,7 +195,3 @@ class ProvidersScreen(ModalScreen[bool]):
 
         providers = self.core_app.provider_list()
         self.app.push_screen(ApiKeyEntry(core_app=self.core_app, providers=providers, mode="editor"), save_keys)
-
-    @on(Button.Pressed, "#close-providers-btn")
-    def handle_close_button_press(self) -> None:
-        self.dismiss(False)
