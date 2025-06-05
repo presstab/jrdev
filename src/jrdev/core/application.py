@@ -16,7 +16,7 @@ from jrdev.models.api_provider import ApiProvider
 from jrdev.services.message_service import MessageService
 from jrdev.models.model_list import ModelList
 from jrdev.models.model_profiles import ModelProfileManager
-from jrdev.models.model_utils import load_user_preferred_models, ignore_model, unignore_model, get_ignored_model_names
+from jrdev.models.model_utils import save_models, load_models
 from jrdev.services.contextmanager import ContextManager
 from jrdev.utils.treechart import generate_compact_tree
 from jrdev.ui.ui import PrintType
@@ -82,7 +82,7 @@ class Application:
         self._load_environment()
         # Initialize state components
         self.state.model_list = ModelList()
-        self.state.model_list.set_model_list(load_user_preferred_models())
+        self.state.model_list.set_model_list(load_models())
         all_providers = self.state.clients.provider_list()
         provider_names = [provider.name for provider in all_providers]
         self.state.model_list.set_providers(provider_names)
@@ -293,9 +293,27 @@ class Application:
             if send_to_ui:
                 self.ui.model_changed(model)
 
+    def remove_model(self, model_name) -> bool:
+        """Remove a model from runtime model list, flush to disk"""
+        if not self.state.model_list.remove_model(model_name):
+            return False
+
+        save_models(self.state.model_list.get_model_list())
+        self.ui.model_list_updated()
+        return True
+
+    def add_model(self, model_name: str, provider: str, is_think: bool, input_cost: int, output_cost: int, context_window: int) -> bool:
+        """Add a model to runtime model list, flush to disk"""
+        if not self.state.model_list.add_model(model_name, provider, is_think, input_cost, output_cost, context_window):
+            return False
+
+        save_models(self.state.model_list.get_model_list())
+        self.ui.model_list_updated()
+        return True
+
     def refresh_model_list(self):
-        # 1) grab every model from disk/config
-        models = load_user_preferred_models()
+        # 1) grab every model from user's config (single source of truth)
+        models = load_models()
 
         # 2) overwrite our in-memory list
         self.state.model_list.set_model_list(models)
@@ -304,8 +322,8 @@ class Application:
         provider_names = [p.name for p in self.state.clients.provider_list()]
         self.state.model_list.set_providers(provider_names)
 
-        # 4) if you have a UI hook, call it here:
-        self.ui.model_list_updated()   # ← implement this callback in your
+        # 4) notify listeners of models update
+        self.ui.model_list_updated()
 
     def _check_gitignore(self):
         """

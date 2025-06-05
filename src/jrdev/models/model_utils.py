@@ -2,288 +2,166 @@
 
 """
 Utility functions for model management in JrDev.
+Models are managed via a user-specific configuration file (user_models.json),
+which acts as the single source of truth. If this file doesn't exist,
+it's created using defaults from the system's model_list.json.
 """
 import json
 import logging
 import os
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from jrdev.file_operations.file_utils import JRDEV_PACKAGE_DIR, get_persistent_storage_path
 
 # Get the global logger
 logger = logging.getLogger("jrdev")
 
-USER_MODEL_CONFIG_FILENAME = "user_model_config.json"
+USER_MODELS_FILENAME = "user_models.json"
 
-def _get_user_config_path() -> str:
-    """Helper function to get the full path to the user model config file."""
+def _get_user_models_config_path() -> str:
+    """Helper function to get the full path to the user models config file."""
     persistent_storage_path = get_persistent_storage_path()
-    return os.path.join(persistent_storage_path, USER_MODEL_CONFIG_FILENAME)
+    return os.path.join(persistent_storage_path, USER_MODELS_FILENAME)
 
-def _load_user_config() -> Dict[str, Any]:
-    """Loads the user model configuration from JSON file.
+def _get_default_models_from_system_config() -> List[Dict[str, Any]]:
+    """
+    Loads the default list of models from the system's configuration file.
+    This is used as the initial content for the user's model config if it doesn't exist.
 
     Returns:
-        A dictionary containing 'user_models' and 'ignored_model_names'.
-        Returns default empty lists if file not found or parsing error.
-    """
-    user_config_path = _get_user_config_path()
-    default_config = {"user_models": [], "ignored_model_names": []}
-
-    if not os.path.exists(user_config_path):
-        logger.info(f"User model config {user_config_path} not found. Using default empty config.")
-        return default_config
-    
-    try:
-        with open(user_config_path, "r", encoding='utf-8') as f:
-            config_data = json.load(f)
-        
-        # Validate and normalize structure
-        if not isinstance(config_data.get("user_models"), list) or \
-           not all(isinstance(m, dict) and "name" in m for m in config_data.get("user_models", [])):
-            logger.warning(f"'user_models' in {user_config_path} is malformed. Resetting to empty list.")
-            config_data["user_models"] = []
-
-        if not isinstance(config_data.get("ignored_model_names"), list) or \
-           not all(isinstance(name, str) for name in config_data.get("ignored_model_names", [])):
-            logger.warning(f"'ignored_model_names' in {user_config_path} is malformed. Resetting to empty list.")
-            config_data["ignored_model_names"] = []
-            
-        return config_data
-    except json.JSONDecodeError:
-        logger.error(f"Error decoding JSON from {user_config_path}. Returning default config.")
-        return default_config
-    except Exception as e:
-        logger.error(f"Unexpected error loading user model config {user_config_path}: {e}. Returning default config.")
-        return default_config
-
-def _save_user_config(config_data: Dict[str, Any]) -> None:
-    """Saves the user model configuration to JSON file.
-
-    Args:
-        config_data: Dictionary containing 'user_models' and 'ignored_model_names'.
-    """
-    user_config_path = _get_user_config_path()
-    try:
-        os.makedirs(os.path.dirname(user_config_path), exist_ok=True)
-        with open(user_config_path, "w", encoding='utf-8') as f:
-            json.dump(config_data, f, indent=4)
-        logger.info(f"User model configuration saved to {user_config_path}")
-    except Exception as e:
-        logger.error(f"Error saving user model configuration to {user_config_path}: {e}")
-
-def load_hardcoded_models() -> List[Dict[str, Any]]:
-    """
-    Load hardcoded models from JSON file.
-
-    Returns:
-        List of hardcoded models
+        List of model dictionaries from 'src/jrdev/config/model_list.json'.
     """
     try:
         json_path = os.path.join(JRDEV_PACKAGE_DIR, "config", "model_list.json")
-
-        with open(json_path, "r") as f:
+        with open(json_path, "r", encoding='utf-8') as f:
             data = json.load(f)
-            return data.get("models", [])
+            models = data.get("models", [])
+            if not isinstance(models, list):
+                logger.error(f"Default models data in {json_path} is not a list. Returning empty list.")
+                return []
+            return models
     except FileNotFoundError:
-        logger.error(f"Hardcoded models file not found at {json_path}")
+        logger.error(f"System default models file not found at {json_path}. Returning empty list.")
         return []
     except json.JSONDecodeError as e:
-        logger.error(f"Error decoding hardcoded models JSON: {e}")
+        logger.error(f"Error decoding system default models JSON from {json_path}: {e}. Returning empty list.")
         return []
     except Exception as e:
-        logger.error(f"Error loading hardcoded models: {e}")
-        # Return empty list as fallback
+        logger.error(f"Unexpected error loading system default models from {json_path}: {e}. Returning empty list.")
         return []
 
-def get_ignored_model_names() -> List[str]:
+def _ensure_user_models_config_exists() -> None:
     """
-    Retrieves the list of model names that the user has marked as ignored.
+    Ensures the user's model configuration file (user_models.json) exists.
+    If not, it creates one by copying the structure and content from the
+    system default 'model_list.json'. The models are stored under a 'models' key.
+    """
+    user_config_path = _get_user_models_config_path()
+    if not os.path.exists(user_config_path):
+        logger.info(f"User models config file not found at {user_config_path}. Creating from system defaults.")
+        default_models = _get_default_models_from_system_config()
+        try:
+            os.makedirs(os.path.dirname(user_config_path), exist_ok=True)
+            with open(user_config_path, "w", encoding='utf-8') as f:
+                json.dump({"models": default_models}, f, indent=4)
+            logger.info(f"Successfully created user models config at {user_config_path} with {len(default_models)} models.")
+        except Exception as e:
+            logger.error(f"Failed to create user models config file at {user_config_path}: {e}")
+
+def load_models() -> List[Dict[str, Any]]:
+    """
+    Loads the list of AI models from the user's configuration file (user_models.json).
+    This function first ensures the user's config file exists by calling
+    _ensure_user_models_config_exists(). The user's config file is the single source of truth.
 
     Returns:
-        A list of strings, where each string is an ignored model name.
+        List of model dictionaries from the user's 'user_models.json'.
     """
-    config = _load_user_config()
-    return config.get("ignored_model_names", [])
+    _ensure_user_models_config_exists()
 
-def ignore_model(model_name: str) -> bool:
+    user_config_path = _get_user_models_config_path()
+    try:
+        with open(user_config_path, "r", encoding='utf-8') as f:
+            data = json.load(f)
+            models = data.get("models", [])
+            # Basic validation
+            if not isinstance(models, list) or not all(isinstance(m, dict) and "name" in m for m in models):
+                logger.warning(f"Models data in {user_config_path} is malformed or missing 'name' fields. Returning empty list.")
+                # Optionally, attempt to repair or re-create from defaults here, or just return empty
+                return []
+            logger.debug(f"Loaded {len(models)} models from user config: {user_config_path}")
+            return models
+    except FileNotFoundError: # Should be handled by _ensure, but as a safeguard
+        logger.error(f"User models config file {user_config_path} not found despite ensure check. Returning empty list.")
+        return []
+    except json.JSONDecodeError:
+        logger.error(f"Error decoding JSON from user models config {user_config_path}. Returning empty list.")
+        return []
+    except Exception as e:
+        logger.error(f"Unexpected error loading models from {user_config_path}: {e}. Returning empty list.")
+        return []
+
+def save_models(models_list: List[Dict[str, Any]]) -> None:
     """
-    Adds a model to the ignored list and removes it from the active user models list
-    in the configuration file. The change is persisted to user_model_config.json.
+    Saves the provided list of models to the user's 'user_models.json' file,
+    overwriting its previous content. The models are stored under a "models" key.
 
     Args:
-        model_name: The name of the model to ignore.
-
-    Returns:
-        True if the model was successfully ignored, False if it was already ignored.
+        models_list: The list of model dictionaries to save.
     """
-    config = _load_user_config()
-    user_models = config.get("user_models", [])
-    ignored_names = config.get("ignored_model_names", [])
+    user_config_path = _get_user_models_config_path()
+    try:
+        os.makedirs(os.path.dirname(user_config_path), exist_ok=True)
+        with open(user_config_path, "w", encoding='utf-8') as f:
+            json.dump({"models": models_list}, f, indent=4)
+        logger.info(f"Successfully saved {len(models_list)} models to user config: {user_config_path}")
+    except Exception as e:
+        logger.error(f"Error saving models to user config {user_config_path}: {e}")
 
-    if model_name in ignored_names:
-        logger.info(f"Model '{model_name}' is already in the ignored list.")
-        return False
-
-    ignored_names.append(model_name)
-    updated_user_models = [m for m in user_models if m.get("name") != model_name]
-    
-    if len(user_models) != len(updated_user_models):
-        logger.info(f"Model '{model_name}' marked for removal from active user models list in config.")
-    
-    _save_user_config({
-        "user_models": updated_user_models,
-        "ignored_model_names": sorted(list(set(ignored_names)))
-    })
-    logger.info(f"Model '{model_name}' added to ignored list in config.")
-    return True
-
-def unignore_model(model_name: str) -> bool:
-    """
-    Removes a model from the ignored list in the configuration file.
-    The change is persisted to user_model_config.json.
-    The model may be re-added to the active list by load_user_preferred_models
-    during the next model list refresh if it's a default model.
-
-    Args:
-        model_name: The name of the model to unignore.
-
-    Returns:
-        True if the model was successfully unignored, False if it was not in the ignored list.
-    """
-    config = _load_user_config()
-    ignored_names = config.get("ignored_model_names", [])
-
-    if model_name not in ignored_names:
-        logger.info(f"Model '{model_name}' is not in the ignored list.")
-        return False
-
-    ignored_names.remove(model_name)
-    
-    _save_user_config({
-        "user_models": config.get("user_models", []), # Pass through existing user_models
-        "ignored_model_names": sorted(list(set(ignored_names)))
-    })
-    logger.info(f"Model '{model_name}' removed from ignored list in config. It may become available after model list refresh.")
-    return True
-
-def load_user_preferred_models() -> List[Dict[str, Any]]:
-    """
-    Loads the user's preferred model list, synchronizing it with hardcoded models
-    and respecting the user's ignored models list.
-    User preferences are stored in user_model_config.json.
-
-    Returns:
-        List of model dictionaries representing the final available models.
-    """
-    default_models = load_hardcoded_models()
-    user_config = _load_user_config()
-    
-    user_models_from_file = user_config.get("user_models", [])
-    ignored_model_names_from_file = user_config.get("ignored_model_names", [])
-    
-    config_needs_saving = False
-
-    synced_user_models = [model.copy() for model in user_models_from_file]
-    final_ignored_model_names = sorted(list(set(ignored_model_names_from_file))) # Ensure unique and sorted
-
-    # Check if ignored_model_names_from_file was changed by sorting/deduplicating
-    if final_ignored_model_names != ignored_model_names_from_file:
-        config_needs_saving = True
-
-    current_user_model_names = {model["name"] for model in synced_user_models if "name" in model}
-
-    if not user_models_from_file and default_models:
-        logger.info("User model list in config is empty; will populate with defaults unless models are ignored.")
-        # config_needs_saving will be set when models are added below
-
-    for default_model in default_models:
-        default_model_name = default_model.get("name")
-        if not default_model_name:
-            logger.warning(f"Default model found without a name: {default_model}. Skipping.")
-            continue
-
-        if default_model_name in final_ignored_model_names:
-            if default_model_name in current_user_model_names:
-                synced_user_models = [m for m in synced_user_models if m.get("name") != default_model_name]
-                current_user_model_names.remove(default_model_name)
-                config_needs_saving = True
-                logger.info(f"Model '{default_model_name}' is ignored by user, removed from active list.")
-            continue # Skip if ignored
-
-        if default_model_name not in current_user_model_names:
-            synced_user_models.append(default_model.copy())
-            current_user_model_names.add(default_model_name)
-            config_needs_saving = True
-            logger.info(f"New model '{default_model_name}' added to user's list from defaults.")
-        else:
-            # Model exists in user's list; update its properties from default_model
-            for i, user_model_instance in enumerate(synced_user_models):
-                if user_model_instance.get("name") == default_model_name:
-                    model_updated_from_default = False
-                    for key, default_value in default_model.items():
-                        if user_model_instance.get(key) != default_value:
-                            user_model_instance[key] = default_value
-                            model_updated_from_default = True
-                    
-                    if model_updated_from_default:
-                        synced_user_models[i] = user_model_instance
-                        config_needs_saving = True
-                        logger.info(f"Updated properties for model '{default_model_name}' in user's list from defaults.")
-                    break
-    
-    # Deduplicate final list (e.g. if user manually added duplicates or errors occurred)
-    seen_names = set()
-    unique_final_models = []
-    duplicates_found = False
-    for model in synced_user_models:
-        model_name = model.get("name")
-        if model_name and model_name not in seen_names:
-            unique_final_models.append(model)
-            seen_names.add(model_name)
-        elif model_name in seen_names:
-            logger.warning(f"Duplicate model name '{model_name}' found in user's list. Keeping first instance.")
-            duplicates_found = True
-    
-    if duplicates_found:
-        config_needs_saving = True
-    synced_user_models = unique_final_models
-
-    if config_needs_saving:
-        _save_user_config({"user_models": synced_user_models, "ignored_model_names": final_ignored_model_names})
-
-    return synced_user_models
-
-def get_model_cost(model: str, available_models: List[Dict[str, Any]]) -> Dict[str, int]:
+def get_model_cost(model_name: str, available_models: List[Dict[str, Any]]) -> Optional[Dict[str, int]]:
     """
     Get model input and output cost per million tokens (cost denominated in VCU).
 
     Args:
-        model: Name of the model to get costs for
-        available_models: List of available models with their costs
+        model_name: Name of the model to get costs for.
+        available_models: List of available models (typically from load_models()).
 
     Returns:
-        Dictionary with input_cost and output_cost, or None if model not found
+        Dictionary with input_cost and output_cost, or None if model not found.
     """
     for entry in available_models:
-        if entry["name"] == model:
-            return {"input_cost": entry["input_cost"], "output_cost": entry["output_cost"]}
+        if entry.get("name") == model_name:
+            input_cost = entry.get("input_cost", 0)
+            output_cost = entry.get("output_cost", 0)
+            if not isinstance(input_cost, int):
+                logger.warning(f"Model '{model_name}' has non-integer input_cost '{input_cost}'. Defaulting to 0.")
+                input_cost = 0
+            if not isinstance(output_cost, int):
+                logger.warning(f"Model '{model_name}' has non-integer output_cost '{output_cost}'. Defaulting to 0.")
+                output_cost = 0
+            return {"input_cost": input_cost, "output_cost": output_cost}
+    logger.debug(f"Model '{model_name}' not found in available models for cost lookup.")
     return None
 
-def is_think_model(model: str, available_models: List[Dict[str, Any]]) -> bool:
+def is_think_model(model_name: str, available_models: List[Dict[str, Any]]) -> bool:
     """
     Check if a model is a "think" model.
 
     Args:
-        model: Name of the model to check
-        available_models: List of available models with their properties
+        model_name: Name of the model to check.
+        available_models: List of available models (typically from load_models()).
 
     Returns:
-        True if the model is a think model, False otherwise
+        True if the model is a think model, False otherwise or if model not found.
     """
     for entry in available_models:
-        if entry["name"] == model:
-            return entry["is_think"]
+        if entry.get("name") == model_name:
+            is_think = entry.get("is_think", False)
+            if not isinstance(is_think, bool):
+                logger.warning(f"Model '{model_name}' has non-boolean is_think value '{is_think}'. Defaulting to False.")
+                return False
+            return is_think
+    logger.debug(f"Model '{model_name}' not found in available models for is_think lookup.")
     return False
 
 def VCU_Value() -> float:
