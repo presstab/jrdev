@@ -6,7 +6,7 @@ from textual.app import ComposeResult
 from textual.color import Color
 from textual.containers import Vertical
 from textual.widgets import Button
-from jrdev.ui.textual.terminal_text_area import TerminalTextArea
+from jrdev.ui.tui.terminal_text_area import TerminalTextArea
 
 logger = logging.getLogger("jrdev")
 

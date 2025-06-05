@@ -14,6 +14,7 @@ from jrdev.commands import (
     handle_help,
     handle_init,
     handle_keys,
+    handle_provider,
     handle_model,
     handle_models,
     handle_modelprofile,
@@ -59,6 +60,7 @@ class CommandHandler:
             "/projectcontext": handle_projectcontext,
             "/git": handle_git,
             "/keys": handle_keys,
+            "/provider": handle_provider,
             "/thread": handle_thread
         }
 

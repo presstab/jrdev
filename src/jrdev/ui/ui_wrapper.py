@@ -77,6 +77,12 @@ class UiWrapper:
         """
         raise NotImplementedError("Subclasses must implement model_changed")
 
+    def model_list_updated(self) -> None:
+        """
+        Signal to the UI that the list of models has changed
+        """
+        raise NotImplementedError("Subclasses must implement model_list_updated")
+
     def chat_thread_update(self, thread_id):
         """
         Signal to the UI that a chat thread has been updated
@@ -101,6 +107,10 @@ class UiWrapper:
     def project_context_changed(self, is_enabled: bool) -> None:
         """Project Context has been toggled on or off"""
         raise NotImplementedError("Subclasses must implement project_context_changed")
+
+    def providers_updated(self) -> None:
+        """The list of providers has been updated (add/edit/delete)"""
+        raise NotImplementedError("Subclasses must implement providers_updated")
 
     async def prompt_for_deletion(self, filepath: str) -> bool:
         """

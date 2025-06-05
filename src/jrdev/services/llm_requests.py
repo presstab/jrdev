@@ -26,22 +26,9 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
     token_encoder = tiktoken.get_encoding("cl100k_base")
 
     # Select the appropriate client based on provider
-    if model_provider == "venice":
-        client = app.state.clients.venice
-    elif model_provider == "openai":
-        client = app.state.clients.openai
-        if not client:
-            raise ValueError(f"OpenAI API key not configured but model {model} requires it")
-    elif model_provider == "deepseek":
-        client = app.state.clients.deepseek
-        if not client:
-            raise ValueError(f"DeepSeek API key not configured but model {model} requires it")
-    elif model_provider == "open_router":
-        client = app.state.clients.open_router
-        if not client:
-            raise ValueError(f"OpenRouter API key not configured but model {model} requires it")
-    else:
-        raise ValueError(f"Unknown provider for model {model}")
+    if model_provider not in app.state.clients.get_all_clients():
+        raise ValueError(f"No client for {model_provider}")
+    client = app.state.clients.get_client(model_provider)
 
     # Create a streaming completion
     kwargs = {
