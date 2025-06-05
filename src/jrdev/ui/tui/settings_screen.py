@@ -9,6 +9,7 @@ from textual.widgets import Button, Label, Input, Static
 
 from jrdev.ui.tui.providers_widget import ProvidersWidget
 from jrdev.ui.tui.models_widget import ModelsWidget
+from jrdev.ui.tui.api_key_entry import ApiKeyEntry
 
 logger = logging.getLogger("jrdev")
 
@@ -146,6 +147,7 @@ class SettingsScreen(ModalScreen):
                 with Vertical(id="sidebar"):
                     yield Button("Providers", id="btn-providers", classes="sidebar-button selected")
                     yield Button("Models", id="btn-models", classes="sidebar-button")
+                    yield Button("API Keys", id="btn-api-keys", classes="sidebar-button")
                 # Content Area
                 with Vertical(id="content-area"):
                     with ScrollableContainer(id="providers-view"):
@@ -198,11 +200,21 @@ class SettingsScreen(ModalScreen):
         if button_id == "btn-providers":
             self.active_view = "providers"
             self.query_one("#btn-providers", Button).focus()
+            self.update_view_visibility()
         elif button_id == "btn-models":
             self.active_view = "models"
             self.query_one("#btn-models", Button).focus()
-        self.update_view_visibility()
+            self.update_view_visibility()
+        elif button_id == "btn-api-keys":
+            self.open_api_keys_modal()
 
     @on(Button.Pressed, "#close-settings-btn")
     def handle_close(self) -> None:
         self.dismiss(None)
+
+    def open_api_keys_modal(self) -> None:
+        def save_keys(keys: dict):
+            self.core_app.save_keys(keys)
+            self.run_worker(self.core_app.reload_api_clients())
+        providers = self.core_app.provider_list()
+        self.app.push_screen(ApiKeyEntry(core_app=self.core_app, providers=providers, mode="editor"), save_keys)
