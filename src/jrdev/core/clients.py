@@ -5,11 +5,11 @@ from openai import AsyncOpenAI
 import anthropic
 import json
 from pathlib import Path
-from jrdev.file_operations.file_utils import get_persistent_storage_path, JRDEV_PACKAGE_DIR
+import jrdev.file_operations.file_utils as file_utils
 from jrdev.models.api_provider import ApiProvider
 from jrdev.file_operations.file_lock import FileLock
-from jrdev.file_operations.temp_file import TemporaryFile
 import os
+import tempfile
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -29,10 +29,10 @@ class APIClients:
 
     def _load_provider_config(self):
         """Load provider configurations from api_providers.json"""
-        user_config_path = get_persistent_storage_path() / "user_api_providers.json"
+        user_config_path = file_utils.get_persistent_storage_path() / "user_api_providers.json"
         if not user_config_path.exists():
             # save defaults to user_config path
-            default_config_path = Path(JRDEV_PACKAGE_DIR) / "config" / "api_providers.json"
+            default_config_path = Path(file_utils.JRDEV_PACKAGE_DIR) / "config" / "api_providers.json"
             logger.info("Loading API providers from system config")
             try:
                 with open(default_config_path, 'r') as f:
@@ -165,16 +165,24 @@ class APIClients:
 
     def _save_provider_config(self) -> None:
         """Persist the provider configuration to the user config file atomically and safely"""
-        user_config_path = get_persistent_storage_path() / "user_api_providers.json"
+        user_config_path = file_utils.get_persistent_storage_path() / "user_api_providers.json"
         data = {"providers": [p.to_dict() for p in self._providers]}
+        
+        temp_path = None
         try:
-            # Write to a temp file first
-            with TemporaryFile(json.dumps(data, indent=2)) as temp_file:
-                temp_path = temp_file.get_current_path()
-                # Lock the config file before renaming
-                with FileLock(user_config_path):
-                    # Atomically replace the config file
-                    os.replace(temp_path, user_config_path)
+            user_config_path.parent.mkdir(parents=True, exist_ok=True)
+            # Write to a temp file in the same directory to ensure atomic move
+            with tempfile.NamedTemporaryFile('w', dir=user_config_path.parent, delete=False, suffix=".tmp", encoding='utf-8') as tf:
+                json.dump(data, tf, indent=2)
+                temp_path = Path(tf.name)
+
+            with FileLock(user_config_path):
+                os.replace(temp_path, user_config_path)
+
             logger.info("Saved API providers configuration")
+            temp_path = None
         except Exception as e:
             logger.error(f"Failed to save provider config: {e}")
+        finally:
+            if temp_path and temp_path.exists():
+                temp_path.unlink()
