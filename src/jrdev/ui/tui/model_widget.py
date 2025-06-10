@@ -75,8 +75,17 @@ class ModelWidget(Widget):
         self.btn_cancel_remove.display = False
         self.input_provider = Input(value=f"{self.model['provider']}", id="input-provider", classes="detail-input", disabled=True, tooltip="Provider name.")
         self.input_is_think = Input(value=str(self.model.get('is_think', False)), id="input-is-think", classes="detail-input", disabled=True, tooltip="Is this a 'think' model?")
-        self.input_input_cost = Input(value=str(self.model.get('input_cost', 0)), id="input-input-cost", classes="detail-input", disabled=True, tooltip="Input cost.")
-        self.input_output_cost = Input(value=str(self.model.get('output_cost', 0)), id="input-output-cost", classes="detail-input", disabled=True, tooltip="Output cost.")
+
+        # cost is stored internally as per 10m tokens
+        input_cost = self.model.get('input_cost', 0)
+        if input_cost:
+            input_cost = input_cost / 10
+        output_cost = self.model.get('output_cost', 0)
+        if output_cost:
+            output_cost = output_cost / 10
+
+        self.input_input_cost = Input(value=str(input_cost), id="input-input-cost", classes="detail-input", disabled=True, tooltip="Input cost.")
+        self.input_output_cost = Input(value=str(output_cost), id="input-output-cost", classes="detail-input", disabled=True, tooltip="Output cost.")
         self.input_context_tokens = Input(value=str(self.model.get('context_tokens', 0)), id="input-context-tokens", classes="detail-input", disabled=True, tooltip="Context window size.")
 
     def compose(self) -> ComposeResult:
@@ -132,8 +141,16 @@ class ModelWidget(Widget):
         self.query_one(".form-header-label", Label).update(new_model["name"])
         self.query_one("#input-provider", Input).value = new_model["provider"]
         self.query_one("#input-is-think", Input).value = str(new_model.get("is_think", False))
-        self.query_one("#input-input-cost", Input).value = str(new_model.get("input_cost", 0))
-        self.query_one("#input-output-cost", Input).value = str(new_model.get("output_cost", 0))
+        input_cost = new_model.get("input_cost", 0)
+        output_cost = new_model.get("output_cost", 0)
+        # value is stored internally as cost per 10m tokens, convert to per 1m
+        if input_cost:
+            input_cost = input_cost / 10
+        if output_cost:
+            output_cost = output_cost / 10
+
+        self.query_one("#input-input-cost", Input).value = str(input_cost)
+        self.query_one("#input-output-cost", Input).value = str(output_cost)
         self.query_one("#input-context-tokens", Input).value = str(new_model.get("context_tokens", 0))
 
     @on(Button.Pressed, "#btn-edit")
@@ -170,8 +187,8 @@ class ModelWidget(Widget):
     async def handle_save_clicked(self, event: Button.Pressed) -> None:
         provider = self.query_one("#input-provider", Input).value
         is_think = self.query_one("#input-is-think", Input).value.lower() in ("true", "1", "yes")
-        input_cost = int(self.query_one("#input-input-cost", Input).value or 0)
-        output_cost = int(self.query_one("#input-output-cost", Input).value or 0)
+        input_cost = float(self.query_one("#input-input-cost", Input).value or 0)
+        output_cost = float(self.query_one("#input-output-cost", Input).value or 0)
         context_tokens = int(self.query_one("#input-context-tokens", Input).value or 0)
-        self.post_message(CommandRequest(f"/model edit {self.model['name']} {provider} {is_think} {input_cost} {output_cost} {context_tokens}"))
+        self.post_message(CommandRequest(f"/model edit {self.model['name']} {provider} {is_think} {input_cost*10} {output_cost*10} {context_tokens}"))
         self.set_edit_mode(False)

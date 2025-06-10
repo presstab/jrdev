@@ -202,11 +202,11 @@ class ModelsWidget(Widget):
         provider = provider_input.value.strip()
         is_think = is_think_input.value.strip().lower() in ("true", "1", "yes")
         try:
-            input_cost = int(input_cost_input.value.strip() or 0)
+            input_cost = float(input_cost_input.value.strip() or 0)
         except Exception:
             input_cost = 0
         try:
-            output_cost = int(output_cost_input.value.strip() or 0)
+            output_cost = float(output_cost_input.value.strip() or 0)
         except Exception:
             output_cost = 0
         try:
