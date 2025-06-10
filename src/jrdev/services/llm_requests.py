@@ -35,7 +35,11 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
         "model": model,
         "messages": messages,
         "stream": True,
-        "temperature": 0.0
+        "temperature": 0.0,
+        "extra_headers": {
+            "HTTP-Referer": "https://github.com/presstab/jrdev",
+            "X-Title": "JrDev"
+        }
     }
 
     if max_output_tokens:

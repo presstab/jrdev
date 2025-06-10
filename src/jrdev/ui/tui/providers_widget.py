@@ -139,14 +139,10 @@ class ProvidersWidget(Widget):
 
     async def populate_providers(self) -> None:
         """Load and mount provider widgets asynchronously."""
-        import time
-        logger.info(f"{time.time()}pop_providers 137")
         widgets = []
         for provider_name in self.provider_widgets:
             widgets.append(self.provider_widgets[provider_name])
         await self.provider_container.mount_all(widgets)
-
-        logger.info(f"{time.time()}pop_providers 137")
 
     def style_input(self, input_widget: Input) -> None:
         input_widget.styles.border = "none"
