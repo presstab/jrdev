@@ -79,6 +79,22 @@
         },
         "default_profile": "advanced_coding"
       }
+    },
+    {
+      "name": "ollama",
+      "env_key": "OLLAMA_API_KEY",
+      "base_url": "http://localhost:11434/v1",
+      "required": false,
+      "default_profiles": {
+        "profiles": {
+          "advanced_reasoning": "gemma3:4b",
+          "advanced_coding": "gemma3:4b",
+          "intermediate_reasoning": "gemma3:4b",
+          "intermediate_coding": "gemma3:4b",
+          "quick_reasoning": "gemma3:4b"
+        },
+        "default_profile": "advanced_coding"
+      }
     }
   ]
 }
