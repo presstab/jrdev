@@ -145,9 +145,9 @@ class SettingsScreen(ModalScreen):
             with Horizontal(id="main-content-horizontal"):
                 # Sidebar
                 with Vertical(id="sidebar"):
+                    yield Button("API Keys", id="btn-api-keys", classes="sidebar-button")
                     yield Button("Providers", id="btn-providers", classes="sidebar-button selected")
                     yield Button("Models", id="btn-models", classes="sidebar-button")
-                    yield Button("API Keys", id="btn-api-keys", classes="sidebar-button")
                 # Content Area
                 with Vertical(id="content-area"):
                     with ScrollableContainer(id="providers-view"):
@@ -181,15 +181,6 @@ class SettingsScreen(ModalScreen):
                 view_widget.styles.display = "block" if view_name == self.active_view else "none"
             except Exception as e:
                 logger.error(f"Error finding view {view_id}: {e}")
-        for btn_name, btn_id in buttons.items():
-            try:
-                btn_widget = self.query_one(btn_id, Button)
-                if btn_name == self.active_view:
-                    btn_widget.add_class("selected")
-                else:
-                    btn_widget.remove_class("selected")
-            except Exception as e:
-                logger.error(f"Error finding button {btn_id}: {e}")
         # Update the subtitle label
         if self.header_subtitle_label:
             self.header_subtitle_label.update(self.get_active_subtitle())

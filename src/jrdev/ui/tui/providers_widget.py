@@ -102,6 +102,7 @@ class ProvidersWidget(Widget):
         super().__init__(name=name, id=id, classes=classes)
         self.core_app = core_app
         self.provider_widgets = {} # provider_name => widget
+        self.create_provider_widgets()
         self.provider_container = ScrollableContainer(id="providers-list-scrollable-container")
 
     def compose(self) -> ComposeResult:
@@ -122,19 +123,30 @@ class ProvidersWidget(Widget):
                         yield Input(placeholder="e.g., OPENAI_API_KEY_NEW", id="new-provider-envkey-input", classes="detail-input", tooltip="Name of the environment variable that holds the API key, not the API key itself.")
                     yield Button("Save Provider", id="btn-add-new-provider-action", classes="save-new-button")
 
-                # Create all existing providers
-                providers = self.core_app.provider_list()
-                for provider in providers:
-                    self.provider_widgets[provider.name] = ProviderWidget(provider.name, provider.base_url, provider.env_key)
-                    yield self.provider_widgets[provider.name]
-
-            with Horizontal(id="footer"):
-                yield Button("Edit Api Keys", id="edit-api-keys-btn", variant="default")
-
     async def on_mount(self) -> None:
         self.style_input(self.query_one("#new-provider-name-input", Input))
         self.style_input(self.query_one("#new-provider-envkey-input", Input))
         self.style_input(self.query_one("#new-provider-baseurl-input", Input))
+        # Asynchronously populate the list of providers
+        await self.populate_providers()
+
+    def create_provider_widgets(self):
+        """Create provider widgets, preparing them to be mounted when needed"""
+        providers = self.core_app.provider_list()
+        for provider in providers:
+            widget = ProviderWidget(provider.name, provider.base_url, provider.env_key)
+            self.provider_widgets[provider.name] = widget
+
+    async def populate_providers(self) -> None:
+        """Load and mount provider widgets asynchronously."""
+        import time
+        logger.info(f"{time.time()}pop_providers 137")
+        widgets = []
+        for provider_name in self.provider_widgets:
+            widgets.append(self.provider_widgets[provider_name])
+        await self.provider_container.mount_all(widgets)
+
+        logger.info(f"{time.time()}pop_providers 137")
 
     def style_input(self, input_widget: Input) -> None:
         input_widget.styles.border = "none"
@@ -186,12 +198,3 @@ class ProvidersWidget(Widget):
         name_input.value = ""
         env_key_input.value = ""
         base_url_input.value = ""
-
-    @on(Button.Pressed, "#edit-api-keys-btn")
-    def handle_edit_api_keys_button_press(self) -> None:
-        def save_keys(keys: dict):
-            self.core_app.save_keys(keys)
-            self.parent.run_worker(self.core_app.reload_api_clients())
-
-        providers = self.core_app.provider_list()
-        self.app.push_screen(ApiKeyEntry(core_app=self.core_app, providers=providers, mode="editor"), save_keys)

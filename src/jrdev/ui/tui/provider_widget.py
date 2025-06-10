@@ -73,15 +73,19 @@ class ProviderWidget(Widget):
         self.btn_confirm_remove.display = False
         self.btn_cancel_remove.display = False
 
+        # Inputs
+        self.input_url = Input(value=f"{self.base_url}", id="input-url", classes="detail-input", disabled=True, tooltip="Base URL of the API provider.")
+        self.input_envkey = Input(value=f"{self.env_key}", id="input-envkey", classes="detail-input", disabled=True, tooltip="Name of the environment variable that holds the API key, not the API key itself.")
+
     def compose(self) -> ComposeResult:
         with Vertical(id="widget-container"):
             yield Label(f"{self.provider_name}", classes="form-header-label")
             with Horizontal(classes="form-row"):
                 yield Label("Base URL:", classes="form-label")
-                yield Input(value=f"{self.base_url}", id="input-url", classes="detail-input", disabled=True, tooltip="Base URL of the API provider.")
+                yield self.input_url
             with Horizontal(classes="form-row"):
                 yield Label("Env Key: ", classes="form-label")
-                yield Input(value=f"{self.env_key}", id="input-envkey", classes="detail-input", disabled=True, tooltip="Name of the environment variable that holds the API key, not the API key itself.")
+                yield self.input_envkey
             with Horizontal(classes="form-row"):
                 yield self.btn_edit
                 yield self.btn_remove
@@ -92,10 +96,8 @@ class ProviderWidget(Widget):
 
     async def on_mount(self) -> None:
         """Load manual styling"""
-
-        # Add manual styling to the Input widgets
-        self.style_input(self.query_one("#input-url", Input))
-        self.style_input(self.query_one("#input-envkey", Input))
+        self.style_input(self.input_url)
+        self.style_input(self.input_envkey)
 
     def style_input(self, input_widget: Input) -> None:
         input_widget.styles.border = "none"

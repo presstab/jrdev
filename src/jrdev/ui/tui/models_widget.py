@@ -96,6 +96,7 @@ class ModelsWidget(Widget):
         self.core_app = core_app
         self.model_widgets = {}  # model_name => widget
         self.model_container = ScrollableContainer(id="models-list-scrollable-container")
+        self.create_model_widgets()
 
     def compose(self) -> ComposeResult:
         with Vertical(id="models-container"):
@@ -122,11 +123,6 @@ class ModelsWidget(Widget):
                         yield Label("Context Tokens:", classes="detail-label")
                         yield Input(placeholder="e.g., 8192", id="new-model-context-tokens-input", classes="detail-input", tooltip="Context window size.")
                     yield Button("Save Model", id="btn-add-new-model-action", classes="save-new-button")
-                # Existing models
-                models = self.core_app.get_models()
-                for model in models:
-                    self.model_widgets[model["name"]] = ModelWidget(model)
-                    yield self.model_widgets[model["name"]]
 
     async def on_mount(self) -> None:
         self.style_input(self.query_one("#new-model-name-input", Input))
@@ -135,6 +131,23 @@ class ModelsWidget(Widget):
         self.style_input(self.query_one("#new-model-input-cost-input", Input))
         self.style_input(self.query_one("#new-model-output-cost-input", Input))
         self.style_input(self.query_one("#new-model-context-tokens-input", Input))
+        # Asynchronously populate the list of models
+        await self.populate_models()
+
+    def create_model_widgets(self):
+        """Create the model widgets, preparing them for mount when needed"""
+        models = self.core_app.get_models()
+        for model in models:
+            widget = ModelWidget(model)
+            self.model_widgets[model["name"]] = widget
+
+    async def populate_models(self) -> None:
+        """Load and mount model widgets asynchronously."""
+        widgets = []
+        for model_name in self.model_widgets.keys():
+            widgets.append(self.model_widgets[model_name])
+
+        await self.model_container.mount_all(widgets)
 
     def style_input(self, input_widget: Input) -> None:
         input_widget.styles.border = "none"

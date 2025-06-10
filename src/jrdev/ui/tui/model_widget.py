@@ -49,6 +49,14 @@ class ModelWidget(Widget):
         margin-left: 1;
         border: none;
     }
+    .detail-input {
+        border: none;
+        height: 1;
+    }
+    .detail-input.selected {
+        border: none;
+        height: 1;
+    }
     """
 
     def __init__(self, model: dict):
@@ -65,25 +73,30 @@ class ModelWidget(Widget):
         self.btn_cancel_remove = Button("Cancel", id="btn-cancel-remove", variant="error", classes="action-button")
         self.btn_confirm_remove.display = False
         self.btn_cancel_remove.display = False
+        self.input_provider = Input(value=f"{self.model['provider']}", id="input-provider", classes="detail-input", disabled=True, tooltip="Provider name.")
+        self.input_is_think = Input(value=str(self.model.get('is_think', False)), id="input-is-think", classes="detail-input", disabled=True, tooltip="Is this a 'think' model?")
+        self.input_input_cost = Input(value=str(self.model.get('input_cost', 0)), id="input-input-cost", classes="detail-input", disabled=True, tooltip="Input cost.")
+        self.input_output_cost = Input(value=str(self.model.get('output_cost', 0)), id="input-output-cost", classes="detail-input", disabled=True, tooltip="Output cost.")
+        self.input_context_tokens = Input(value=str(self.model.get('context_tokens', 0)), id="input-context-tokens", classes="detail-input", disabled=True, tooltip="Context window size.")
 
     def compose(self) -> ComposeResult:
         with Vertical(id="model-widget-container"):
             yield Label(f"{self.model['name']}", classes="form-header-label")
             with Horizontal(classes="form-row"):
                 yield Label("Provider:", classes="form-label")
-                yield Input(value=f"{self.model['provider']}", id="input-provider", classes="detail-input", disabled=True, tooltip="Provider name.")
+                yield self.input_provider
             with Horizontal(classes="form-row"):
                 yield Label("Is Think:", classes="form-label")
-                yield Input(value=str(self.model.get('is_think', False)), id="input-is-think", classes="detail-input", disabled=True, tooltip="Is this a 'think' model?")
+                yield self.input_is_think
             with Horizontal(classes="form-row"):
                 yield Label("Input Cost:", classes="form-label")
-                yield Input(value=str(self.model.get('input_cost', 0)), id="input-input-cost", classes="detail-input", disabled=True, tooltip="Input cost.")
+                yield self.input_input_cost
             with Horizontal(classes="form-row"):
                 yield Label("Output Cost:", classes="form-label")
-                yield Input(value=str(self.model.get('output_cost', 0)), id="input-output-cost", classes="detail-input", disabled=True, tooltip="Output cost.")
+                yield self.input_output_cost
             with Horizontal(classes="form-row"):
                 yield Label("Context Tokens:", classes="form-label")
-                yield Input(value=str(self.model.get('context_tokens', 0)), id="input-context-tokens", classes="detail-input", disabled=True, tooltip="Context window size.")
+                yield self.input_context_tokens
             with Horizontal(classes="form-row"):
                 yield self.btn_edit
                 yield self.btn_remove
@@ -93,15 +106,16 @@ class ModelWidget(Widget):
                 yield self.btn_cancel
 
     async def on_mount(self) -> None:
-        self.style_input(self.query_one("#input-provider", Input))
-        self.style_input(self.query_one("#input-is-think", Input))
-        self.style_input(self.query_one("#input-input-cost", Input))
-        self.style_input(self.query_one("#input-output-cost", Input))
-        self.style_input(self.query_one("#input-context-tokens", Input))
+        self.style_input(self.input_provider)
+        self.style_input(self.input_is_think)
+        self.style_input(self.input_input_cost)
+        self.style_input(self.input_output_cost)
+        self.style_input(self.input_context_tokens)
 
     def style_input(self, input_widget: Input) -> None:
         input_widget.styles.border = "none"
         input_widget.styles.height = 1
+        pass
 
     def set_edit_mode(self, is_edit_mode: bool) -> None:
         self.edit_mode = is_edit_mode
