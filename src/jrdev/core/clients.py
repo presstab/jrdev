@@ -28,40 +28,63 @@ class APIClients:
         return self._clients.get(name, None)
 
     def _load_provider_config(self):
-        """Load provider configurations from api_providers.json"""
+        """Load provider configurations from api_providers.json, with fallbacks for resilience."""
         user_config_path = file_utils.get_persistent_storage_path() / "user_api_providers.json"
+        default_config_path = Path(file_utils.JRDEV_PACKAGE_DIR) / "config" / "api_providers.json"
+        config = None
+
         if not user_config_path.exists():
-            # save defaults to user_config path
-            default_config_path = Path(file_utils.JRDEV_PACKAGE_DIR) / "config" / "api_providers.json"
-            logger.info("Loading API providers from system config")
+            # If user config doesn't exist, try to create it from the default.
+            logger.info("user_api_providers.json not found. Creating from default.")
             try:
                 with open(default_config_path, 'r') as f:
-                    config = json.load(f)
-                    # Use file lock for writing
-                    with FileLock(user_config_path):
-                        with open(user_config_path, "w") as new_file:
-                            json.dump(config, new_file, indent=2)
+                    default_config = json.load(f)
+                # Use file lock for writing to prevent race conditions
+                with FileLock(user_config_path):
+                    with open(user_config_path, "w") as new_file:
+                        json.dump(default_config, new_file, indent=2)
             except Exception as e:
-                logger.error(f"Failed to write new user_api_providers.json to file")
-                sys.exit(1)
+                logger.error(f"Failed to write new user_api_providers.json. Loading default providers for this session.", exc_info=True)
+                # If writing fails, load the default config directly into memory for this session.
+                try:
+                    with open(default_config_path, 'r') as f:
+                        config = json.load(f)
+                except Exception as e_default:
+                    logger.error(f"FATAL: Failed to load default provider config: {e_default}", exc_info=True)
+                    sys.exit(1)
 
-        try:
-            with FileLock(user_config_path):
-                with open(user_config_path, 'r') as f:
-                    config = json.load(f)
-                    providers = config.get("providers", [])
-                    for p in providers:
-                        try:
-                            provider = ApiProvider.from_dict(p)
-                            self._providers.append(provider)
-                            logger.info(f"Added provider: {provider.name} url: {provider.base_url}")
-                        except Exception as e:
-                            logger.error(f"Failed to import provider {p}")
+        # If config hasn't been loaded yet (i.e., no error occurred above), load from the user config file.
+        if config is None:
+            try:
+                with FileLock(user_config_path):
+                    with open(user_config_path, 'r') as f:
+                        config = json.load(f)
+            except Exception as e:
+                logger.error(f"Failed to load provider config from {user_config_path}. Falling back to default providers.", exc_info=True)
+                # If user config is corrupted or unreadable, fall back to the default config.
+                try:
+                    with open(default_config_path, 'r') as f:
+                        config = json.load(f)
+                except Exception as e_default:
+                    logger.error(f"FATAL: Failed to load default provider config: {e_default}", exc_info=True)
+                    sys.exit(1)
+
+        # Process the loaded configuration
+        if config:
+            providers = config.get("providers", [])
+            for p in providers:
+                try:
+                    provider = ApiProvider.from_dict(p)
+                    self._providers.append(provider)
+                    logger.info(f"Added provider: {provider.name} url: {provider.base_url}")
+                except Exception as e:
+                    logger.error(f"Failed to import provider {p}", exc_info=True)
 
             # Initialize clients dict with provider names
             self._clients = {provider.name: None for provider in self._providers}
-        except Exception as e:
-            logger.error(f"Failed to load provider config: {e}")
+        else:
+            # This should only be reached if the default config is also missing/corrupt.
+            logger.error("Could not load any provider configuration. Application cannot continue.")
             sys.exit(1)
 
     async def initialize(self, env: Dict[str, str]) -> None:
