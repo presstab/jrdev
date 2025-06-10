@@ -7,6 +7,9 @@ import json
 from pathlib import Path
 from jrdev.file_operations.file_utils import get_persistent_storage_path, JRDEV_PACKAGE_DIR
 from jrdev.models.api_provider import ApiProvider
+from jrdev.file_operations.file_lock import FileLock
+from jrdev.file_operations.temp_file import TemporaryFile
+import os
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -34,23 +37,26 @@ class APIClients:
             try:
                 with open(default_config_path, 'r') as f:
                     config = json.load(f)
-                    with open(user_config_path, "w") as new_file:
-                        json.dump(config, new_file, indent=2)
+                    # Use file lock for writing
+                    with FileLock(user_config_path):
+                        with open(user_config_path, "w") as new_file:
+                            json.dump(config, new_file, indent=2)
             except Exception as e:
                 logger.error(f"Failed to write new user_api_providers.json to file")
                 sys.exit(1)
 
         try:
-            with open(user_config_path, 'r') as f:
-                config = json.load(f)
-                providers = config.get("providers", [])
-                for p in providers:
-                    try:
-                        provider = ApiProvider.from_dict(p)
-                        self._providers.append(provider)
-                        logger.info(f"Added provider: {provider.name} url: {provider.base_url}")
-                    except Exception as e:
-                        logger.error(f"Failed to import provider {p}")
+            with FileLock(user_config_path):
+                with open(user_config_path, 'r') as f:
+                    config = json.load(f)
+                    providers = config.get("providers", [])
+                    for p in providers:
+                        try:
+                            provider = ApiProvider.from_dict(p)
+                            self._providers.append(provider)
+                            logger.info(f"Added provider: {provider.name} url: {provider.base_url}")
+                        except Exception as e:
+                            logger.error(f"Failed to import provider {p}")
 
             # Initialize clients dict with provider names
             self._clients = {provider.name: None for provider in self._providers}
@@ -158,11 +164,17 @@ class APIClients:
             logger.warning(f"Provider not found: {name}")
 
     def _save_provider_config(self) -> None:
-        """Persist the provider configuration to the user config file"""
+        """Persist the provider configuration to the user config file atomically and safely"""
         user_config_path = get_persistent_storage_path() / "user_api_providers.json"
+        data = {"providers": [p.to_dict() for p in self._providers]}
         try:
-            with open(user_config_path, "w") as f:
-                json.dump({"providers": [p.to_dict() for p in self._providers]}, f, indent=2)
+            # Write to a temp file first
+            with TemporaryFile(json.dumps(data, indent=2)) as temp_file:
+                temp_path = temp_file.get_current_path()
+                # Lock the config file before renaming
+                with FileLock(user_config_path):
+                    # Atomically replace the config file
+                    os.replace(temp_path, user_config_path)
             logger.info("Saved API providers configuration")
         except Exception as e:
             logger.error(f"Failed to save provider config: {e}")
