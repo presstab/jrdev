@@ -207,5 +207,107 @@ class TestModelCommand(unittest.TestCase):
         self.assertIn("Unknown subcommand: unknowncmd", out)
         self.assertIn("/model list", out)
 
+    def test_add_model_invalid_name_too_short(self):
+        args = ["/model", "add", "", "openai", "true", "0.10", "0.30", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Invalid model name", out)
+        self.assertNotIn("", self.app.added_models)
+
+    def test_add_model_invalid_name_too_long(self):
+        long_name = "a" * 65
+        args = ["/model", "add", long_name, "openai", "true", "0.10", "0.30", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Invalid model name", out)
+        self.assertNotIn(long_name, self.app.added_models)
+
+    def test_add_model_invalid_name_bad_chars(self):
+        for bad in ["bad/name", "bad\\name", "bad\0name", "bad\nname", "bad\rname", "bad\tname", "bad!name", "bad.name", "bad@name", "bad name"]:
+            args = ["/model", "add", bad, "openai", "true", "0.10", "0.30", "8192"]
+            run_async(model_cmd.handle_model(self.app, args, "w1"))
+            out = "\n".join(msg for msg, _ in self.app.ui.printed)
+            self.assertIn("Invalid model name", out)
+            self.assertNotIn(bad, self.app.added_models)
+            self.app.ui.printed.clear()
+
+    def test_add_model_invalid_provider_too_short(self):
+        args = ["/model", "add", "validname", "", "true", "0.10", "0.30", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Invalid provider name", out)
+        self.assertNotIn("validname", self.app.added_models)
+
+    def test_add_model_invalid_provider_too_long(self):
+        long_provider = "b" * 65
+        args = ["/model", "add", "validname", long_provider, "true", "0.10", "0.30", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Invalid provider name", out)
+        self.assertNotIn("validname", self.app.added_models)
+
+    def test_add_model_invalid_provider_bad_chars(self):
+        for bad in ["bad/provider", "bad\\provider", "bad\0provider", "bad\nprovider", "bad\rprovider", "bad\tprovider", "bad!provider", "bad.provider", "bad@provider", "bad provider"]:
+            args = ["/model", "add", "validname", bad, "true", "0.10", "0.30", "8192"]
+            run_async(model_cmd.handle_model(self.app, args, "w1"))
+            out = "\n".join(msg for msg, _ in self.app.ui.printed)
+            self.assertIn("Invalid provider name", out)
+            self.assertNotIn("validname", self.app.added_models)
+            self.app.ui.printed.clear()
+
+    def test_add_model_input_cost_too_low(self):
+        args = ["/model", "add", "validname", "openai", "true", "-0.01", "0.30", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("input_cost must be between 0 and 1000", out)
+        self.assertNotIn("validname", self.app.added_models)
+
+    def test_add_model_input_cost_too_high(self):
+        args = ["/model", "add", "validname", "openai", "true", "1000.01", "0.30", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("input_cost must be between 0 and 1000", out)
+        self.assertNotIn("validname", self.app.added_models)
+
+    def test_add_model_output_cost_too_low(self):
+        args = ["/model", "add", "validname", "openai", "true", "0.10", "-0.01", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("output_cost must be between 0 and 1000", out)
+        self.assertNotIn("validname", self.app.added_models)
+
+    def test_add_model_output_cost_too_high(self):
+        args = ["/model", "add", "validname", "openai", "true", "0.10", "1000.01", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("output_cost must be between 0 and 1000", out)
+        self.assertNotIn("validname", self.app.added_models)
+
+    def test_add_model_context_window_too_low(self):
+        args = ["/model", "add", "validname", "openai", "true", "0.10", "0.30", "0"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("context_window must be between 1 and 1,000,000,000", out)
+        self.assertNotIn("validname", self.app.added_models)
+
+    def test_add_model_context_window_too_high(self):
+        args = ["/model", "add", "validname", "openai", "true", "0.10", "0.30", "1000000001"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("context_window must be between 1 and 1,000,000,000", out)
+        self.assertNotIn("validname", self.app.added_models)
+
+    def test_add_model_is_think_case_insensitive(self):
+        # Should succeed for various true/false values
+        for val, expected in [("TRUE", True), ("True", True), ("1", True), ("yes", True), ("on", True),
+                              ("FALSE", False), ("False", False), ("0", False), ("no", False), ("off", False)]:
+            args = ["/model", "add", f"model_{val}", "openai", val, "0.10", "0.30", "8192"]
+            run_async(model_cmd.handle_model(self.app, args, "w1"))
+            self.assertIn(f"model_{val}", self.app.added_models)
+        # Clean up for next tests
+        self.app.added_models.clear()
+        self.app._models = [m.copy() for m in self.default_models]
+
+
 if __name__ == "__main__":
     unittest.main()

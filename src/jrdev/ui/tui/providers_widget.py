@@ -11,6 +11,8 @@ from jrdev.ui.tui.command_request import CommandRequest
 from jrdev.ui.tui.provider_widget import ProviderWidget
 from jrdev.ui.tui.api_key_entry import ApiKeyEntry
 
+from jrdev.utils.string_utils import is_valid_name, is_valid_env_key, is_valid_url
+
 logger = logging.getLogger("jrdev")
 
 class ProvidersWidget(Widget):
@@ -184,10 +186,34 @@ class ProvidersWidget(Widget):
         env_key_input = self.query_one("#new-provider-envkey-input", Input)
         base_url_input = self.query_one("#new-provider-baseurl-input", Input)
 
-        # Send command to core app to add a new provider
         name = name_input.value
         env_key_name = env_key_input.value
         base_url = base_url_input.value
+
+        # Validate inputs using the same logic as the command handler
+        if not is_valid_name(name):
+            self.notify(
+                "Invalid provider name. Allowed: 1-64 chars, alphanumeric, underscore, hyphen; no path separators.",
+                timeout=5,
+                severity="error"
+            )
+            return
+        if not is_valid_env_key(env_key_name):
+            self.notify(
+                "Invalid env_key. Allowed: 1-128 chars, alphanumeric, underscore, hyphen; no path separators.",
+                timeout=5,
+                severity="error"
+            )
+            return
+        if not is_valid_url(base_url):
+            self.notify(
+                "Invalid base_url. Must be a valid http(s) URL.",
+                timeout=5,
+                severity="error"
+            )
+            return
+
+        # Send command to core app to add a new provider
         self.post_message(CommandRequest(f"/provider add {name} {env_key_name} {base_url}"))
 
         # Clear form

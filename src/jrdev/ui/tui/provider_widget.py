@@ -5,6 +5,7 @@ from textual.widget import Widget
 from textual.widgets import Button, Label, Input
 
 from jrdev.ui.tui.command_request import CommandRequest
+from jrdev.utils.string_utils import is_valid_env_key, is_valid_url
 
 
 class ProviderWidget(Widget):
@@ -170,8 +171,24 @@ class ProviderWidget(Widget):
 
     @on(Button.Pressed, "#btn-save")
     async def handle_save_clicked(self, event: Button.Pressed) -> None:
-        #todo input validation
         base_url = self.query_one("#input-url", Input).value
         env_key_name = self.query_one("#input-envkey", Input).value
+
+        # Validate inputs using the same logic as the command handler
+        if not is_valid_env_key(env_key_name):
+            self.notify(
+                "Invalid env_key. Allowed: 1-128 chars, alphanumeric, underscore, hyphen; no path separators.",
+                timeout=5,
+                severity="error"
+            )
+            return
+        if not is_valid_url(base_url):
+            self.notify(
+                "Invalid base_url. Must be a valid http(s) URL.",
+                timeout=5,
+                severity="error"
+            )
+            return
+
         self.post_message(CommandRequest(f"/provider edit {self.provider_name} {env_key_name} {base_url}"))
         self.set_edit_mode(False)

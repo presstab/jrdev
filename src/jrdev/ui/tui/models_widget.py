@@ -9,8 +9,18 @@ from textual.widgets import Button, Label, Input
 
 from jrdev.ui.tui.command_request import CommandRequest
 from jrdev.ui.tui.model_widget import ModelWidget
+from jrdev.utils.string_utils import is_valid_name, is_valid_cost, is_valid_context_window
 
 logger = logging.getLogger("jrdev")
+
+def _parse_bool(val: str) -> bool:
+    true_vals = {"1", "true", "yes", "y", "on"}
+    false_vals = {"0", "false", "no", "n", "off"}
+    if val.lower() in true_vals:
+        return True
+    if val.lower() in false_vals:
+        return False
+    raise ValueError(f"Invalid boolean value: {val}")
 
 class ModelsWidget(Widget):
     """Widget for managing Models (list, add, edit, remove)."""
@@ -200,19 +210,57 @@ class ModelsWidget(Widget):
 
         name = name_input.value.strip()
         provider = provider_input.value.strip()
-        is_think = is_think_input.value.strip().lower() in ("true", "1", "yes")
+        is_think_str = is_think_input.value.strip()
+        input_cost_str = input_cost_input.value.strip()
+        output_cost_str = output_cost_input.value.strip()
+        context_tokens_str = context_tokens_input.value.strip()
+
+        # Validation (same as /model command handler)
+        if not is_valid_name(name):
+            self.notify(f"Invalid model name '{name}'. Allowed: 1-64 chars, alphanumeric, underscore, hyphen; no path separators.", timeout=5)
+            return
+        if not is_valid_name(provider):
+            self.notify(f"Invalid provider name '{provider}'. Allowed: 1-64 chars, alphanumeric, underscore, hyphen; no path separators.", timeout=5)
+            return
         try:
-            input_cost = float(input_cost_input.value.strip() or 0)
-        except Exception:
-            input_cost = 0
+            is_think = _parse_bool(is_think_str)
+        except Exception as e:
+            self.notify(f"Invalid value for is_think: {e}", timeout=5)
+            return
         try:
-            output_cost = float(output_cost_input.value.strip() or 0)
+            input_cost_float = float(input_cost_str)
         except Exception:
-            output_cost = 0
+            self.notify(f"Invalid value for input_cost: '{input_cost_str}' (must be a float)", timeout=5)
+            return
+        if not is_valid_cost(input_cost_float):
+            self.notify("input_cost must be between 0 and 1000 (dollars per 1,000,000 tokens).", timeout=5)
+            return
         try:
-            context_tokens = int(context_tokens_input.value.strip() or 0)
+            output_cost_float = float(output_cost_str)
         except Exception:
-            context_tokens = 0
+            self.notify(f"Invalid value for output_cost: '{output_cost_str}' (must be a float)", timeout=5)
+            return
+        if not is_valid_cost(output_cost_float):
+            self.notify("output_cost must be between 0 and 1000 (dollars per 1,000,000 tokens).", timeout=5)
+            return
+        try:
+            context_tokens = int(context_tokens_str)
+        except Exception:
+            self.notify(f"Invalid value for context_tokens: '{context_tokens_str}' (must be integer)", timeout=5)
+            return
+        if not is_valid_context_window(context_tokens):
+            self.notify("context_tokens must be between 1 and 1,000,000,000.", timeout=5)
+            return
+
+        # Convert costs from per 1,000,000 tokens (float) to per 10,000,000 tokens (int, in dollars)
+        input_cost = int(round(input_cost_float * 10))
+        output_cost = int(round(output_cost_float * 10))
+
+        # Check for duplicate model name
+        if name in self.core_app.get_model_names():
+            self.notify(f"A model named '{name}' already exists in your configuration.", timeout=5)
+            return
+
         self.post_message(CommandRequest(f"/model add {name} {provider} {is_think} {input_cost} {output_cost} {context_tokens}"))
         name_input.value = ""
         provider_input.value = ""

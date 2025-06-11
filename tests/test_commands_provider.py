@@ -169,5 +169,52 @@ class TestProviderCommand(unittest.TestCase):
         self.assertIn("Unknown command: unknowncmd", out)
         self.assertIn("Type /provider help for usage.", out)
 
+    def test_add_provider_invalid_name(self):
+        args = ["/provider", "add", "bad/name", "BAZ_KEY", "https://baz.com"]
+        run_async(provider_cmd.handle_provider(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Invalid provider name", out)
+        self.assertEqual(len(self.clients.added), 0)
+
+    def test_add_provider_invalid_env_key(self):
+        args = ["/provider", "add", "baz", "BAD/KEY", "https://baz.com"]
+        run_async(provider_cmd.handle_provider(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Invalid env_key", out)
+        self.assertEqual(len(self.clients.added), 0)
+
+    def test_add_provider_invalid_base_url(self):
+        args = ["/provider", "add", "baz", "BAZ_KEY", "notaurl"]
+        run_async(provider_cmd.handle_provider(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Invalid base_url", out)
+        self.assertEqual(len(self.clients.added), 0)
+
+    def test_edit_provider_invalid_name(self):
+        # The edit command does not validate the name, but let's check that it passes through
+        # For completeness, let's check that if the name is invalid, edit_provider is still called (since no validation)
+        self.clients.providers = [ApiProvider(name="editme", env_key="EDITME_KEY", base_url="https://editme.com", required=True, default_profiles=DefaultProfiles(profiles={}, default_profile=""))]
+        self.clients.edit_provider = MagicMock()
+        args = ["/provider", "edit", "bad/name", "NEW_KEY", "https://new.com"]
+        run_async(provider_cmd.handle_provider(self.app, args, "w1"))
+        # edit_provider should be called even with invalid name (no validation in code)
+        self.clients.edit_provider.assert_called_once_with("bad/name", {"env_key": "NEW_KEY", "base_url": "https://new.com"})
+
+    def test_edit_provider_invalid_env_key(self):
+        self.clients.providers = [ApiProvider(name="editme", env_key="EDITME_KEY", base_url="https://editme.com", required=True, default_profiles=DefaultProfiles(profiles={}, default_profile=""))]
+        self.clients.edit_provider = MagicMock()
+        args = ["/provider", "edit", "editme", "BAD/KEY", "https://new.com"]
+        run_async(provider_cmd.handle_provider(self.app, args, "w1"))
+        # There is no validation for env_key in edit command in the current code, so edit_provider is called
+        self.clients.edit_provider.assert_called_once_with("editme", {"env_key": "BAD/KEY", "base_url": "https://new.com"})
+
+    def test_edit_provider_invalid_base_url(self):
+        self.clients.providers = [ApiProvider(name="editme", env_key="EDITME_KEY", base_url="https://editme.com", required=True, default_profiles=DefaultProfiles(profiles={}, default_profile=""))]
+        self.clients.edit_provider = MagicMock()
+        args = ["/provider", "edit", "editme", "NEW_KEY", "notaurl"]
+        run_async(provider_cmd.handle_provider(self.app, args, "w1"))
+        # There is no validation for base_url in edit command in the current code, so edit_provider is called
+        self.clients.edit_provider.assert_called_once_with("editme", {"env_key": "NEW_KEY", "base_url": "notaurl"})
+
 if __name__ == "__main__":
     unittest.main()

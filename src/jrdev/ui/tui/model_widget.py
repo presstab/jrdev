@@ -5,6 +5,7 @@ from textual.widget import Widget
 from textual.widgets import Button, Label, Input
 
 from jrdev.ui.tui.command_request import CommandRequest
+from jrdev.utils.string_utils import is_valid_name, is_valid_cost, is_valid_context_window
 
 class ModelWidget(Widget):
     DEFAULT_CSS = """
@@ -183,12 +184,64 @@ class ModelWidget(Widget):
     async def handle_cancel_clicked(self, event: Button.Pressed) -> None:
         self.set_edit_mode(False)
 
+    def _parse_bool(self, val: str) -> bool:
+        true_vals = {"1", "true", "yes", "y", "on"}
+        false_vals = {"0", "false", "no", "n", "off"}
+        if val.lower() in true_vals:
+            return True
+        if val.lower() in false_vals:
+            return False
+        raise ValueError(f"Invalid boolean value: {val}")
+
     @on(Button.Pressed, "#btn-save")
     async def handle_save_clicked(self, event: Button.Pressed) -> None:
-        provider = self.query_one("#input-provider", Input).value
-        is_think = self.query_one("#input-is-think", Input).value.lower() in ("true", "1", "yes")
-        input_cost = float(self.query_one("#input-input-cost", Input).value or 0)
-        output_cost = float(self.query_one("#input-output-cost", Input).value or 0)
-        context_tokens = int(self.query_one("#input-context-tokens", Input).value or 0)
-        self.post_message(CommandRequest(f"/model edit {self.model['name']} {provider} {is_think} {input_cost*10} {output_cost*10} {context_tokens}"))
+        provider = self.query_one("#input-provider", Input).value.strip()
+        is_think_str = self.query_one("#input-is-think", Input).value.strip()
+        input_cost_str = self.query_one("#input-input-cost", Input).value.strip()
+        output_cost_str = self.query_one("#input-output-cost", Input).value.strip()
+        context_tokens_str = self.query_one("#input-context-tokens", Input).value.strip()
+        name = self.model["name"]
+
+        # Validation (same as /model command handler)
+        if not is_valid_name(name):
+            self.notify(f"Invalid model name '{name}'. Allowed: 1-64 chars, alphanumeric, underscore, hyphen; no path separators.", timeout=5)
+            return
+        if not is_valid_name(provider):
+            self.notify(f"Invalid provider name '{provider}'. Allowed: 1-64 chars, alphanumeric, underscore, hyphen; no path separators.", timeout=5)
+            return
+        try:
+            is_think = self._parse_bool(is_think_str)
+        except Exception as e:
+            self.notify(f"Invalid value for is_think: {e}", timeout=5)
+            return
+        try:
+            input_cost_float = float(input_cost_str)
+        except Exception:
+            self.notify(f"Invalid value for input_cost: '{input_cost_str}' (must be a float)", timeout=5)
+            return
+        if not is_valid_cost(input_cost_float):
+            self.notify("input_cost must be between 0 and 1000 (dollars per 1,000,000 tokens).", timeout=5)
+            return
+        try:
+            output_cost_float = float(output_cost_str)
+        except Exception:
+            self.notify(f"Invalid value for output_cost: '{output_cost_str}' (must be a float)", timeout=5)
+            return
+        if not is_valid_cost(output_cost_float):
+            self.notify("output_cost must be between 0 and 1000 (dollars per 1,000,000 tokens).", timeout=5)
+            return
+        try:
+            context_tokens = int(context_tokens_str)
+        except Exception:
+            self.notify(f"Invalid value for context_tokens: '{context_tokens_str}' (must be integer)", timeout=5)
+            return
+        if not is_valid_context_window(context_tokens):
+            self.notify("context_tokens must be between 1 and 1,000,000,000.", timeout=5)
+            return
+
+        # Convert costs from per 1,000,000 tokens (float) to per 10,000,000 tokens (int, in dollars)
+        input_cost = input_cost_float * 10
+        output_cost = output_cost_float * 10
+
+        self.post_message(CommandRequest(f"/model edit {name} {provider} {is_think} {input_cost} {output_cost} {context_tokens}"))
         self.set_edit_mode(False)

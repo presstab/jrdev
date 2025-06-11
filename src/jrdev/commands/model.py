@@ -6,6 +6,7 @@ Manages the user's list of available models and the active chat model.
 """
 from typing import List
 from jrdev.ui.ui import PrintType
+from jrdev.utils.string_utils import is_valid_name, is_valid_cost, is_valid_context_window
 
 
 def _parse_bool(val: str) -> bool:
@@ -136,6 +137,18 @@ async def handle_model(app, args: List[str], worker_id: str):
         context_window_str = args[7]
 
         # Validate and parse arguments
+        if not is_valid_name(name):
+            app.ui.print_text(
+                f"Invalid model name '{name}'. Allowed: 1-64 chars, alphanumeric, underscore, hyphen; no path separators.",
+                PrintType.ERROR
+            )
+            return
+        if not is_valid_name(provider):
+            app.ui.print_text(
+                f"Invalid provider name '{provider}'. Allowed: 1-64 chars, alphanumeric, underscore, hyphen; no path separators.",
+                PrintType.ERROR
+            )
+            return
         try:
             is_think = _parse_bool(is_think_str)
         except ValueError as e:
@@ -146,15 +159,24 @@ async def handle_model(app, args: List[str], worker_id: str):
         except ValueError:
             app.ui.print_text(f"Invalid value for input_cost: '{input_cost_str}' (must be a float)", PrintType.ERROR)
             return
+        if not is_valid_cost(input_cost_float):
+            app.ui.print_text(f"input_cost must be between 0 and 1000 (dollars per 1,000,000 tokens).", PrintType.ERROR)
+            return
         try:
             output_cost_float = float(output_cost_str)
         except ValueError:
             app.ui.print_text(f"Invalid value for output_cost: '{output_cost_str}' (must be a float)", PrintType.ERROR)
             return
+        if not is_valid_cost(output_cost_float):
+            app.ui.print_text(f"output_cost must be between 0 and 1000 (dollars per 1,000,000 tokens).", PrintType.ERROR)
+            return
         try:
             context_window = int(context_window_str)
         except ValueError:
             app.ui.print_text(f"Invalid value for context_window: '{context_window_str}' (must be integer)", PrintType.ERROR)
+            return
+        if not is_valid_context_window(context_window):
+            app.ui.print_text(f"context_window must be between 1 and 1,000,000,000.", PrintType.ERROR)
             return
 
         # Convert costs from per 1,000,000 tokens (float) to per 10,000,000 tokens (int, in dollars)

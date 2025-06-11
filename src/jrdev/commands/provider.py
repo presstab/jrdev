@@ -6,6 +6,7 @@ Command handler for API provider management.
 
 from typing import Any
 from jrdev.ui.ui import PrintType
+from jrdev.utils.string_utils import is_valid_name, is_valid_env_key, is_valid_url
 
 async def handle_provider(app: Any, args: list[str], worker_id: str) -> None:
     """
@@ -39,6 +40,26 @@ async def handle_provider(app: Any, args: list[str], worker_id: str) -> None:
             name = args[2]
             env_key = args[3]
             base_url = args[4]
+
+            if not is_valid_name(name):
+                app.ui.print_text(
+                    f"Invalid provider name '{name}'. Allowed: 1-64 chars, alphanumeric, underscore, hyphen; no path separators.",
+                    PrintType.ERROR
+                )
+                return
+            if not is_valid_env_key(env_key):
+                app.ui.print_text(
+                    f"Invalid env_key '{env_key}'. Allowed: 1-128 chars, alphanumeric, underscore, hyphen; no path separators.",
+                    PrintType.ERROR
+                )
+                return
+            if not is_valid_url(base_url):
+                app.ui.print_text(
+                    f"Invalid base_url '{base_url}'. Must be a valid http(s) URL.",
+                    PrintType.ERROR
+                )
+                return
+
             provider_data = {
                 "name": name,
                 "env_key": env_key,
