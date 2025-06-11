@@ -82,6 +82,19 @@ async def handle_provider(app: Any, args: List[str], worker_id: str) -> None:
         new_env_key = args[3]
         new_base_url = args[4]
         try:
+            # Input validation (same as 'add')
+            if not is_valid_env_key(new_env_key):
+                app.ui.print_text(
+                    f"Invalid env_key '{new_env_key}'. Allowed: 1-128 chars, alphanumeric, underscore, hyphen; no path separators.",
+                    PrintType.ERROR
+                )
+                return
+            if not is_valid_url(new_base_url):
+                app.ui.print_text(
+                    f"Invalid base_url '{new_base_url}'. Must be a valid http(s) URL.",
+                    PrintType.ERROR
+                )
+                return
             updated_fields = {
                 "env_key": new_env_key,
                 "base_url": new_base_url

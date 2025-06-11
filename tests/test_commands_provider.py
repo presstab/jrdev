@@ -205,16 +205,20 @@ class TestProviderCommand(unittest.TestCase):
         self.clients.edit_provider = MagicMock()
         args = ["/provider", "edit", "editme", "BAD/KEY", "https://new.com"]
         run_async(provider_cmd.handle_provider(self.app, args, "w1"))
-        # There is no validation for env_key in edit command in the current code, so edit_provider is called
-        self.clients.edit_provider.assert_called_once_with("editme", {"env_key": "BAD/KEY", "base_url": "https://new.com"})
+        # edit_provider should NOT be called due to validation
+        self.clients.edit_provider.assert_not_called()
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Invalid env_key", out)
 
     def test_edit_provider_invalid_base_url(self):
         self.clients.providers = [ApiProvider(name="editme", env_key="EDITME_KEY", base_url="https://editme.com", required=True, default_profiles=DefaultProfiles(profiles={}, default_profile=""))]
         self.clients.edit_provider = MagicMock()
         args = ["/provider", "edit", "editme", "NEW_KEY", "notaurl"]
         run_async(provider_cmd.handle_provider(self.app, args, "w1"))
-        # There is no validation for base_url in edit command in the current code, so edit_provider is called
-        self.clients.edit_provider.assert_called_once_with("editme", {"env_key": "NEW_KEY", "base_url": "notaurl"})
+        # edit_provider should NOT be called due to validation
+        self.clients.edit_provider.assert_not_called()
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Invalid base_url", out)
 
 if __name__ == "__main__":
     unittest.main()
