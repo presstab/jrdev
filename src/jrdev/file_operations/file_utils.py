@@ -9,7 +9,7 @@ from jrdev.languages.utils import detect_language, is_headers_language
 from jrdev.ui.ui import PrintType
 
 # Base directory for jrdev files
-JRDEV_DIR = "jrdev/"
+JRDEV_DIR = ".jrdev/"
 
 # Get the absolute path to the jrdev package directory
 JRDEV_PACKAGE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
