@@ -52,7 +52,7 @@ class ModelSelectionWidget(RadioSet):
         for provider, model_group in ordered_providers.items():
             await self.mount(Label(f"{provider}", classes="provider-label"))
             for model in model_group:
-                button = RadioButton(model["name"])
+                button = RadioButton(model["name"], classes="model-btn")
                 button.can_focus = False
                 button.BUTTON_RIGHT = ""
                 button.BUTTON_LEFT = ""
@@ -60,7 +60,17 @@ class ModelSelectionWidget(RadioSet):
                 await self.mount(button)
                 # Store reference to button for selection later
                 self._model_buttons[model["name"]] = button
-                
+
+    async def update_models(self, models: List[Dict[str, Any]]) -> None:
+        """Replace the current list of provider/model buttons with a new one."""
+        # 1) remove all existing UI children (labels & buttons)
+        await self.remove_children(".provider-label")
+        await self.remove_children(".model-btn")
+
+        # 2) reset our internal mapping
+        self._model_buttons.clear()
+        await self.setup_models(models)
+
     def set_model_selected(self, model_name: str) -> bool:
         """Set the model with the given name as selected, Change signal is blocked
         

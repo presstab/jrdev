@@ -5,7 +5,7 @@ from textual import on
 from typing import Any, Dict, List, Optional
 from jrdev.models.model_profiles import ModelProfileManager
 from jrdev.ui.ui import PrintType, terminal_print
-from jrdev.ui.textual.model_selection_widget import ModelSelectionWidget
+from jrdev.ui.tui.model_selection_widget import ModelSelectionWidget
 import logging
 
 logger = logging.getLogger("jrdev")

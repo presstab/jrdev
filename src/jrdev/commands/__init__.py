@@ -17,10 +17,12 @@ from jrdev.commands.git_pr import handle_git_pr_summary, handle_git_pr_review
 from jrdev.commands.help import handle_help
 from jrdev.commands.init import handle_init
 from jrdev.commands.keys import handle_keys
+from jrdev.commands.migrate import handle_migrate
 from jrdev.commands.model import handle_model
 from jrdev.commands.models import handle_models
 from jrdev.commands.modelprofile import handle_modelprofile
 from jrdev.commands.projectcontext import handle_projectcontext
+from jrdev.commands.provider import handle_provider
 from jrdev.commands.stateinfo import handle_stateinfo
 from jrdev.commands.tasks import handle_tasks
 from jrdev.commands.thread import handle_thread
@@ -44,6 +46,7 @@ __all__ = [
     "handle_init",
     "handle_help",
     "handle_projectcontext",
+    "handle_provider",
     "handle_stateinfo",
     "handle_tasks",
     "handle_cost",

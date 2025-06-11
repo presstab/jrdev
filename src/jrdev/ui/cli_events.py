@@ -296,3 +296,9 @@ class CliEvents(UiWrapper):
 
     def project_context_changed(self, is_enabled: bool) -> None:
         pass
+
+    def providers_updated(self) -> None:
+        pass
+
+    def model_list_updated(self) -> None:
+        pass

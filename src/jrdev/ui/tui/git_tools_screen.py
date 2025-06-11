@@ -11,7 +11,7 @@ import logging
 from jrdev.commands.git_config import get_git_config, save_git_config, DEFAULT_GIT_CONFIG
 from jrdev.services.git_pr_service import generate_pr_analysis, GitPRServiceError
 from jrdev.file_operations.file_utils import JRDEV_ROOT_DIR # Import JRDEV_ROOT_DIR
-from jrdev.ui.textual.terminal_output_widget import TerminalOutputWidget # Import the new widget
+from jrdev.ui.tui.terminal_output_widget import TerminalOutputWidget # Import the new widget
 
 logger = logging.getLogger("jrdev")
 
@@ -545,14 +545,14 @@ class GitToolsScreen(ModalScreen):
 
         except GitPRServiceError as e:
             logger.error(f"Handled error during PR {pr_type} generation: {e}")
-            raise # Re-raise for the callback to handle
+            return f"Generation failed: {e.details}. Check branch configuration and that git is installed."
         except ValueError as e: # From shlex.split or potentially other issues
-            logger.error(f"Value error during PR {pr_type} generation: {e}")
-            raise # Re-raise for the callback
+            logger.error(f"Value error during PR {pr_type} generation: {e}.")
+            return f"Generation failed: {e}. Check branch configuration and that git is installed."
         except Exception as e:
             logger.exception(f"Unexpected error during PR {pr_type} generation")
             # Wrap unexpected errors for better context in the callback
-            raise RuntimeError(f"An unexpected error occurred during PR {pr_type} generation: {e}") from e
+            return f"An unexpected error occurred during PR {pr_type} generation: {e}. Check branch configuration and that git is installed."
 
     # --- Footer Handler ---
     @on(Button.Pressed, "#close-btn")

@@ -4,6 +4,8 @@ from typing import Optional, Tuple, Dict, Any
 from jrdev.messages.message_builder import MessageBuilder
 from jrdev.services.llm_requests import generate_llm_response
 
+import logging
+logger = logging.getLogger("jrdev")
 
 class GitPRServiceError(Exception):
     """Base exception for git PR service errors"""
@@ -82,6 +84,7 @@ async def generate_pr_analysis(
             "output": e.output.strip(),
             "base_branch": base_branch
         }
+        logger.error(f"{error_details}")
         return None, GitPRServiceError("Git command failed", error_details)
 
     except Exception as e:

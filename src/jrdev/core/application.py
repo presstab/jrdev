@@ -12,10 +12,11 @@ from jrdev.file_operations.file_utils import add_to_gitignore, JRDEV_DIR, JRDEV_
 from jrdev.commands.keys import check_existing_keys, save_keys_to_env
 from jrdev.logger import setup_logger
 from jrdev.messages.thread import USER_INPUT_PREFIX, MessageThread, THREADS_DIR # Added MessageThread, THREADS_DIR
+from jrdev.models.api_provider import ApiProvider
 from jrdev.services.message_service import MessageService
 from jrdev.models.model_list import ModelList
 from jrdev.models.model_profiles import ModelProfileManager
-from jrdev.models.model_utils import load_hardcoded_models
+from jrdev.models.model_utils import save_models, load_models
 from jrdev.services.contextmanager import ContextManager
 from jrdev.utils.treechart import generate_compact_tree
 from jrdev.ui.ui import PrintType
@@ -81,23 +82,18 @@ class Application:
         self._load_environment()
         # Initialize state components
         self.state.model_list = ModelList()
-        self.state.model_list.set_model_list(load_hardcoded_models())
-        self.state.context_manager = ContextManager()
-        profile_config_path = os.path.join(JRDEV_PACKAGE_DIR, "config", "profile_strings.json")
-
-        # Determine active providers to inform ModelProfileManager's default profile selection
+        self.state.model_list.set_model_list(load_models())
         all_providers = self.state.clients.provider_list()
-        providers_with_keys_names = []
-        for provider in all_providers:
-            if os.getenv(provider["env_key"]):
-                providers_with_keys_names.append(provider["name"])
+        provider_names = [provider.name for provider in all_providers]
+        self.state.model_list.set_providers(provider_names)
 
-        providers_path = os.path.join(JRDEV_PACKAGE_DIR, "config", "api_providers.json")
+        self.state.context_manager = ContextManager()
 
+        # Instantiate ModelProfileManager
+        profile_string_config_path = os.path.join(JRDEV_PACKAGE_DIR, "config", "profile_strings.json")
         self.state.model_profile_manager = ModelProfileManager(
-            profile_strings_path=profile_config_path,
-            providers_path=providers_path,
-            active_provider_names=providers_with_keys_names
+            providers=all_providers,
+            profile_strings_path=profile_string_config_path
         )
 
     def _load_environment(self):
@@ -110,6 +106,21 @@ class Application:
             self.state.need_first_time_setup = True
             self.state.need_api_keys = True
             self.ui.print_text("API keys not found. Setup will begin shortly...", PrintType.INFO)
+
+    def _check_migration(self):
+        """
+        v1.0.0 and used jrdev as the dir name for JRDEV_DIR, v1.0.1 changes this to .jrdev dir
+        Check for existence of old dir and prompt user to perform migration with /migrate command
+        """
+        # Check for old 'jrdev/' directory (not .jrdev/)
+        old_dir = os.path.join(os.getcwd(), "jrdev")
+        # Only prompt if old dir exists and new dir does not
+        if os.path.isdir(old_dir):
+            self.logger.warning("Old 'jrdev/' directory detected. Migration to new '.jrdev/' directory is required.")
+            self.ui.print_text(
+                "------------------\n|MIGRATION NEEDED|\n------------------\nDetected old 'jrdev/' directory. Please run '/migrate' to move your data to the new '.jrdev/' directory.",
+                PrintType.WARNING
+            )
 
     def _check_project_context_status(self):
         """
@@ -190,6 +201,7 @@ class Application:
         """This is run after UI is setup and can print welcome message etc"""
         # Perform the local context status check after basic setup/potential first-time run
         self._check_project_context_status()
+        self._check_migration()
 
     async def start_services(self):
         """Start background services"""
@@ -297,6 +309,38 @@ class Application:
             if send_to_ui:
                 self.ui.model_changed(model)
 
+    def remove_model(self, model_name) -> bool:
+        """Remove a model from runtime model list, flush to disk"""
+        if not self.state.model_list.remove_model(model_name):
+            return False
+
+        save_models(self.state.model_list.get_model_list())
+        self.ui.model_list_updated()
+        return True
+
+    def add_model(self, model_name: str, provider: str, is_think: bool, input_cost: int, output_cost: int, context_window: int) -> bool:
+        """Add a model to runtime model list, flush to disk"""
+        if not self.state.model_list.add_model(model_name, provider, is_think, input_cost, output_cost, context_window):
+            return False
+
+        save_models(self.state.model_list.get_model_list())
+        self.ui.model_list_updated()
+        return True
+
+    def refresh_model_list(self):
+        # 1) grab every model from user's config (single source of truth)
+        models = load_models()
+
+        # 2) overwrite our in-memory list
+        self.state.model_list.set_model_list(models)
+
+        # 3) filter down to only providers we have keys for
+        provider_names = [p.name for p in self.state.clients.provider_list()]
+        self.state.model_list.set_providers(provider_names)
+
+        # 4) notify listeners of models update
+        self.ui.model_list_updated()
+
     def _check_gitignore(self):
         """
         Check if JRDEV_DIR is in the .gitignore file and add it if not.
@@ -402,8 +446,8 @@ class Application:
         all_providers = self.state.clients.provider_list()
         providers_with_keys_names = []
         for provider in all_providers:
-            if os.getenv(provider["env_key"]):
-                providers_with_keys_names.append(provider["name"])
+            if os.getenv(provider.env_key):
+                providers_with_keys_names.append(provider.name)
         profile_manager = self.profile_manager()
         profile_manager.reload_if_using_fallback(providers_with_keys_names)
 
@@ -414,7 +458,7 @@ class Application:
         save_keys_to_env(keys)
         self.state.need_api_keys = not check_existing_keys(self)
 
-    def provider_list(self):
+    def provider_list(self) -> List[ApiProvider]:
         return self.state.clients.provider_list()
 
     async def reload_api_clients(self):
@@ -425,7 +469,7 @@ class Application:
         """Initialize all API clients"""
         # Create a dictionary of environment variables
         self.logger.info("initializing api clients")
-        provider_env_keys = [provider["env_key"] for provider in self.state.clients.provider_list()]
+        provider_env_keys = [provider.env_key for provider in self.state.clients.provider_list()]
         env = {key: os.getenv(key) for key in provider_env_keys}
 
         # Initialize all clients using the APIClients class

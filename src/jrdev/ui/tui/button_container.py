@@ -6,15 +6,15 @@ from typing import Dict, Optional
 import logging
 
 # Import the new screen
-from jrdev.ui.textual.git_tools_screen import GitToolsScreen
+from jrdev.ui.tui.git_tools_screen import GitToolsScreen
 
 logger = logging.getLogger("jrdev")
 
 class ButtonContainer(Widget):
     BUTTONS = [
-        {"label": "API Keys", "id": "button_api_keys"},
         {"label": "Profiles", "id": "button_profiles"},
         {"label": "Git Tools", "id": "git"},
+        {"label": "Settings", "id": "button_settings"},
     ]
 
     def __init__(self, id: Optional[str] = None) -> None:

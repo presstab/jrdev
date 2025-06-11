@@ -8,8 +8,8 @@ from typing import Optional
 import logging
 import pyperclip
 
-from jrdev.ui.textual.input_widget import CommandTextArea
-from jrdev.ui.textual.terminal_text_area import TerminalTextArea
+from jrdev.ui.tui.input_widget import CommandTextArea
+from jrdev.ui.tui.terminal_text_area import TerminalTextArea
 
 logger = logging.getLogger("jrdev")
 
@@ -65,7 +65,7 @@ class TerminalOutputWidget(Widget):
             self.terminal_input.border_title = "Command Input"
             self.terminal_input.styles.border = ("round", Color.parse("#5e5e5e"))
             self.terminal_input.styles.border_title_color = "#fabd2f"
-            self.terminal_input.styles.height = 5  # Fixed rows
+            self.terminal_input.styles.height = 6
             self.layout_output.border_title = "JrDev Terminal"
             self.layout_output.styles.border = ("round", Color.parse("#5e5e5e"))
             self.layout_output.styles.border_title_color = "#fabd2f"

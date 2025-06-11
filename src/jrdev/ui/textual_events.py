@@ -37,6 +37,10 @@ class TextualEvents(UiWrapper):
             super().__init__()
             self.text = model
 
+    class ModelListUpdated(Message):
+        """Notify UI that model list has changed"""
+        pass
+
     class ChatThreadUpdate(Message):
         def __init__(self, thread_id: str):
             super().__init__()
@@ -100,6 +104,10 @@ class TextualEvents(UiWrapper):
             super().__init__()
             self.filepath = filepath
             self.future = future
+
+    class ProvidersUpdate(Message):
+        """List of providers has changed (edit/add/delete)"""
+        pass
 
     def print_text(self, message: Any, print_type: PrintType = PrintType.INFO, end: str = "\n", prefix: Optional[str] = None, flush: bool = False):
         # Post custom message when print is called
@@ -182,6 +190,12 @@ class TextualEvents(UiWrapper):
         """
         self.app.post_message(self.ModelChanged(model))
 
+    def model_list_updated(self) -> None:
+        """
+        Signal to UI that model list has changed
+        """
+        self.app.post_message(self.ModelListUpdated())
+
     def chat_thread_update(self, thread_id):
         """
         Signal to UI that a chat thread has been updated
@@ -201,6 +215,10 @@ class TextualEvents(UiWrapper):
     def stream_chunk(self, thread_id: str, chunk: str) -> None:
         """Post a chunk event into Textual's event bus."""
         self.app.post_message(self.StreamChunk(thread_id, chunk))
+
+    def providers_updated(self) -> None:
+        """Providers has been changed (add/delete/edit)"""
+        self.app.post_message(self.ProvidersUpdate())
 
     async def prompt_for_deletion(self, filepath: str) -> bool:
         """
