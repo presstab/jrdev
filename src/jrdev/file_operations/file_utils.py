@@ -291,7 +291,7 @@ def get_persistent_storage_path() -> Path:
     using os.path.expanduser to ensure cross-platform compatibility.
     Creates the directory if it doesn't exist.
     """
-    path = JRDEV_ROOT_DIR / Path.home() / ".jrdev"
+    path = Path.home() / ".jrdev"
     # Ensure directory exists
     if not os.path.exists(path):
         os.makedirs(path)
