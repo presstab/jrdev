@@ -4,11 +4,11 @@
 Command handler for API provider management.
 """
 
-from typing import Any
+from typing import Any, List
 from jrdev.ui.ui import PrintType
 from jrdev.utils.string_utils import is_valid_name, is_valid_env_key, is_valid_url
 
-async def handle_provider(app: Any, args: list[str], worker_id: str) -> None:
+async def handle_provider(app: Any, args: List[str], worker_id: str) -> None:
     """
     Manage API providers: list, add, edit, remove.
     """
