@@ -107,6 +107,21 @@ class Application:
             self.state.need_api_keys = True
             self.ui.print_text("API keys not found. Setup will begin shortly...", PrintType.INFO)
 
+    def _check_migration(self):
+        """
+        v1.0.0 and used jrdev as the dir name for JRDEV_DIR, v1.0.1 changes this to .jrdev dir
+        Check for existence of old dir and prompt user to perform migration with /migrate command
+        """
+        # Check for old 'jrdev/' directory (not .jrdev/)
+        old_dir = os.path.join(os.getcwd(), "jrdev")
+        # Only prompt if old dir exists and new dir does not
+        if os.path.isdir(old_dir):
+            self.logger.warning("Old 'jrdev/' directory detected. Migration to new '.jrdev/' directory is required.")
+            self.ui.print_text(
+                "------------------\n|MIGRATION NEEDED|\n------------------\nDetected old 'jrdev/' directory. Please run '/migrate' to move your data to the new '.jrdev/' directory.",
+                PrintType.WARNING
+            )
+
     def _check_project_context_status(self):
         """
         Checks the status of the project context on startup and prints recommendations.
@@ -186,6 +201,7 @@ class Application:
         """This is run after UI is setup and can print welcome message etc"""
         # Perform the local context status check after basic setup/potential first-time run
         self._check_project_context_status()
+        self._check_migration()
 
     async def start_services(self):
         """Start background services"""

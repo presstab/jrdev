@@ -2,6 +2,7 @@ import glob
 import logging
 import os
 import re
+import shutil
 from difflib import SequenceMatcher
 from pathlib import Path
 
@@ -296,3 +297,114 @@ def get_persistent_storage_path() -> Path:
     if not os.path.exists(path):
         os.makedirs(path)
     return path
+
+# ------------------- MIGRATION UTILITY FUNCTIONS -------------------
+
+def move_or_copy_file(src, dst, overwrite=False):
+    """
+    Move a file from src to dst. If overwrite is False and dst exists, skip.
+    If move fails (e.g., cross-device), fall back to copy+remove.
+    Returns True if moved/copied, False if skipped, raises on error.
+    """
+    try:
+        if os.path.exists(dst):
+            if not overwrite:
+                logger.info(f"File {dst} already exists, skipping.")
+                return False
+            else:
+                os.remove(dst)
+        try:
+            shutil.move(src, dst)
+        except Exception as e:
+            logger.warning(f"shutil.move failed ({e}), trying copy+remove.")
+            shutil.copy2(src, dst)
+            os.remove(src)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to move/copy file {src} to {dst}: {e}")
+        raise
+
+def move_or_copy_dir(src, dst, overwrite=False, merge=False):
+    """
+    Move a directory from src to dst. If overwrite is False and dst exists, skip.
+    If merge is True and dst exists as a directory, merge contents recursively.
+    If move fails, fall back to copytree+remove.
+    Returns True if moved/copied/merged, False if skipped, raises on error.
+    """
+    try:
+        if os.path.exists(dst):
+            if os.path.isdir(dst) and merge:
+                # Merge directories recursively
+                logger.info(f"Merging directory {src} into existing {dst}")
+                for item in os.listdir(src):
+                    src_item = os.path.join(src, item)
+                    dst_item = os.path.join(dst, item)
+                    if os.path.isdir(src_item):
+                        move_or_copy_dir(src_item, dst_item, overwrite=overwrite, merge=merge)
+                    else:
+                        move_or_copy_file(src_item, dst_item, overwrite=overwrite)
+                # Remove source directory after merging
+                shutil.rmtree(src)
+                return True
+            elif not overwrite:
+                logger.info(f"Directory {dst} already exists, skipping.")
+                return False
+            else:
+                shutil.rmtree(dst)
+        try:
+            shutil.move(src, dst)
+        except Exception as e:
+            logger.warning(f"shutil.move failed ({e}), trying copytree+remove.")
+            shutil.copytree(src, dst)
+            shutil.rmtree(src)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to move/copy directory {src} to {dst}: {e}")
+        raise
+
+def migrate_jrdev_directory(old_dir, new_dir):
+    """
+    Migrate all files and subdirectories from old_dir to new_dir.
+    Merges directories if they already exist at the destination.
+    Deletes the old directory after successful migration.
+    Returns a dict: {migrated: [...], skipped: [...], errors: [...]}.
+    """
+    migrated = []
+    skipped = []
+    errors = []
+    if not os.path.isdir(old_dir):
+        return {"migrated": [], "skipped": [], "errors": [f"Old directory {old_dir} does not exist."]}
+    if not os.path.exists(new_dir):
+        os.makedirs(new_dir)
+    for item in os.listdir(old_dir):
+        src_path = os.path.join(old_dir, item)
+        dst_path = os.path.join(new_dir, item)
+        try:
+            if os.path.isdir(src_path):
+                result = move_or_copy_dir(src_path, dst_path, merge=True)
+                if result:
+                    migrated.append(item)
+                else:
+                    skipped.append(item)
+            elif os.path.isfile(src_path):
+                result = move_or_copy_file(src_path, dst_path)
+                if result:
+                    migrated.append(item)
+                else:
+                    skipped.append(item)
+            else:
+                skipped.append(item)
+        except Exception as e:
+            logger.error(f"Error migrating {src_path} to {dst_path}: {e}")
+            errors.append(f"{item}: {e}")
+    
+    # Delete the old directory if migration was successful (no errors and something was migrated)
+    if not errors and (migrated or not os.listdir(old_dir)):
+        try:
+            shutil.rmtree(old_dir)
+            logger.info(f"Successfully removed old directory: {old_dir}")
+        except Exception as e:
+            logger.error(f"Failed to remove old directory {old_dir}: {e}")
+            errors.append(f"Failed to remove old directory: {e}")
+    
+    return {"migrated": migrated, "skipped": skipped, "errors": errors}

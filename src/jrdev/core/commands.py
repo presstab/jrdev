@@ -14,11 +14,12 @@ from jrdev.commands import (
     handle_help,
     handle_init,
     handle_keys,
-    handle_provider,
+    handle_migrate,
     handle_model,
     handle_models,
     handle_modelprofile,
     handle_projectcontext,
+    handle_provider,
     handle_stateinfo,
     handle_tasks,
     handle_thread,
@@ -61,7 +62,8 @@ class CommandHandler:
             "/git": handle_git,
             "/keys": handle_keys,
             "/provider": handle_provider,
-            "/thread": handle_thread
+            "/thread": handle_thread,
+            "/migrate": handle_migrate
         }
 
         self.commands.update(core_commands)

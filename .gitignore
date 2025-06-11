@@ -30,3 +30,5 @@ jrdev/*
 CLAUDE.md
 
 src/jrdev/model_profiles.json
+
+.jrdev/*

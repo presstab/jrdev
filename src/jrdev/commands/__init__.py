@@ -17,6 +17,7 @@ from jrdev.commands.git_pr import handle_git_pr_summary, handle_git_pr_review
 from jrdev.commands.help import handle_help
 from jrdev.commands.init import handle_init
 from jrdev.commands.keys import handle_keys
+from jrdev.commands.migrate import handle_migrate
 from jrdev.commands.model import handle_model
 from jrdev.commands.models import handle_models
 from jrdev.commands.modelprofile import handle_modelprofile
