@@ -5,6 +5,7 @@ import re
 import shutil
 from difflib import SequenceMatcher
 from pathlib import Path
+from typing import List
 
 from jrdev.languages.utils import detect_language, is_headers_language
 from jrdev.ui.ui import PrintType
@@ -312,6 +313,7 @@ def move_or_copy_file(src, dst, overwrite=False):
                 logger.info(f"File {dst} already exists, skipping.")
                 return False
             else:
+                logger.info(f"Overwriting {dst}")
                 os.remove(dst)
         try:
             shutil.move(src, dst)
@@ -324,7 +326,7 @@ def move_or_copy_file(src, dst, overwrite=False):
         logger.error(f"Failed to move/copy file {src} to {dst}: {e}")
         raise
 
-def move_or_copy_dir(src, dst, overwrite=False, merge=False):
+def move_or_copy_dir(src, dst, merge=False, overwrite_files=List[str]) -> bool:
     """
     Move a directory from src to dst. If overwrite is False and dst exists, skip.
     If merge is True and dst exists as a directory, merge contents recursively.
@@ -337,6 +339,7 @@ def move_or_copy_dir(src, dst, overwrite=False, merge=False):
                 # Merge directories recursively
                 logger.info(f"Merging directory {src} into existing {dst}")
                 for item in os.listdir(src):
+                    overwrite = item in overwrite_files
                     src_item = os.path.join(src, item)
                     dst_item = os.path.join(dst, item)
                     if os.path.isdir(src_item):
@@ -346,11 +349,9 @@ def move_or_copy_dir(src, dst, overwrite=False, merge=False):
                 # Remove source directory after merging
                 shutil.rmtree(src)
                 return True
-            elif not overwrite:
+            else:
                 logger.info(f"Directory {dst} already exists, skipping.")
                 return False
-            else:
-                shutil.rmtree(dst)
         try:
             shutil.move(src, dst)
         except Exception as e:
@@ -369,6 +370,8 @@ def migrate_jrdev_directory(old_dir, new_dir):
     Deletes the old directory after successful migration.
     Returns a dict: {migrated: [...], skipped: [...], errors: [...]}.
     """
+    overwrite_files = {"file_index.json", "git_config.json", "jrdev_conventions.md", "jrdev_overview.md",
+                       "model_profiles.json"}
     migrated = []
     skipped = []
     errors = []
@@ -381,13 +384,15 @@ def migrate_jrdev_directory(old_dir, new_dir):
         dst_path = os.path.join(new_dir, item)
         try:
             if os.path.isdir(src_path):
-                result = move_or_copy_dir(src_path, dst_path, merge=True)
+                result = move_or_copy_dir(src_path, dst_path, merge=True, overwrite_files=overwrite_files)
                 if result:
                     migrated.append(item)
                 else:
                     skipped.append(item)
             elif os.path.isfile(src_path):
-                result = move_or_copy_file(src_path, dst_path)
+                file_name = os.path.basename(src_path)
+                overwrite = file_name in overwrite_files
+                result = move_or_copy_file(src_path, dst_path, overwrite=overwrite)
                 if result:
                     migrated.append(item)
                 else:
