@@ -118,3 +118,88 @@ def get_file_diff(filepath: str, staged: bool = False, is_untracked: bool = Fals
     except Exception as e:
         logger.error(f"An unexpected error occurred while getting git diff for '{filepath}': {e}")
         return f"An unexpected error occurred while getting diff for {filepath}:\n{e}"
+
+def get_current_branch() -> Optional[str]:
+    """
+    Gets the current git branch name.
+
+    Returns:
+        The current branch name as a string, or None if an error occurs.
+    """
+    try:
+        branch_name = subprocess.check_output(
+            ["git", "branch", "--show-current"],
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=5
+        ).strip()
+        
+        return branch_name
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to get current branch. Is this a git repository? Error: {e.output.strip()}")
+        return None
+    except FileNotFoundError:
+        logger.error("Git command not found. Is git installed and in your PATH?")
+        return None
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while getting current branch: {e}")
+        return None
+
+def stage_file(filepath: str) -> bool:
+    """
+    Stages a specific file in git.
+
+    Args:
+        filepath: The path to the file to stage.
+
+    Returns:
+        True if the file was staged successfully, False otherwise.
+    """
+    try:
+        subprocess.check_output(
+            ["git", "add", "--", filepath],
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=10
+        )
+        logger.info(f"Successfully staged file: {filepath}")
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to stage file '{filepath}'. Error: {e.output.strip()}")
+        return False
+    except FileNotFoundError:
+        logger.error("Git command not found. Is git installed and in your PATH?")
+        return False
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while staging file '{filepath}': {e}")
+        return False
+
+def unstage_file(filepath: str) -> bool:
+    """
+    Unstages a specific file in git.
+
+    Args:
+        filepath: The path to the file to unstage.
+
+    Returns:
+        True if the file was unstaged successfully, False otherwise.
+    """
+    try:
+        # Use 'git reset HEAD -- <filepath>' to unstage
+        subprocess.check_output(
+            ["git", "reset", "HEAD", "--", filepath],
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=10
+        )
+        logger.info(f"Successfully unstaged file: {filepath}")
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to unstage file '{filepath}'. Error: {e.output.strip()}")
+        return False
+    except FileNotFoundError:
+        logger.error("Git command not found. Is git installed and in your PATH?")
+        return False
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while unstaging file '{filepath}': {e}")
+        return False
