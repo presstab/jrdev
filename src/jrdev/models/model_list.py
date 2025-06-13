@@ -50,6 +50,31 @@ class ModelList:
                     return True
             return False
 
+    def update_model(self, model_name: str, provider: str, is_think: bool, input_cost: int, output_cost: int, context_window: int) -> bool:
+        """
+        Update an existing model in the model list.
+        Args:
+            model_name: The name of the model to update (must exist)
+            provider: The provider of the model
+            is_think: Whether the model is a 'think' model
+            input_cost: The input cost of the model
+            output_cost: The output cost of the model
+            context_window: The context window (context_tokens) of the model
+        Returns:
+            True if the model was updated, False if the model was not found.
+        """
+        with self._lock:
+            for m in self._model_list:
+                if m["name"] == model_name:
+                    # Update the model attributes
+                    m["provider"] = provider
+                    m["is_think"] = is_think
+                    m["input_cost"] = input_cost
+                    m["output_cost"] = output_cost
+                    m["context_tokens"] = context_window
+                    return True
+            return False
+
     def add_model(self, model_name: str, provider: str, is_think: bool, input_cost: int, output_cost: int, context_window: int) -> bool:
         """
         Add a new model to the model list if it does not already exist.

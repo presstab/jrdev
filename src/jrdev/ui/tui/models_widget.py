@@ -252,16 +252,12 @@ class ModelsWidget(Widget):
             self.notify("context_tokens must be between 1 and 1,000,000,000.", timeout=5)
             return
 
-        # Convert costs from per 1,000,000 tokens (float) to per 10,000,000 tokens (int, in dollars)
-        input_cost = int(round(input_cost_float * 10))
-        output_cost = int(round(output_cost_float * 10))
-
         # Check for duplicate model name
         if name in self.core_app.get_model_names():
             self.notify(f"A model named '{name}' already exists in your configuration.", timeout=5)
             return
 
-        self.post_message(CommandRequest(f"/model add {name} {provider} {is_think} {input_cost} {output_cost} {context_tokens}"))
+        self.post_message(CommandRequest(f"/model add {name} {provider} {is_think} {input_cost_float} {output_cost_float} {context_tokens}"))
         name_input.value = ""
         provider_input.value = ""
         is_think_input.value = ""

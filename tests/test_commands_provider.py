@@ -170,7 +170,7 @@ class TestProviderCommand(unittest.TestCase):
         self.assertIn("Type /provider help for usage.", out)
 
     def test_add_provider_invalid_name(self):
-        args = ["/provider", "add", "bad/name", "BAZ_KEY", "https://baz.com"]
+        args = ["/provider", "add", "bad name", "BAZ_KEY", "https://baz.com"]
         run_async(provider_cmd.handle_provider(self.app, args, "w1"))
         out = "\n".join(msg for msg, _ in self.app.ui.printed)
         self.assertIn("Invalid provider name", out)
