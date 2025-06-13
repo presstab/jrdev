@@ -34,6 +34,7 @@ class DummyApp:
         self.set_model_calls = []
         self.added_models = []
         self.removed_models = []
+        self.edited_models = []
         self.failed_remove = False
     def get_model_names(self):
         return [m["name"] for m in self._models]
@@ -62,6 +63,20 @@ class DummyApp:
             if m["name"] == name:
                 del self._models[i]
                 self.removed_models.append(name)
+                return True
+        return False
+    def edit_model(self, name, provider, is_think, input_cost, output_cost, context_window):
+        for i, m in enumerate(self._models):
+            if m["name"] == name:
+                self._models[i] = {
+                    "name": name,
+                    "provider": provider,
+                    "is_think": is_think,
+                    "input_cost": input_cost,
+                    "output_cost": output_cost,
+                    "context_tokens": context_window
+                }
+                self.edited_models.append(name)
                 return True
         return False
 
@@ -223,7 +238,7 @@ class TestModelCommand(unittest.TestCase):
         self.assertNotIn(long_name, self.app.added_models)
 
     def test_add_model_invalid_name_bad_chars(self):
-        for bad in ["bad/name", "bad\\name", "bad\0name", "bad\nname", "bad\rname", "bad\tname", "bad!name", "bad.name", "bad@name", "bad name"]:
+        for bad in ["bad\0name", "bad\nname", "bad\rname", "bad\tname", "bad!name", "bad@name", "bad name"]:
             args = ["/model", "add", bad, "openai", "true", "0.10", "0.30", "8192"]
             run_async(model_cmd.handle_model(self.app, args, "w1"))
             out = "\n".join(msg for msg, _ in self.app.ui.printed)
@@ -247,7 +262,7 @@ class TestModelCommand(unittest.TestCase):
         self.assertNotIn("validname", self.app.added_models)
 
     def test_add_model_invalid_provider_bad_chars(self):
-        for bad in ["bad/provider", "bad\\provider", "bad\0provider", "bad\nprovider", "bad\rprovider", "bad\tprovider", "bad!provider", "bad.provider", "bad@provider", "bad provider"]:
+        for bad in ["bad\0provider", "bad\nprovider", "bad\rprovider", "bad\tprovider", "bad!provider", "bad@provider", "bad provider"]:
             args = ["/model", "add", "validname", bad, "true", "0.10", "0.30", "8192"]
             run_async(model_cmd.handle_model(self.app, args, "w1"))
             out = "\n".join(msg for msg, _ in self.app.ui.printed)
@@ -307,6 +322,117 @@ class TestModelCommand(unittest.TestCase):
         # Clean up for next tests
         self.app.added_models.clear()
         self.app._models = [m.copy() for m in self.default_models]
+
+    # Edit model tests
+    def test_edit_model_success(self):
+        args = ["/model", "edit", "gpt-4", "newprovider", "false", "0.20", "0.60", "16384"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        model = next(m for m in self.app.get_models() if m["name"] == "gpt-4")
+        self.assertEqual(model["provider"], "newprovider")
+        self.assertEqual(model["is_think"], False)
+        self.assertEqual(model["input_cost"], 2)  # 0.20 * 10
+        self.assertEqual(model["output_cost"], 6)  # 0.60 * 10
+        self.assertEqual(model["context_tokens"], 16384)
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Successfully edited model 'gpt-4' (provider: newprovider)", out)
+
+    def test_edit_model_missing_args(self):
+        args = ["/model", "edit", "gpt-4", "openai", "true", "0.10", "0.30"]  # missing context_window
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Usage: /model edit <name> <provider> <is_think> <input_cost> <output_cost> <context_window>", out)
+        self.assertEqual(len(self.app.edited_models), 0)
+
+    def test_edit_model_not_found(self):
+        args = ["/model", "edit", "notfound", "openai", "true", "0.10", "0.30", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Error: Model 'notfound' not found in your configuration.", out)
+        self.assertEqual(len(self.app.edited_models), 0)
+
+    def test_edit_model_invalid_is_think(self):
+        args = ["/model", "edit", "gpt-4", "openai", "notabool", "0.10", "0.30", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Invalid value for is_think", out)
+        self.assertEqual(len(self.app.edited_models), 0)
+
+    def test_edit_model_invalid_input_cost(self):
+        args = ["/model", "edit", "gpt-4", "openai", "true", "notafloat", "0.30", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Invalid value for input_cost", out)
+        self.assertEqual(len(self.app.edited_models), 0)
+
+    def test_edit_model_invalid_output_cost(self):
+        args = ["/model", "edit", "gpt-4", "openai", "true", "0.10", "notafloat", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Invalid value for output_cost", out)
+        self.assertEqual(len(self.app.edited_models), 0)
+
+    def test_edit_model_invalid_context_window(self):
+        args = ["/model", "edit", "gpt-4", "openai", "true", "0.10", "0.30", "notanint"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Invalid value for context_window", out)
+        self.assertEqual(len(self.app.edited_models), 0)
+
+    def test_edit_model_invalid_name(self):
+        args = ["/model", "edit", "invalid@name", "openai", "true", "0.10", "0.30", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Invalid model name", out)
+        self.assertEqual(len(self.app.edited_models), 0)
+
+    def test_edit_model_invalid_provider(self):
+        args = ["/model", "edit", "gpt-4", "invalid@provider", "true", "0.10", "0.30", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Invalid provider name", out)
+        self.assertEqual(len(self.app.edited_models), 0)
+
+    def test_edit_model_input_cost_too_low(self):
+        args = ["/model", "edit", "gpt-4", "openai", "true", "-0.01", "0.30", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("input_cost must be between 0 and 1000", out)
+        self.assertEqual(len(self.app.edited_models), 0)
+
+    def test_edit_model_input_cost_too_high(self):
+        args = ["/model", "edit", "gpt-4", "openai", "true", "1000.01", "0.30", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("input_cost must be between 0 and 1000", out)
+        self.assertEqual(len(self.app.edited_models), 0)
+
+    def test_edit_model_output_cost_too_low(self):
+        args = ["/model", "edit", "gpt-4", "openai", "true", "0.10", "-0.01", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("output_cost must be between 0 and 1000", out)
+        self.assertEqual(len(self.app.edited_models), 0)
+
+    def test_edit_model_output_cost_too_high(self):
+        args = ["/model", "edit", "gpt-4", "openai", "true", "0.10", "1000.01", "8192"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("output_cost must be between 0 and 1000", out)
+        self.assertEqual(len(self.app.edited_models), 0)
+
+    def test_edit_model_context_window_too_low(self):
+        args = ["/model", "edit", "gpt-4", "openai", "true", "0.10", "0.30", "0"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("context_window must be between 1 and 1,000,000,000", out)
+        self.assertEqual(len(self.app.edited_models), 0)
+
+    def test_edit_model_context_window_too_high(self):
+        args = ["/model", "edit", "gpt-4", "openai", "true", "0.10", "0.30", "1000000001"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("context_window must be between 1 and 1,000,000,000", out)
+        self.assertEqual(len(self.app.edited_models), 0)
 
 
 if __name__ == "__main__":

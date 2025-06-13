@@ -327,6 +327,15 @@ class Application:
         self.ui.model_list_updated()
         return True
 
+    def edit_model(self, model_name: str, provider: str, is_think: bool, input_cost: int, output_cost: int, context_window: int) -> bool:
+        """Edit a model in the runtime model list and flush to disk"""
+        if not self.state.model_list.update_model(model_name, provider, is_think, input_cost, output_cost, context_window):
+            return False
+
+        save_models(self.state.model_list.get_model_list())
+        self.ui.model_list_updated()
+        return True
+
     def refresh_model_list(self):
         # 1) grab every model from user's config (single source of truth)
         models = load_models()

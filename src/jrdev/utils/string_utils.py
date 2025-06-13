@@ -73,7 +73,6 @@ def is_valid_url(url: str) -> bool:
 # -------------------
 # Validation helpers
 # -------------------
-
 def is_valid_name(name: str, min_len: int = 1, max_len: int = 64) -> bool:
     """
     Validates provider/model names: alphanumeric, underscores, hyphens; no path separators or control chars.
@@ -83,10 +82,10 @@ def is_valid_name(name: str, min_len: int = 1, max_len: int = 64) -> bool:
     if not (min_len <= len(name) <= max_len):
         return False
     # Disallow path separators and control chars
-    if any(c in name for c in ('/', '\\', '\0', '\n', '\r', '\t')):
+    if any(c in name for c in ('\\', '\0', '\n', '\r', '\t')):
         return False
     # Only allow alphanumeric, underscore, hyphen
-    if not re.fullmatch(r'[A-Za-z0-9_-]+', name):
+    if not re.fullmatch(r'[A-Za-z0-9_:/.\-]+', name):
         return False
     return True
 

@@ -204,10 +204,10 @@ class ModelWidget(Widget):
 
         # Validation (same as /model command handler)
         if not is_valid_name(name):
-            self.notify(f"Invalid model name '{name}'. Allowed: 1-64 chars, alphanumeric, underscore, hyphen; no path separators.", timeout=5)
+            self.notify(f"Invalid model name '{name}'. Allowed: 1-64 chars, alphanumeric, underscore, hyphen", timeout=5)
             return
         if not is_valid_name(provider):
-            self.notify(f"Invalid provider name '{provider}'. Allowed: 1-64 chars, alphanumeric, underscore, hyphen; no path separators.", timeout=5)
+            self.notify(f"Invalid provider name '{provider}'. Allowed: 1-64 chars, alphanumeric, underscore, hyphen.", timeout=5)
             return
         try:
             is_think = self._parse_bool(is_think_str)
@@ -239,9 +239,5 @@ class ModelWidget(Widget):
             self.notify("context_tokens must be between 1 and 1,000,000,000.", timeout=5)
             return
 
-        # Convert costs from per 1,000,000 tokens (float) to per 10,000,000 tokens (int, in dollars)
-        input_cost = input_cost_float * 10
-        output_cost = output_cost_float * 10
-
-        self.post_message(CommandRequest(f"/model edit {name} {provider} {is_think} {input_cost} {output_cost} {context_tokens}"))
+        self.post_message(CommandRequest(f"/model edit {name} {provider} {is_think} {input_cost_float} {output_cost_float} {context_tokens}"))
         self.set_edit_mode(False)

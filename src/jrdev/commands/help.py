@@ -69,7 +69,7 @@ async def handle_help(app: Any, args: List[str], worker_id: str):
     # Use AI commands
     app.ui.print_text(f"{COLORS['BRIGHT_WHITE']}{COLORS['BOLD']}{COLORS['UNDERLINE']}Use AI:{COLORS['RESET']}", print_type=None)
     
-    app.ui.print_text(f"  {cmd_format}{format_command_with_args('/model', '<list|set|remove|add> [args]')}{reset} - Manage and add models (/model add <name> <provider> <is_think> <input_cost> <output_cost> <context_window>)", print_type=None)
+    app.ui.print_text(f"  {cmd_format}{format_command_with_args('/model', '<list|set|remove|add|edit> [args]')}{reset} - Manage and add models (/model add|edit <name> <provider> <is_think> <input_cost> <output_cost> <context_window>)", print_type=None)
     app.ui.print_text(f"  {cmd_format}/models{reset} - List all available models", print_type=None)
     app.ui.print_text(f"  {cmd_format}{format_command_with_args('/modelprofile', '<list|get|set|default|showdefault>')}{reset} - Manage model profiles for different task types", print_type=None)
     app.ui.print_text(f"  {cmd_format}/init{reset} - Index important project files and familiarize LLM with project", print_type=None)
@@ -133,7 +133,7 @@ async def handle_help_plain(app: Any, args: List[str]):
     # Use AI commands
     app.ui.print_text("Use AI:", print_type=None)
     
-    app.ui.print_text("  /model <list|set|remove|add> [args] - Manage and add models (/model add <name> <provider> <is_think> <input_cost> <output_cost> <context_window>)", print_type=None)
+    app.ui.print_text("  /model <list|set|remove|add|edit> [args] - Manage and add models (/model add|edit <name> <provider> <is_think> <input_cost> <output_cost> <context_window>)", print_type=None)
     app.ui.print_text("  /models - List all available models", print_type=None)
     app.ui.print_text("  /modelprofile <list|get|set|default|showdefault> - Manage model profiles for different task types", print_type=None)
     app.ui.print_text("  /init - Index important project files and familiarize LLM with project", print_type=None)
