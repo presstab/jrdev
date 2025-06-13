@@ -357,6 +357,7 @@ class CodeProcessor:
         then apply the file changes.
         If the user cancels the code task (selects 'no'), the code task is ended immediately.
         """
+        json_block = ""
         try:
             json_block = cutoff_string(response_text, "```json", "```")
             changes = json.loads(json_block)
