@@ -22,9 +22,7 @@ class FetchContextPhase(Stage):
         return "Fetch Context"
 
     async def run(self, ctx: Dict[str, Any]) -> None:
-        # call your existing send_initial_request
         file_list = await self.process_file_request(ctx)
-        file_list = await self.ask_files_sufficient(file_list, ctx["user_task"])
         ctx["files"] = file_list
 
     async def process_file_request(self, ctx: Dict[str, Any]) -> List[str]:
