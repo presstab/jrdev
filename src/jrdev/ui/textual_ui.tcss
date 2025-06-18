@@ -91,7 +91,7 @@ RadioSet {
 }
 
 /* Apply consistent scrollbar styling */
-TaskMonitor, ModelSelectionWidget, #diff-display, TerminalTextArea, #cmd_input, DirectoryTree, VerticalScroll, ChatInputWidget, FilteredDirectoryTree, DirectoryWidget {
+TaskMonitor, ModelSelectionWidget, #diff-display, TerminalTextArea, #cmd_input, DirectoryTree, VerticalScroll, ChatInputWidget, FilteredDirectoryTree, DirectoryWidget, ListView, RichLog {
     scrollbar-background: #1e1e1e;
     scrollbar-background-hover: #1e1e1e;
     scrollbar-background-active: #1e1e1e;

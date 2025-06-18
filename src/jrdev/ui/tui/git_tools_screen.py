@@ -2,7 +2,7 @@ import os
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, Container
 from textual.screen import ModalScreen
-from textual.widgets import Button, Label, Input, Static, MarkdownViewer, LoadingIndicator
+from textual.widgets import Button, Label, Input, Static, MarkdownViewer, LoadingIndicator, ListView
 from textual import on, work # Import work
 from textual.worker import Worker, WorkerState # Import WorkerState
 from typing import Any, Dict, Optional
@@ -12,6 +12,7 @@ from jrdev.commands.git_config import get_git_config, save_git_config, DEFAULT_G
 from jrdev.services.git_pr_service import generate_pr_analysis, GitPRServiceError
 from jrdev.file_operations.file_utils import JRDEV_ROOT_DIR # Import JRDEV_ROOT_DIR
 from jrdev.ui.tui.terminal_output_widget import TerminalOutputWidget # Import the new widget
+from jrdev.ui.tui.git_overview_widget import GitOverviewWidget # Import the new widget
 
 logger = logging.getLogger("jrdev")
 
@@ -24,8 +25,8 @@ class GitToolsScreen(ModalScreen):
     }
 
     #git-tools-container {
-        width: 90%;
-        height: 90%;
+        width: 100%;
+        height: 100%;
         background: $surface;
         border: round $accent;
         padding: 0;
@@ -53,7 +54,9 @@ class GitToolsScreen(ModalScreen):
     }
 
     #sidebar {
-        width: 20%;
+        width: 1fr;
+        min-width: 12;
+        max-width: 20;
         height: 100%;
         border-right: solid $panel;
         padding: 1 0;
@@ -87,12 +90,13 @@ class GitToolsScreen(ModalScreen):
     }
 
     #content-area {
-        width: 80%;
+        width: 1fr;
         height: 100%;
         layout: vertical;
     }
 
     /* View Containers */
+    #overview-view,
     #configure-view,
     #pr-summary-view,
     #pr-review-view,
@@ -215,7 +219,7 @@ class GitToolsScreen(ModalScreen):
         super().__init__()
         self.core_app = core_app
         self.current_config: Dict[str, Any] = {}
-        self.active_view: str = "configure" # 'configure', 'pr_summary', 'pr_review', 'help'
+        self.active_view: str = "overview" # 'overview', 'configure', 'pr_summary', 'pr_review', 'help'
 
     def compose(self) -> ComposeResult:
         with Vertical(id="git-tools-container"):
@@ -228,14 +232,19 @@ class GitToolsScreen(ModalScreen):
                 # Sidebar
                 with Vertical(id="sidebar"):
                     yield Label("Tools", id="sidebar-title")
-                    yield Button("Configure", id="btn-configure", classes="sidebar-button selected")
+                    yield Button("Overview", id="btn-overview", classes="sidebar-button selected")
+                    yield Button("Configure", id="btn-configure", classes="sidebar-button")
                     yield Button("PR Summary", id="btn-pr-summary", classes="sidebar-button")
                     yield Button("PR Review", id="btn-pr-review", classes="sidebar-button")
                     yield Button("Help", id="btn-help", classes="sidebar-button")
 
                 # Content Area
                 with Vertical(id="content-area"):
-                    # Configure View (Initially Visible)
+                    # Overview View
+                    with Vertical(id="overview-view"):
+                        yield GitOverviewWidget()
+
+                    # Configure View (Initially Hidden)
                     with Vertical(id="configure-view"):
                         yield Label("Git Configuration", classes="pr-view-title")
                         with Container(id="git-config-grid"):
@@ -276,7 +285,10 @@ class GitToolsScreen(ModalScreen):
         self.load_config()
         self.load_help_content()
         self.update_view_visibility()
-        self.query_one("#base-branch-input", Input).focus()
+        try:
+            self.query_one("#unstaged-files-list", ListView).focus()
+        except Exception as e:
+            logger.error(f"Could not focus default element on mount: {e}")
 
     def load_config(self) -> None:
         """Load current git config."""
@@ -304,12 +316,14 @@ class GitToolsScreen(ModalScreen):
     def update_view_visibility(self) -> None:
         """Show the active view and hide others."""
         views = {
+            "overview": "#overview-view",
             "configure": "#configure-view",
             "pr_summary": "#pr-summary-view",
             "pr_review": "#pr-review-view",
             "help": "#help-view"
         }
         buttons = {
+            "overview": "#btn-overview",
             "configure": "#btn-configure",
             "pr_summary": "#btn-pr-summary",
             "pr_review": "#btn-pr-review",
@@ -337,7 +351,15 @@ class GitToolsScreen(ModalScreen):
     def handle_sidebar_button(self, event: Button.Pressed) -> None:
         """Switch the active view based on sidebar button press."""
         button_id = event.button.id
-        if button_id == "btn-configure":
+        if button_id == "btn-overview":
+            self.active_view = "overview"
+            try:
+                overview_widget = self.query_one(GitOverviewWidget)
+                overview_widget.refresh_git_status()
+                self.query_one("#unstaged-files-list", ListView).focus()
+            except Exception as e:
+                logger.error(f"Could not refresh or focus overview widget: {e}")
+        elif button_id == "btn-configure":
             self.active_view = "configure"
             self.query_one("#base-branch-input", Input).focus()
         elif button_id == "btn-pr-summary":

@@ -129,7 +129,7 @@ class DirectoryWidget(Widget):
 
     def get_selected_file_rel_path(self):
         # get selected file from directory tree
-        if not self.directory_tree.cursor_node.data or not self.directory_tree.cursor_node.data.path:
+        if not self.directory_tree.cursor_node or not self.directory_tree.cursor_node.data or not self.directory_tree.cursor_node.data.path:
             return None
 
         full_path = self.directory_tree.cursor_node.data.path
@@ -143,15 +143,61 @@ class DirectoryWidget(Widget):
         current_dir = os.getcwd()
         return os.path.relpath(full_path, current_dir)
 
-    @on(DirectoryTree.DirectorySelected)
-    def handle_dir_selected(self):
-        # contexts buttons cannot add a directory
-        self.ctx_buttons_active = False
-        self.button_add_chat_context.disabled = True
-        self.button_add_code_context.disabled = True
+    def _get_files_in_directory_recursively(self, directory_path: Path) -> list[str]:
+        """Recursively get all files in a directory, ignoring common nuisance files/dirs."""
+        filepaths = []
+        # More comprehensive ignore list
+        ignore_dirs = {".git", ".idea", ".vscode", ".jrdev", "__pycache__", "node_modules", ".venv", "build", "dist", ".eggs"}
+        ignore_exts = {".pyc", ".pyo", ".pyd", ".log", ".swp", ".swo"}
+        current_dir = os.getcwd()
 
-        if not self.button_add_chat_context.is_add_mode:
-            self.button_add_chat_context.set_mode(True)
+        for root, dirs, files in os.walk(directory_path, topdown=True):
+            # Modify dirs in-place to skip ignored directories
+            dirs[:] = [d for d in dirs if d not in ignore_dirs]
+            
+            for file in files:
+                if Path(file).suffix in ignore_exts:
+                    continue
+                
+                full_path = Path(root) / file
+                try:
+                    # Ensure we are not adding a directory
+                    if full_path.is_file():
+                        rel_path = os.path.relpath(full_path, current_dir)
+                        filepaths.append(rel_path)
+                except ValueError:
+                    # This can happen on Windows if the path is on a different drive
+                    logger.warning(f"Could not create relative path for {full_path}")
+                    
+        return filepaths
+
+    @on(DirectoryTree.DirectorySelected)
+    def handle_dir_selected(self, event: DirectoryTree.DirectorySelected):
+        # Directory selected, context buttons enabled
+        self.ctx_buttons_active = True
+        self.button_add_chat_context.disabled = False
+        self.button_add_code_context.disabled = False
+
+        # Check if any file in the directory is in the contexts to set button mode
+        dir_path = event.path
+        files_in_dir = self._get_files_in_directory_recursively(dir_path)
+
+        if not files_in_dir:
+            # No files to add, so disable buttons and reset mode
+            self.ctx_buttons_active = False
+            self.button_add_chat_context.disabled = True
+            self.button_add_code_context.disabled = True
+            self.button_add_chat_context.set_mode(is_add_mode=True)
+            self.button_add_code_context.set_mode(is_add_mode=True)
+            return
+
+        # If any file is in chat context, set to remove mode. Otherwise, add mode.
+        is_any_in_chat_ctx = any(f in self.directory_tree.chat_context_paths for f in files_in_dir)
+        self.button_add_chat_context.set_mode(is_add_mode=not is_any_in_chat_ctx)
+
+        # If any file is in code context, set to remove mode. Otherwise, add mode.
+        is_any_in_code_ctx = any(f in self.directory_tree.code_context_paths for f in files_in_dir)
+        self.button_add_code_context.set_mode(is_add_mode=not is_any_in_code_ctx)
 
     @on(DirectoryTree.FileSelected)
     def handle_file_selected(self):
@@ -180,35 +226,58 @@ class DirectoryWidget(Widget):
         # selection will clear after this so disable buttons
         self.button_add_code_context.disabled = True
         self.button_add_chat_context.disabled = True
+        self.ctx_buttons_active = False
 
-        rel_path = self.get_selected_file_rel_path()
-        if not rel_path:
+        selected_node = self.directory_tree.cursor_node
+        if not selected_node or not selected_node.data:
+            return
+        
+        selected_path = selected_node.data.path
+        chat_thread: MessageThread = self.core_app.get_current_thread()
+        
+        files_to_process = []
+        is_directory_op = False
+
+        if selected_path.is_dir():
+            files_to_process = self._get_files_in_directory_recursively(selected_path)
+            is_directory_op = True
+        elif selected_path.is_file():
+            rel_path = self.get_selected_file_rel_path()
+            if rel_path:
+                files_to_process.append(rel_path)
+
+        if not files_to_process:
+            self.notify("No files to process.", severity="warning", timeout=2)
             return
 
-        chat_thread: MessageThread = self.core_app.get_current_thread()
-        msg = f"Added {rel_path} to message thread: {chat_thread.thread_id}"
-        if self.button_add_chat_context.is_add_mode:
-            chat_thread.add_new_context(rel_path)
-            # notify the rest of UI that chat thread is updated
-            self.post_message(TextualEvents.ChatThreadUpdate(chat_thread.thread_id))
-        else:
-            if not chat_thread.remove_context(rel_path):
-                msg = f"Failed to remove {rel_path}. Files sent in previous messages cannot be removed."
-                logger.info(msg)
-                self.notify(msg, timeout=2)
-                # update just in case
-                self.reload_highlights()
-                return
-            msg = f"Removed {rel_path} from message thread: {chat_thread.thread_id}"
-            self.button_add_chat_context.set_mode(is_add_mode=True)
-            self.post_message(TextualEvents.ChatThreadUpdate(chat_thread.thread_id))
+        is_add_mode = self.button_add_chat_context.is_add_mode
+        
+        if is_add_mode:
+            for file_path in files_to_process:
+                chat_thread.add_new_context(file_path)
+            count = len(files_to_process)
+            item_name = os.path.basename(selected_path) if is_directory_op else files_to_process[0]
+            msg = f"Added {count} file(s) from '{item_name}' to chat context."
+        else: # remove mode
+            removed_count = 0
+            failed_files = []
+            for file_path in files_to_process:
+                if chat_thread.remove_context(file_path):
+                    removed_count += 1
+                else:
+                    failed_files.append(os.path.basename(file_path))
+            
+            item_name = os.path.basename(selected_path) if is_directory_op else files_to_process[0]
+            msg = f"Removed {removed_count} file(s) from '{item_name}' from chat context."
+            if failed_files:
+                msg += f" Failed to remove {len(failed_files)} (already sent)."
+                logger.warning(f"Failed to remove files from chat context: {failed_files}")
 
-        # Update highlights
+        # Notify UI of update
+        self.post_message(TextualEvents.ChatThreadUpdate(chat_thread.thread_id))
         self.reload_highlights()
-
-        # Show notification
         logger.info(msg)
-        self.notify(msg, timeout=2)
+        self.notify(msg, timeout=3)
 
     @on(Button.Pressed, "#add_code_context_button")
     def handle_code_context_button(self):
@@ -218,34 +287,50 @@ class DirectoryWidget(Widget):
         # selection will clear after this so disable buttons
         self.button_add_code_context.disabled = True
         self.button_add_chat_context.disabled = True
+        self.ctx_buttons_active = False
 
-        rel_path = self.get_selected_file_rel_path()
-        if not rel_path:
+        selected_node = self.directory_tree.cursor_node
+        if not selected_node or not selected_node.data:
+            return
+        
+        selected_path = selected_node.data.path
+        
+        files_to_process = []
+        is_directory_op = False
+
+        if selected_path.is_dir():
+            files_to_process = self._get_files_in_directory_recursively(selected_path)
+            is_directory_op = True
+        elif selected_path.is_file():
+            rel_path = self.get_selected_file_rel_path()
+            if rel_path:
+                files_to_process.append(rel_path)
+
+        if not files_to_process:
+            self.notify("No files to process.", severity="warning", timeout=2)
             return
 
-        msg = f"Staged {rel_path} for next /code operation."
-        if self.button_add_code_context.is_add_mode:
-            self.core_app.stage_code_context(rel_path)
-        else:
-            success = self.core_app.remove_staged_code_context(rel_path)
-            if success:
-                msg = f"Removed {rel_path} from staged code context"
-            else:
-                msg = f"Failed to remove {rel_path} from staged code context"
-                logger.info(msg)
-                self.notify(msg, timeout=2)
-                self.reload_highlights()
-                return
-
-        # update button mode - should always be add mode after this
-        self.button_add_code_context.set_mode(is_add_mode=True)
+        is_add_mode = self.button_add_code_context.is_add_mode
+        
+        if is_add_mode:
+            for file_path in files_to_process:
+                self.core_app.stage_code_context(file_path)
+            count = len(files_to_process)
+            item_name = os.path.basename(selected_path) if is_directory_op else files_to_process[0]
+            msg = f"Staged {count} file(s) from '{item_name}' for /code."
+        else: # remove mode
+            removed_count = 0
+            for file_path in files_to_process:
+                if self.core_app.remove_staged_code_context(file_path):
+                    removed_count += 1
+            
+            item_name = os.path.basename(selected_path) if is_directory_op else files_to_process[0]
+            msg = f"Removed {removed_count} file(s) from '{item_name}' from staged code context."
 
         # Update highlights
         self.reload_highlights()
-
-        # Show notification
         logger.info(msg)
-        self.notify(msg, timeout=2)
+        self.notify(msg, timeout=3)
 
     @on(Button.Pressed, "#refresh_directory_button")
     def handle_refresh_directory_button(self):
