@@ -1,6 +1,6 @@
 import subprocess
 import logging
-import platform
+import os
 from typing import List, Tuple, Optional, Set
 
 logger = logging.getLogger("jrdev")
@@ -89,8 +89,7 @@ def get_file_diff(filepath: str, staged: bool = False, is_untracked: bool = Fals
         if is_untracked:
             # For untracked files, diff against an empty file to show all content as new.
             # This is a common pattern for showing the content of a new file as a diff.
-            null_device = "NUL" if platform.system() == "Windows" else "/dev/null"
-            command = ["git", "diff", "--no-index", "--", null_device, filepath]
+            command = ["git", "diff", "--no-index", "--", os.devnull, filepath]
         else:
             command = ["git", "diff"]
             if staged:
