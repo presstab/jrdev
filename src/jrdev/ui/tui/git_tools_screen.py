@@ -25,8 +25,8 @@ class GitToolsScreen(ModalScreen):
     }
 
     #git-tools-container {
-        width: 90%;
-        height: 90%;
+        width: 100%;
+        height: 100%;
         background: $surface;
         border: round $accent;
         padding: 0;
@@ -54,7 +54,9 @@ class GitToolsScreen(ModalScreen):
     }
 
     #sidebar {
-        width: 20%;
+        width: 1fr;
+        min-width: 12;
+        max-width: 20;
         height: 100%;
         border-right: solid $panel;
         padding: 1 0;
@@ -88,7 +90,7 @@ class GitToolsScreen(ModalScreen):
     }
 
     #content-area {
-        width: 80%;
+        width: 1fr;
         height: 100%;
         layout: vertical;
     }

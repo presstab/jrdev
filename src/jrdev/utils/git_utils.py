@@ -203,3 +203,34 @@ def unstage_file(filepath: str) -> bool:
     except Exception as e:
         logger.error(f"An unexpected error occurred while unstaging file '{filepath}': {e}")
         return False
+
+def reset_unstaged_changes(filepath: str) -> bool:
+    """
+    Resets unstaged changes for a specific file in git.
+
+    This is equivalent to `git checkout -- <filepath>`.
+
+    Args:
+        filepath: The path to the file to reset.
+
+    Returns:
+        True if the file was reset successfully, False otherwise.
+    """
+    try:
+        subprocess.check_output(
+            ["git", "checkout", "--", filepath],
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=10
+        )
+        logger.info(f"Successfully reset unstaged changes for file: {filepath}")
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to reset unstaged changes for file '{filepath}'. Error: {e.output.strip()}")
+        return False
+    except FileNotFoundError:
+        logger.error("Git command not found. Is git installed and in your PATH?")
+        return False
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while resetting unstaged changes for file '{filepath}': {e}")
+        return False
