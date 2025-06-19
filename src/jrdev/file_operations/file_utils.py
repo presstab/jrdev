@@ -22,7 +22,7 @@ JRDEV_ROOT_DIR = os.path.dirname(os.path.dirname(JRDEV_PACKAGE_DIR))  # Move up 
 logger = logging.getLogger("jrdev")
 
 
-def requested_files(text):
+def requested_files(text) -> List[str]:
     match = re.search(r"get_files\s+(\[.*?\])", text, re.DOTALL)
     file_list = []
     if match:
