@@ -233,3 +233,36 @@ def reset_unstaged_changes(filepath: str) -> bool:
     except Exception as e:
         logger.error(f"An unexpected error occurred while resetting unstaged changes for file '{filepath}': {e}")
         return False
+
+def get_staged_diff() -> Optional[str]:
+    """
+    Gets the diff for all staged files.
+
+    Returns:
+        The diff content as a string, or None if an error occurs.
+        Returns an empty string if there are no staged changes.
+    """
+    command = ["git", "diff", "--staged"]
+    try:
+        # This will return an empty string if there's no diff, and exit with 0.
+        diff_output = subprocess.check_output(
+            command,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=15
+        )
+        return diff_output
+    except subprocess.CalledProcessError as e:
+        # `git diff` returns 1 if there are differences, which is not an error for us.
+        if e.returncode == 1:
+            return e.output
+        
+        # Other non-zero exit codes indicate a real error.
+        logger.error(f"Failed to get staged git diff (exit code {e.returncode}): {e.output.strip()}")
+        return None
+    except FileNotFoundError:
+        logger.error("Git command not found. Is git installed and in your PATH?")
+        return None
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while getting staged git diff: {e}")
+        return None
