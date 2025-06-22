@@ -30,7 +30,7 @@ async def apply_file_changes(app, changes_json, code_processor):
     new_files = []
     files_changed = []
 
-    valid_operations = ["ADD", "DELETE", "REPLACE", "NEW", "RENAME"]
+    valid_operations = ["ADD", "DELETE", "REPLACE", "WRITE", "RENAME"]
 
     for change in changes_json["changes"]:
         if "operation" not in change:
@@ -47,7 +47,7 @@ async def apply_file_changes(app, changes_json, code_processor):
                 continue
 
         # Handle NEW operation separately
-        if operation == "NEW":
+        if operation == "WRITE":
             new_files.append(change)
             continue
 
