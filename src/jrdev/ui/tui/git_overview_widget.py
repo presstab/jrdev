@@ -221,7 +221,6 @@ class GitOverviewWidget(Static):
 
         diff_log = self.query_one("#diff-log", RichLog)
         diff_log.clear()
-        diff_log.write(f"Loading diff for [bold]{item.filepath}[/]...")
 
         diff_content = get_file_diff(item.filepath, staged=item.staged, is_untracked=item.is_untracked)
 
@@ -233,7 +232,7 @@ class GitOverviewWidget(Static):
         # Reuse diff formatting from CodeConfirmationScreen
         formatted_lines = []
         for line in diff_content.splitlines():
-            escaped_line = line.replace("[", "\\[").replace("]", "\\]")
+            escaped_line = line.replace("[", "\\[")
             if line.startswith('+'):
                 formatted_lines.append(f"[green]{escaped_line}[/green]")
             elif line.startswith('-'):
