@@ -1,7 +1,9 @@
+from typing import Any, Dict
+
 from jrdev.agents.pipeline.stage import Stage
 from jrdev.messages.message_builder import MessageBuilder
 from jrdev.services.llm_requests import generate_llm_response
-from typing import Any, Dict
+
 
 class AnalyzePhase(Stage):
     """
@@ -15,6 +17,7 @@ class AnalyzePhase(Stage):
       - Capture and stash the raw file_request response into ctx["file_request"]
       - Defer actual file fetching to the FetchContextPhase
     """
+
     @property
     def name(self) -> str:
         return "Analyze Task"
@@ -43,7 +46,9 @@ class AnalyzePhase(Stage):
             # create a sub task id
             self.agent.sub_task_count += 1
             sub_task_str = f"{self.agent.worker_id}:{self.agent.sub_task_count}"
-            self.app.ui.update_task_info(self.agent.worker_id, update={"new_sub_task": sub_task_str, "description": "analyze request"})
+            self.app.ui.update_task_info(
+                self.agent.worker_id, update={"new_sub_task": sub_task_str, "description": "analyze request"}
+            )
 
         # send request
         response = await generate_llm_response(self.app, model_name, messages, task_id=sub_task_str)

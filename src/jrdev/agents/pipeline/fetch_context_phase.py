@@ -1,10 +1,11 @@
-from jrdev.agents.pipeline.stage import Stage
-from jrdev.messages.message_builder import MessageBuilder
-from jrdev.file_operations.file_utils import requested_files, cutoff_string
-from jrdev.services.llm_requests import generate_llm_response
-from typing import Any, Dict, List
-import os
 import json
+import os
+from typing import Any, Dict, List
+
+from jrdev.agents.pipeline.stage import Stage
+from jrdev.file_operations.file_utils import cutoff_string, requested_files
+from jrdev.messages.message_builder import MessageBuilder
+from jrdev.services.llm_requests import generate_llm_response
 
 
 class FetchContextPhase(Stage):
@@ -17,6 +18,7 @@ class FetchContextPhase(Stage):
         - Cache all context files locally, as these are the files that may be changed during this agent flow.
             - This provides the ability to generate diffs
     """
+
     @property
     def name(self) -> str:
         return "Fetch Context"
@@ -34,7 +36,8 @@ class FetchContextPhase(Stage):
             salvaged_response = await self.salvage_get_files(raw_file_request)
             files_to_send = requested_files(salvaged_response)
             if not files_to_send and not self.agent.user_context:
-                raise Exception("Get files failed")
+                self.app.logger.error("process_file_request: failed to salvage get_files")
+                raise ValueError("get_files")
         if self.agent.user_context:
             self.app.logger.info(f"User context added: {self.agent.user_context}")
         for file in self.agent.user_context:
@@ -50,12 +53,14 @@ class FetchContextPhase(Stage):
         for filepath_to_store in files_to_send:
             if os.path.exists(filepath_to_store):
                 try:
-                    with open(filepath_to_store, 'r', encoding='utf-8') as f_original:
+                    with open(filepath_to_store, "r", encoding="utf-8") as f_original:
                         original_content = f_original.read()
                     self.agent.files_original[filepath_to_store] = original_content
                 except Exception as e:
-                    self.app.logger.warning(f"CodeProcessor: Could not read original content for {filepath_to_store}: {e}")
-                    self.agent.files_original[filepath_to_store] = "" # Store empty string if reading fails
+                    self.app.logger.warning(
+                        f"CodeProcessor: Could not read original content for {filepath_to_store}: {e}"
+                    )
+                    self.agent.files_original[filepath_to_store] = ""  # Store empty string if reading fails
             else:
                 # File might be created by a 'NEW' operation, so its original content is empty
                 self.agent.files_original[filepath_to_store] = ""
@@ -69,7 +74,12 @@ class FetchContextPhase(Stage):
         builder = MessageBuilder(self.app)
         builder.load_system_prompt("get_files_format")
         builder.start_user_section()
-        builder.append_to_user_section(f"Parse the included message to see what files are being requested. You must only respond with the correct format of getfiles. Extract files from this message {bad_message}")
+        builder.append_to_user_section(
+            (
+                "Parse the included message to see what files are being requested. You must only respond with the "
+                f"correct format of getfiles. Extract files from this message {bad_message}"
+            )
+        )
         builder.add_tree()
         messages = builder.build()
 
@@ -82,7 +92,9 @@ class FetchContextPhase(Stage):
             # create a sub task id
             self.agent.sub_task_count += 1
             sub_task_str = f"{self.agent.worker_id}:{self.agent.sub_task_count}"
-            self.app.ui.update_task_info(self.agent.worker_id, update={"new_sub_task": sub_task_str, "description": "format file request"})
+            self.app.ui.update_task_info(
+                self.agent.worker_id, update={"new_sub_task": sub_task_str, "description": "format file request"}
+            )
 
         response = await generate_llm_response(self.app, model, messages, task_id=sub_task_str)
 
@@ -114,7 +126,9 @@ class FetchContextPhase(Stage):
             # create a sub task id
             self.agent.sub_task_count += 1
             sub_task_str = f"{self.agent.worker_id}:{self.agent.sub_task_count}"
-            self.app.ui.update_task_info(self.agent.worker_id, update={"new_sub_task": sub_task_str, "description": "files check"})
+            self.app.ui.update_task_info(
+                self.agent.worker_id, update={"new_sub_task": sub_task_str, "description": "files check"}
+            )
 
         response = await generate_llm_response(self.app, model, messages, task_id=sub_task_str)
         self.app.logger.info(f"additional files response:\n {response}")
