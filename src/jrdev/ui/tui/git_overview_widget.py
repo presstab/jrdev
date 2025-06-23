@@ -165,6 +165,7 @@ class GitOverviewWidget(Static):
     #loading-indicator {
         align-horizontal: left;
         max-width: 25;
+        color: $accent;
     }
     """
 
