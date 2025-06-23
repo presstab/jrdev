@@ -234,6 +234,40 @@ def reset_unstaged_changes(filepath: str) -> bool:
         logger.error(f"An unexpected error occurred while resetting unstaged changes for file '{filepath}': {e}")
         return False
 
+def perform_commit(message: str) -> Tuple[bool, Optional[str]]:
+    """
+    Performs a git commit with the given message.
+
+    Args:
+        message: The commit message.
+
+    Returns:
+        A tuple (success, error_message).
+        success is True if the commit was successful, False otherwise.
+        error_message is a string containing the error if the commit failed, otherwise None.
+    """
+    try:
+        subprocess.check_output(
+            ["git", "commit", "-m", message],
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=15
+        )
+        logger.info(f"Successfully committed with message: {message[:30]}...")
+        return True, None
+    except subprocess.CalledProcessError as e:
+        error_output = e.output.strip()
+        logger.error(f"Failed to commit. Error: {error_output}")
+        return False, error_output
+    except FileNotFoundError:
+        error_msg = "Git command not found. Is git installed and in your PATH?"
+        logger.error(error_msg)
+        return False, error_msg
+    except Exception as e:
+        error_msg = f"An unexpected error occurred during commit: {e}"
+        logger.error(error_msg)
+        return False, error_msg
+
 def get_staged_diff() -> Optional[str]:
     """
     Gets the diff for all staged files.

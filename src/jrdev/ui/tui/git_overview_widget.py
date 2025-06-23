@@ -1,5 +1,5 @@
 import logging
-import os
+from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
@@ -15,7 +15,6 @@ from textual.widgets import (
 )
 from textual import on, work
 from textual.worker import Worker, WorkerState
-from textual.events import Key
 
 from jrdev.services.git_pr_service import generate_commit_message, GitPRServiceError
 from jrdev.utils.git_utils import (
@@ -25,6 +24,7 @@ from jrdev.utils.git_utils import (
     stage_file,
     unstage_file,
     reset_unstaged_changes,
+    perform_commit,
 )
 
 logger = logging.getLogger("jrdev")
@@ -73,6 +73,7 @@ class GitOverviewWidget(Static):
         layout: vertical;
         padding: 0;
         border: none;
+        margin: 0;
     }
 
     #commit-view {
@@ -82,25 +83,34 @@ class GitOverviewWidget(Static):
         layout: vertical;
         padding: 0;
         border: none;
+        margin: 0;
     }
 
     #commit-message-textarea {
         height: 1fr;
         width: 100%;
         border: round $panel;
+        margin: 0;
     }
 
     #commit-buttons-layout {
         height: auto;
-        padding-top: 1;
+        padding-top: 0;
         align-horizontal: left;
+    }
+    
+    #generate-button-layout {
+        height: 1;
+        margin: 0;
+        padding: 0;
+        border: none;
     }
 
     #commit-buttons-layout Button {
         margin-right: 1;
     }
     
-    #unstage-buttons-layout {
+    #unstage-buttons-layout #staged-buttons-layout {
         height:1;
         border: none;
         margin: 0;
@@ -145,14 +155,26 @@ class GitOverviewWidget(Static):
         padding: 0;
         margin-left: 1;
     }
+    
+    #generate-commit-msg-button {
+        max-width: 25;
+        padding: 0;
+        margin-left: 1;
+    }
+    
+    #loading-indicator {
+        align-horizontal: left;
+        max-width: 25;
+    }
     """
 
-    def __init__(self):
+    def __init__(self, core_app: Any):
         super().__init__()
+        self.core_app = core_app
         self.button_stage = Button("Stage", id="stage-button", classes="stage-buttons")
         self.button_reset = Button("Reset", id="reset-button", classes="stage-buttons")
         self.button_unstage = Button("Unstage", id="unstage-button", classes="stage-buttons")
-        self.button_commit = Button("Commit", id="commit-button")
+        self.button_commit = Button("Commit", id="commit-button", classes="stage-buttons")
 
         # Confirmation widgets for reset
         self.reset_confirmation_label = Label(
@@ -173,10 +195,12 @@ class GitOverviewWidget(Static):
             id="commit-message-textarea"
         )
         self.button_generate_commit_msg = Button(
-            "Generate Message", id="generate-commit-msg-button", variant="primary"
+            "Generate Message", id="generate-commit-msg-button", variant="primary",
+            tooltip="Have AI model generate commit message based on file diffs."
         )
         self.button_perform_commit = Button(
-            "Commit", id="perform-commit-button", variant="success"
+            "Create Commit", id="perform-commit-button", variant="success",
+            tooltip="Create commit with the commit message above"
         )
         self.button_cancel_commit = Button("Cancel", id="cancel-commit-button")
 
@@ -195,18 +219,20 @@ class GitOverviewWidget(Static):
                     yield self.button_cancel_reset
                 yield Label("Staged Files", classes="status-list-title")
                 yield ListView(id="staged-files-list")
-                yield self.button_unstage
-                yield self.button_commit
+                with Horizontal(id="staged-buttons-layout"):
+                    yield self.button_unstage
+                    yield self.button_commit
             with Vertical(id="git-diff-layout"):
                 with Vertical(id="diff-view"):
                     yield Label("File Diff", id="file-label", classes="status-list-title")
                     yield RichLog(id="diff-log", highlight=False, markup=True)
 
                 with Vertical(id="commit-view"):
-                    yield Label("Commit Message", classes="status-list-title")
+                    yield Label("Commit Message: Enter or Generate Message", classes="status-list-title")
+                    with Horizontal(id="generate-button-layout"):
+                        yield self.button_generate_commit_msg
                     yield self.commit_message_textarea
                     with Horizontal(id="commit-buttons-layout"):
-                        yield self.button_generate_commit_msg
                         yield self.button_perform_commit
                         yield self.button_cancel_commit
 
@@ -414,26 +440,43 @@ class GitOverviewWidget(Static):
         """Hide the commit message UI and show the diff view."""
         self._toggle_commit_view(False)
 
+    @on(Button.Pressed, "#perform-commit-button")
+    def handle_perform_commit(self):
+        """Performs the git commit with the message from the text area."""
+        commit_message = self.commit_message_textarea.text
+        if not commit_message.strip():
+            self.notify("Commit message cannot be empty.", severity="error")
+            return
+
+        success, error_message = perform_commit(commit_message)
+
+        if success:
+            self.notify("Commit successful.", severity="information")
+            self._toggle_commit_view(False)
+            self.refresh_git_status()
+            self.reset_file_label()
+        else:
+            self.notify(f"Commit failed: {error_message}", severity="error", timeout=10)
+
     @on(Button.Pressed, "#generate-commit-msg-button")
-    def handle_generate_commit_message(self):
+    async def handle_generate_commit_message(self):
         """Start the worker to generate a commit message."""
-        button_container = self.query_one("#commit-buttons-layout")
+        button_container = self.query_one("#generate-button-layout")
         self.button_generate_commit_msg.display = False
-        indicator = LoadingIndicator()
-        button_container.mount(indicator, before=self.button_perform_commit)
+        indicator = LoadingIndicator(id="loading-indicator")
+        await button_container.mount(indicator)
         self.generate_commit_message_worker()
 
     @work(group="git_commit", exclusive=True)
     async def generate_commit_message_worker(self):
         """Worker to call the commit message generation service."""
-        prompt_path = os.path.join("git", "commit_message.md").replace("\\", "/")
         response, error = await generate_commit_message(
-            app=self.app.jrdev, prompt_path=prompt_path, worker_id=None
+            app=self.core_app, worker_id=None
         )
         if error:
             if isinstance(error, GitPRServiceError):
                 raise RuntimeError(
-                    f"GitPRServiceError: {error.message} Details: {error.details}"
+                    f"GitPRServiceError Details: {error.details}"
                 )
             raise error
         return response
@@ -443,7 +486,10 @@ class GitOverviewWidget(Static):
         if event.worker.group != "git_commit":
             return
 
-        button_container = self.query_one("#commit-buttons-layout")
+        if event.state == WorkerState.RUNNING or event.state == WorkerState.PENDING:
+            return
+
+        button_container = self.query_one("#generate-button-layout")
         try:
             indicator = button_container.query_one(LoadingIndicator)
             await indicator.remove()

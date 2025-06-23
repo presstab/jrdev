@@ -242,7 +242,7 @@ class GitToolsScreen(ModalScreen):
                 with Vertical(id="content-area"):
                     # Overview View
                     with Vertical(id="overview-view"):
-                        yield GitOverviewWidget()
+                        yield GitOverviewWidget(self.core_app)
 
                     # Configure View (Initially Hidden)
                     with Vertical(id="configure-view"):

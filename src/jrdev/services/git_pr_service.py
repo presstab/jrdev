@@ -94,7 +94,6 @@ async def generate_pr_analysis(
 
 async def generate_commit_message(
     app: Any,
-    prompt_path: str,
     worker_id: str = None
 ) -> Tuple[Optional[str], Optional[Exception]]:
     """
@@ -120,7 +119,7 @@ async def generate_commit_message(
         # Build messages
         builder = MessageBuilder(app)
         builder.start_user_section()
-        builder.load_user_prompt(prompt_path)
+        builder.load_user_prompt("git/commit_message")
 
         builder.append_to_user_section(
             f"---GIT DIFF BEGIN---\n{diff_output}\n---GIT DIFF END---"
