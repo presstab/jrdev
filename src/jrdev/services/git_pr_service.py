@@ -3,6 +3,7 @@ import shlex
 from typing import Optional, Tuple, Dict, Any
 from jrdev.messages.message_builder import MessageBuilder
 from jrdev.services.llm_requests import generate_llm_response
+from jrdev.utils.git_utils import get_staged_diff
 
 import logging
 logger = logging.getLogger("jrdev")
@@ -89,3 +90,52 @@ async def generate_pr_analysis(
 
     except Exception as e:
         return None, GitPRServiceError("PR analysis failed", {"exception": e})
+
+
+async def generate_commit_message(
+    app: Any,
+    worker_id: str = None
+) -> Tuple[Optional[str], Optional[Exception]]:
+    """
+    Core business logic for commit message generation.
+    Returns tuple: (response_text, error)
+    """
+    try:
+        # Get staged git diff
+        diff_output = get_staged_diff()
+
+        if diff_output is None:  # Error occurred
+            return None, GitPRServiceError(
+                "Failed to get staged diff. Is git installed?",
+                {}
+            )
+
+        if not diff_output.strip():
+            return None, GitPRServiceError(
+                "No staged changes found to commit.",
+                {}
+            )
+
+        # Build messages
+        builder = MessageBuilder(app)
+        builder.start_user_section()
+        builder.load_user_prompt("git/commit_message")
+
+        builder.append_to_user_section(
+            f"---GIT DIFF BEGIN---\n{diff_output}\n---GIT DIFF END---"
+        )
+        messages = builder.build()
+
+        # Get LLM response
+        response = await generate_llm_response(
+            app,
+            app.state.model,
+            messages,
+            task_id=worker_id,
+            print_stream=False
+        )
+
+        return str(response) if response else None, None
+
+    except Exception as e:
+        return None, GitPRServiceError("Commit message generation failed", {"exception": e})

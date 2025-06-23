@@ -133,7 +133,7 @@ class CodeConfirmationScreen(ModalScreen[Tuple[str, Optional[str]]]):
                 if line is None:
                     continue
                 line = line.rstrip('\n\r')
-                escaped_line = line.replace("[", "\[").replace("]", "\]")
+                escaped_line = line.replace("[", "\[")
                 if line.startswith('+'):
                     formatted_lines.append(f"[green]{escaped_line}[/green]")
                 elif line.startswith('-'):

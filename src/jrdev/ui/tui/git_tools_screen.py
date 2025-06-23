@@ -54,12 +54,16 @@ class GitToolsScreen(ModalScreen):
     }
 
     #sidebar {
-        width: 1fr;
-        min-width: 12;
-        max-width: 20;
+        width: 20;
         height: 100%;
         border-right: solid $panel;
         padding: 1 0;
+        transition: width 0.2s out_expo;
+    }
+
+    #sidebar.collapsed {
+        width: 3;
+        min-width: 3;
     }
 
     #sidebar-title {
@@ -87,6 +91,21 @@ class GitToolsScreen(ModalScreen):
         background: $primary; /* Match ModelProfileScreen selected */
         text-style: bold;
         /* color: $text; Use default */
+    }
+
+    #collapse-sidebar-btn {
+        dock: bottom;
+        border: none;
+        width: 100%;
+        min-width: 3;
+        height: 1;
+        background: $surface;
+        margin: 0;
+        padding: 0;
+    }
+
+    #collapse-sidebar-btn:hover {
+        background: $primary-darken-1;
     }
 
     #content-area {
@@ -237,12 +256,13 @@ class GitToolsScreen(ModalScreen):
                     yield Button("PR Summary", id="btn-pr-summary", classes="sidebar-button")
                     yield Button("PR Review", id="btn-pr-review", classes="sidebar-button")
                     yield Button("Help", id="btn-help", classes="sidebar-button")
+                    yield Button("\u25c3 Collapse", id="collapse-sidebar-btn")
 
                 # Content Area
                 with Vertical(id="content-area"):
                     # Overview View
                     with Vertical(id="overview-view"):
-                        yield GitOverviewWidget()
+                        yield GitOverviewWidget(self.core_app)
 
                     # Configure View (Initially Hidden)
                     with Vertical(id="configure-view"):
@@ -372,6 +392,17 @@ class GitToolsScreen(ModalScreen):
             self.active_view = "help"
             # No specific focus needed for help view
         self.update_view_visibility()
+
+    @on(Button.Pressed, "#collapse-sidebar-btn")
+    def toggle_sidebar_collapse(self, event: Button.Pressed) -> None:
+        """Toggle the collapsed state of the sidebar."""
+        sidebar = self.query_one("#sidebar")
+        sidebar.toggle_class("collapsed")
+        is_collapsed = sidebar.has_class("collapsed")
+        if is_collapsed:
+            event.button.label = "\u25b9"
+        else:
+            event.button.label = "\u25c3 Collapse"
 
     # --- Configure View Handler ---
     @on(Button.Pressed, "#save-config-btn")

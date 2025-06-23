@@ -1,37 +1,45 @@
-# 🧠 AI-Powered Git Pull Request Summary and Reviews
+# 🧠 AI-Powered Git Tools
 
 > ⚠️ **Note:** This tool uses Git command-line tools under the hood. Make sure Git is installed and available in your terminal before using it.
 
-This feature helps you make better pull requests by using AI to summarize or review your code changes. It compares your current branch to a **base branch** using:
-
-```bash
-git diff <base_branch>
-```
-
-The output is sent to an AI model along with a prompt — either to generate a **pull request summary** or to provide a **code review**.
+This tool integrates AI into your daily Git workflow, helping you write better commit messages and create cleaner pull requests. It uses Git command-line tools to analyze your changes and interact with an AI model.
 
 ---
 
 ## ✨ What It Can Do
 
-### 📝 1. Pull Request Summary  
-Generates a clean, helpful description of what changed in your branch. Great for writing the description section of your pull request.
+### 🔍 1. Interactive Staging & Committing
+The Git Overview tab provides a UI to manage your local changes:
+- **View Status:** See your current branch, unstaged files, and staged files in separate lists.
+- **View Diffs:** Select any file to see a color-coded diff of its changes.
+- **Stage & Unstage:** Easily move files between the working directory and the staging area.
+- **Reset Changes:** Discard local modifications for an unstaged file.
+- **Commit:** Once files are staged, you can write or generate a commit message and create the commit.
 
-### 🔍 2. Code Review  
-Asks the AI to act as a reviewer — giving feedback, pointing out issues, and offering suggestions based on the changes detected in your diff.
+### 📝 2. AI-Generated Commit Messages
+From the commit view, you can ask the AI to generate a commit message for you.
+- It analyzes your **staged files** (`git diff --staged`).
+- It creates a concise message following the **Conventional Commits** specification.
+
+### 📄 3. AI-Powered Pull Request Tools
+These tools help you prepare your branch for a pull request by comparing it against a **base branch** (e.g., `origin/main`).
+- **PR Summary:** Generates a clean, helpful description of what changed in your branch.
+- **PR Review:** Asks the AI to act as a reviewer, giving feedback and pointing out potential issues in your code.
 
 ---
 
 ## 📌 What Is the Base Branch?
 
-The **base branch** is what your changes are being compared to — usually the branch where you’ll be merging your work.
+> **Note:** The base branch is used for the **Pull Request Summary** and **Code Review** features.
+
+The **base branch** is what your changes are being compared to — usually the main branch where you’ll be merging your work. The tool runs `git diff <base_branch>` to get the changes.
 
 ### Common Choices:
 - `origin/main` — when your work is based on the main production branch
 - `origin/develop` — if your team uses a develop branch
 - `origin/feature-x` — to compare against a specific feature or staging branch
 
-💡 **Tip:** Use the branch you plan to merge into.
+💡 **Tip:** Use the branch you plan to merge into. Make sure it's up-to-date by running `git fetch origin` first.
 
 ---
 
@@ -58,9 +66,9 @@ Other common remotes include:
 
 ## ✅ Quick Setup Checklist
 
-- [ ] Git is installed and working from the command line
-- [ ] You’ve committed changes to your branch
-- [ ] You know which branch you want to compare against (base branch)
-- [ ] The base branch is up to date (ie `git fetch origin`)
+- [ ] Git is installed and working from the command line.
+- [ ] You have a Git repository open.
+- [ ] For PR tools, you know which base branch you want to compare against.
+- [ ] The base branch is up to date (run `git fetch` to be sure).
 
 ---
