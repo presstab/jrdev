@@ -17,14 +17,30 @@ setup(
     url="https://github.com/presstab/jrdev",
     package_dir={"": "src"},
     packages=find_packages(where="src"),
+    include_package_data=True,
+    package_data={
+        "jrdev.prompts": ["*.md"],
+        "jrdev.prompts.code": ["*.md"],
+        "jrdev.prompts.code.operations": ["*.md"],
+        "jrdev.prompts.init": ["*.md"],
+        "jrdev.prompts.conversation": ["*.md"],
+        "jrdev.prompts.files": ["*.md"],
+        "jrdev.prompts.git": ["*.md"],
+        "jrdev.ui": ["*.tcss"],
+        "jrdev.ui.tui": ["*.tcss"],
+        "jrdev.config": ["*.json"],
+        "jrdev.docs": ["*.md"]
+    },
     install_requires=[
         "openai>=1.0.0",
         "python-dotenv",
-        "pyreadline3; platform_system=='Windows'",
+        "pyreadline3; sys_platform=='win32'",
+        "colorama; sys_platform=='win32'",
         "pydantic>=2.0.0",
         "textual[syntax]>=0.40.0",
         "tiktoken",
-        "pyperclip"
+        "pyperclip",
+        "anthropic"
     ],
     entry_points={
         "console_scripts": [
@@ -42,5 +58,5 @@ setup(
         "Programming Language :: Python :: 3.10",
     ],
     python_requires=">=3.7",
-    license='PolyForm Noncommercial License 1.0.0'
+    license='MIT'
 )
