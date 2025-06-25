@@ -1,11 +1,12 @@
 import asyncio
 import os
-import sys
 from typing import Any, List
+
 from jrdev.file_operations import file_utils
 from jrdev.ui.ui import PrintType
 
-async def handle_migrate(app: Any, args: List[str], worker_id: str):
+
+async def handle_migrate(app: Any, _args: List[str], _worker_id: str):
     """
     Handle the /migrate command: migrate all data from 'jrdev/' to '.jrdev/'.
     """
@@ -34,12 +35,12 @@ async def handle_migrate(app: Any, args: List[str], worker_id: str):
             app.ui.print_text("Migration completed: nothing to migrate.", PrintType.INFO)
         else:
             app.ui.print_text("Migration completed.", PrintType.SUCCESS)
-        
+
         # Notify user about restart and shutdown
         app.ui.print_text("", PrintType.INFO)  # Empty line for spacing
         app.ui.print_text("Please restart JrDev to complete the migration.", PrintType.WARNING)
         app.ui.print_text("Application will shutdown in 5 seconds...", PrintType.INFO)
-        
+
         # Wait 5 seconds then shutdown
         await asyncio.sleep(5)
         await app.ui.signal_exit()
@@ -47,11 +48,11 @@ async def handle_migrate(app: Any, args: List[str], worker_id: str):
     except Exception as e:
         app.logger.error(f"Migration failed: {e}")
         app.ui.print_text(f"Migration failed: {e}", PrintType.ERROR)
-        
+
         # Still shutdown even on error, as partial migration may have occurred
         app.ui.print_text("", PrintType.INFO)  # Empty line for spacing
         app.ui.print_text("Please restart JrDev to ensure proper operation.", PrintType.WARNING)
         app.ui.print_text("Application will shutdown in 5 seconds...", PrintType.INFO)
-        
+
         await asyncio.sleep(5)
         await app.ui.signal_exit()

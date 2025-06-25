@@ -5,8 +5,11 @@ Command handler for API provider management.
 """
 
 from typing import Any, List
+
 from jrdev.ui.ui import PrintType
-from jrdev.utils.string_utils import is_valid_name, is_valid_env_key, is_valid_url
+from jrdev.utils.string_utils import (is_valid_env_key, is_valid_name,
+                                      is_valid_url)
+
 
 async def handle_provider(app: Any, args: List[str], worker_id: str) -> None:
     """
@@ -17,7 +20,9 @@ async def handle_provider(app: Any, args: List[str], worker_id: str) -> None:
         app.ui.print_text("Usage:", PrintType.INFO)
         app.ui.print_text("  /provider list", PrintType.INFO)
         app.ui.print_text("  /provider add <name> <env_key_name> <base_url>", PrintType.INFO)
-        app.ui.print_text("    (Adds a new provider. 'required' is set to True, 'default_profiles' is empty.)", PrintType.INFO)
+        app.ui.print_text(
+            "    (Adds a new provider. 'required' is set to True, 'default_profiles' is empty.)", PrintType.INFO
+        )
         app.ui.print_text("  /provider edit <name> <new_env_key_name> <new_base_url>", PrintType.INFO)
         app.ui.print_text("    (Edits an existing provider's env_key and base_url.)", PrintType.INFO)
         app.ui.print_text("  /provider remove <name>", PrintType.INFO)
@@ -44,20 +49,17 @@ async def handle_provider(app: Any, args: List[str], worker_id: str) -> None:
             if not is_valid_name(name):
                 app.ui.print_text(
                     f"Invalid provider name '{name}'. Allowed: 1-64 chars, alphanumeric, underscore, hyphen; no path separators.",
-                    PrintType.ERROR
+                    PrintType.ERROR,
                 )
                 return
             if not is_valid_env_key(env_key):
                 app.ui.print_text(
                     f"Invalid env_key '{env_key}'. Allowed: 1-128 chars, alphanumeric, underscore, hyphen; no path separators.",
-                    PrintType.ERROR
+                    PrintType.ERROR,
                 )
                 return
             if not is_valid_url(base_url):
-                app.ui.print_text(
-                    f"Invalid base_url '{base_url}'. Must be a valid http(s) URL.",
-                    PrintType.ERROR
-                )
+                app.ui.print_text(f"Invalid base_url '{base_url}'. Must be a valid http(s) URL.", PrintType.ERROR)
                 return
 
             provider_data = {
@@ -65,7 +67,7 @@ async def handle_provider(app: Any, args: List[str], worker_id: str) -> None:
                 "env_key": env_key,
                 "base_url": base_url,
                 "required": True,
-                "default_profiles": {"profiles": {}, "default_profile": ""}
+                "default_profiles": {"profiles": {}, "default_profile": ""},
             }
             clients.add_provider(provider_data)
             app.ui.print_text(f"Provider '{name}' added successfully.", PrintType.SUCCESS)
@@ -86,19 +88,13 @@ async def handle_provider(app: Any, args: List[str], worker_id: str) -> None:
             if not is_valid_env_key(new_env_key):
                 app.ui.print_text(
                     f"Invalid env_key '{new_env_key}'. Allowed: 1-128 chars, alphanumeric, underscore, hyphen; no path separators.",
-                    PrintType.ERROR
+                    PrintType.ERROR,
                 )
                 return
             if not is_valid_url(new_base_url):
-                app.ui.print_text(
-                    f"Invalid base_url '{new_base_url}'. Must be a valid http(s) URL.",
-                    PrintType.ERROR
-                )
+                app.ui.print_text(f"Invalid base_url '{new_base_url}'. Must be a valid http(s) URL.", PrintType.ERROR)
                 return
-            updated_fields = {
-                "env_key": new_env_key,
-                "base_url": new_base_url
-            }
+            updated_fields = {"env_key": new_env_key, "base_url": new_base_url}
             clients.edit_provider(name, updated_fields)
             app.ui.print_text(f"Provider '{name}' edited successfully.", PrintType.SUCCESS)
             app.ui.providers_updated()

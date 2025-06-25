@@ -116,6 +116,9 @@ class APIClients:
         else:
             self._clients[name] = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=600)
 
+    def get_providers(self) -> List[ApiProvider]:
+        return self._providers
+
     def __getattr__(self, name: str):
         """Dynamic property access for clients"""
         if name in self._clients:

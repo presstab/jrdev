@@ -7,9 +7,9 @@ Code command implementation for the JrDev application.
 from asyncio import CancelledError
 from typing import Any, List
 
-from jrdev.ui.ui import PrintType
 from jrdev.agents.code_agent import CodeAgent
 from jrdev.core.exceptions import CodeTaskCancelled
+from jrdev.ui.ui import PrintType
 
 
 async def handle_code(app: Any, args: List[str], worker_id: str) -> None:

@@ -6,14 +6,16 @@ This command sends a message to the LLM and optionally saves the response to a f
 without waiting for the response to be returned to the terminal.
 """
 
-import os
 import asyncio
+import os
 import uuid
 from typing import Any, List
-from jrdev.ui.ui import PrintType
+
 from jrdev.file_operations.file_utils import JRDEV_DIR
+from jrdev.ui.ui import PrintType
 
 RESPONSES_DIR = os.path.join(JRDEV_DIR, "responses")
+
 
 def ensure_responses_dir():
     """
@@ -21,6 +23,7 @@ def ensure_responses_dir():
     """
     if not os.path.exists(RESPONSES_DIR):
         os.makedirs(RESPONSES_DIR)
+
 
 async def handle_asyncsend(app: Any, args: List[str], worker_id: str) -> None:
     """
@@ -33,19 +36,19 @@ async def handle_asyncsend(app: Any, args: List[str], worker_id: str) -> None:
     """
 
     if len(args) < 2:
-        app.ui.print_text(
-            "Usage: /asyncsend [filename] <prompt>", print_type=PrintType.ERROR
-        )
+        app.ui.print_text("Usage: /asyncsend [filename] <prompt>", print_type=PrintType.ERROR)
         app.ui.print_text(
             "Example: /asyncsend How can I optimize this code?",
             print_type=PrintType.INFO,
         )
         app.ui.print_text(
-            "Example with file: /asyncsend my_response.txt Tell me the design patterns in this codebase\n(Saves to responses/my_response.txt)",
+            "Example with file: /asyncsend my_response.txt Tell me the design patterns in this codebase\n(Saves to "
+            "responses/my_response.txt)",
             print_type=PrintType.INFO,
         )
         app.ui.print_text(
-            "Note: If a filename is provided, it will be saved in the 'responses' directory under the main JrDev directory.",
+            "Note: If a filename is provided, it will be saved in the 'responses' directory under the main JrDev "
+            "directory.",
             print_type=PrintType.INFO,
         )
         return
@@ -96,7 +99,7 @@ async def handle_asyncsend(app: Any, args: List[str], worker_id: str) -> None:
             except Exception as e:
                 error_msg = str(e)
                 app.logger.error(
-                    f"Background task #{job_id} failed with error: {error_msg} on message thread: {msg_thread.thread_id}"
+                    f"Background task #{job_id} failed with err: {error_msg} on message thread: {msg_thread.thread_id}"
                 )
                 # Task monitor will handle cleanup of failed tasks
 
@@ -132,9 +135,7 @@ async def handle_asyncsend(app: Any, args: List[str], worker_id: str) -> None:
                 # Task monitor will handle cleanup of completed tasks
             except Exception as e:
                 error_msg = str(e)
-                app.logger.error(
-                    f"Background task #{job_id} failed with error: {error_msg}"
-                )
+                app.logger.error(f"Background task #{job_id} failed with error: {error_msg}")
                 # Task monitor will handle cleanup of failed tasks
 
         # Schedule the task but don't wait for it

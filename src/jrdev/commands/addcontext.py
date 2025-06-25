@@ -10,7 +10,7 @@ from typing import Any, List
 from jrdev.ui.ui import PrintType
 
 
-async def handle_addcontext(app: Any, args: List[str], worker_id: str) -> None:
+async def handle_addcontext(app: Any, args: List[str], _worker_id: str) -> None:
     """
     Handle the /addcontext command to add a file to the LLM context.
 
@@ -30,7 +30,7 @@ async def handle_addcontext(app: Any, args: List[str], worker_id: str) -> None:
     matching_files = glob.glob(os.path.join(current_dir, file_pattern), recursive=True)
 
     # Also try a direct path match if glob didn't find anything (for files without wildcards)
-    if not matching_files and not any(c in file_pattern for c in ['*', '?', '[']):
+    if not matching_files and not any(c in file_pattern for c in ["*", "?", "["]):
         full_path = os.path.join(current_dir, file_pattern)
         if os.path.exists(full_path) and os.path.isfile(full_path):
             matching_files = [full_path]
@@ -60,7 +60,7 @@ async def handle_addcontext(app: Any, args: List[str], worker_id: str) -> None:
 
             # Just check if file is readable
             try:
-                with open(full_path, "r") as f:
+                with open(full_path, "r", encoding="utf-8") as f:
                     # Just read a small bit to check if file is readable
                     f.read(1)
             except Exception as e:

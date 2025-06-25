@@ -20,7 +20,7 @@ async def handle_stateinfo(app: Any, args: List[str], worker_id: str) -> None:
     """
     app.ui.print_text("\nCurrent Application State:", print_type=PrintType.HEADER)
     app.ui.print_text(f"  Model: {app.state.model}", print_type=PrintType.INFO)
-    
+
     # Display message history count
     current_thread = app.get_current_thread()
     message_count = len(current_thread.messages)
@@ -35,22 +35,22 @@ async def handle_stateinfo(app: Any, args: List[str], worker_id: str) -> None:
             app.ui.print_text(f"    - {ctx_file}", print_type=PrintType.INFO)
     else:
         app.ui.print_text(f"  Context files: 0", print_type=PrintType.INFO)
-    
+
     # If the app has any file context loaded
     project_files = app.state.project_files
-    
+
     loaded_files = []
     for key, filename in project_files.items():
         if any(key in msg.get("content", "") for msg in current_thread.messages if msg.get("role") == "user"):
             loaded_files.append(filename)
-    
+
     if loaded_files:
         app.ui.print_text(f"  Project context: {', '.join(loaded_files)}", print_type=PrintType.INFO)
     else:
         app.ui.print_text(f"  Project context: None", print_type=PrintType.INFO)
-    
+
     # Show Context Manager information
-    if hasattr(app, 'context_manager') and app.context_manager:
+    if hasattr(app, "context_manager") and app.context_manager:
         # Get number of tracked files in the context manager
         tracked_file_count = len(app.context_manager.index.get("files", {}))
         app.ui.print_text(f"  Context manager tracked files: {tracked_file_count}", print_type=PrintType.INFO)

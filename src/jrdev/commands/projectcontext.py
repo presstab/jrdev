@@ -147,9 +147,7 @@ def _show_usage(app: Any) -> None:
         "/projectcontext status - Show current status of project context",
         PrintType.INFO,
     )
-    app.ui.print_text(
-        "/projectcontext list - List all tracked files in project context", PrintType.INFO
-    )
+    app.ui.print_text("/projectcontext list - List all tracked files in project context", PrintType.INFO)
     app.ui.print_text(
         "/projectcontext view <filepath> - View context for a specific file",
         PrintType.INFO,
@@ -269,9 +267,7 @@ async def _refresh_file_context(app: Any, file_path: str) -> None:
     analysis = await app.state.context_manager.generate_context(file_path, app)
 
     if analysis:
-        app.ui.print_text(
-            f"Successfully refreshed context for {file_path}", PrintType.SUCCESS
-        )
+        app.ui.print_text(f"Successfully refreshed context for {file_path}", PrintType.SUCCESS)
     else:
         app.ui.print_text(f"Failed to refresh context for {file_path}", PrintType.ERROR)
 
@@ -326,10 +322,7 @@ async def _update_outdated_context_files(app: Any, worker_id: str) -> None:
         app.ui.print_text("No files in project context to update", PrintType.WARNING)
         return
 
-    app.ui.print_text(
-        f"Updating context for all {len(files)} tracked files...",
-        PrintType.PROCESSING
-    )
+    app.ui.print_text(f"Updating context for all {len(files)} tracked files...", PrintType.PROCESSING)
 
     # Create a concurrent batch update task
     update_task = context_manager.batch_update_contexts(app=app, file_paths=files, concurrency=5, worker_id=worker_id)
@@ -344,20 +337,11 @@ async def _update_outdated_context_files(app: Any, worker_id: str) -> None:
         failed = sum(1 for r in results if r is None)
 
         if successful == total_files:
-            app.ui.print_text(
-                f"Successfully updated context for all {total_files} files",
-                PrintType.SUCCESS
-            )
+            app.ui.print_text(f"Successfully updated context for all {total_files} files", PrintType.SUCCESS)
         else:
-            app.ui.print_text(
-                f"Updated {successful} files successfully, {failed} files failed",
-                PrintType.WARNING
-            )
+            app.ui.print_text(f"Updated {successful} files successfully, {failed} files failed", PrintType.WARNING)
     except Exception as e:
-        app.ui.print_text(
-            f"Error updating contexts: {str(e)}",
-            PrintType.ERROR
-        )
+        app.ui.print_text(f"Error updating contexts: {str(e)}", PrintType.ERROR)
 
 
 async def _remove_file_from_context(app: Any, file_path: str) -> None:
@@ -380,10 +364,7 @@ async def _remove_file_from_context(app: Any, file_path: str) -> None:
         context_file_path = context_manager._get_context_path(file_path)
 
         # Remove from the index
-        if (
-            "files" in context_manager.index
-            and file_path in context_manager.index["files"]
-        ):
+        if "files" in context_manager.index and file_path in context_manager.index["files"]:
             del context_manager.index["files"][file_path]
             context_manager._save_index()
 
@@ -391,10 +372,6 @@ async def _remove_file_from_context(app: Any, file_path: str) -> None:
         if os.path.exists(context_file_path):
             os.remove(context_file_path)
 
-        app.ui.print_text(
-            f"Successfully removed {file_path} from project context", PrintType.SUCCESS
-        )
+        app.ui.print_text(f"Successfully removed {file_path} from project context", PrintType.SUCCESS)
     except Exception as e:
-        app.ui.print_text(
-            f"Error removing {file_path} from project context: {str(e)}", PrintType.ERROR
-        )
+        app.ui.print_text(f"Error removing {file_path} from project context: {str(e)}", PrintType.ERROR)

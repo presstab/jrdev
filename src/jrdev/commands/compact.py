@@ -10,8 +10,8 @@ import logging
 from typing import Any, List, Protocol
 
 from jrdev.file_operations.file_utils import cutoff_string
-from jrdev.services.llm_requests import generate_llm_response
 from jrdev.messages.message_builder import MessageBuilder
+from jrdev.services.llm_requests import generate_llm_response
 from jrdev.ui.ui import PrintType
 
 
@@ -41,7 +41,8 @@ def _show_compact_help(app: Any) -> None:
         PrintType.INFO,
     )
     app.ui.print_text(
-        "This reduces the number of tokens used in future requests, helping to avoid context length limits and lower costs.",
+        "This reduces the number of tokens used in future requests, helping to avoid context length limits and lower "
+        "costs.",
         PrintType.INFO,
     )
     app.ui.print_text("", PrintType.INFO)
@@ -51,7 +52,8 @@ def _show_compact_help(app: Any) -> None:
         PrintType.INFO,
     )
     app.ui.print_text(
-        "- The conversation is then replaced with just summary messages, which is all the AI model will see going forward.",
+        "- The conversation is then replaced with just summary messages, which is all the AI model will see going "
+        "forward.",
         PrintType.INFO,
     )
     app.ui.print_text("", PrintType.INFO)
@@ -65,7 +67,8 @@ def _show_compact_help(app: Any) -> None:
         PrintType.INFO,
     )
     app.ui.print_text(
-        "- Note: Any context that was manually added to the chat using /addcontext will be removed and will need to be added again manually, if desired.",
+        "- Note: Any context that was manually added to the chat using /addcontext will be removed and will need to be "
+        "added again manually, if desired.",
         PrintType.INFO,
     )
 
@@ -106,7 +109,7 @@ async def handle_compact(app: Any, args: List[str], worker_id: str) -> None:
             PrintType.PROCESSING,
         )
 
-        response = await generate_llm_response(app, app.state.model, messages, print_stream=True)
+        response = await generate_llm_response(app, app.state.model, messages, worker_id, print_stream=True)
 
         if response is not None:
             # Parse the JSON response
@@ -121,7 +124,7 @@ async def handle_compact(app: Any, args: List[str], worker_id: str) -> None:
                 # Create new messages in the required format
                 new_messages = [
                     {"role": "user", "content": compact_data["user"]},
-                    {"role": "assistant", "content": compact_data["assistant"]}
+                    {"role": "assistant", "content": compact_data["assistant"]},
                 ]
 
                 # Replace the thread's messages with just these two

@@ -8,18 +8,22 @@ from typing_extensions import Any, List, TypedDict
 # Import curses with Windows compatibility
 try:
     import curses
+
     CURSES_AVAILABLE = True
 except ImportError:
     curses = None
     CURSES_AVAILABLE = False
 
-from jrdev.ui.ui import PrintType
-from jrdev.ui.model_selector import interactive_model_selector, text_based_model_selector
 from pydantic import parse_obj_as
+
+from jrdev.ui.model_selector import (interactive_model_selector,
+                                     text_based_model_selector)
+from jrdev.ui.ui import PrintType
 
 
 class ModelInfo(TypedDict):
     """Type definition for model information."""
+
     name: str
     provider: str
     is_think: bool
@@ -42,10 +46,7 @@ async def handle_models(app: Any, args: List[str], worker_id: str) -> None:
 
     # Sort models first by provider, then by name alphabetically
     models = parse_obj_as(List[ModelInfo], models_list)
-    sorted_models = sorted(
-        models,
-        key=lambda model: (model["provider"], model["name"])
-    )
+    sorted_models = sorted(models, key=lambda model: (model["provider"], model["name"]))
 
     # Use curses-based interactive selector if available, otherwise use text-based selector
     use_curses = CURSES_AVAILABLE and not (len(args) > 1 and args[1] == "--no-curses")
@@ -53,11 +54,7 @@ async def handle_models(app: Any, args: List[str], worker_id: str) -> None:
         use_curses = False
     if use_curses:
         try:
-            selected_model = curses.wrapper(
-                interactive_model_selector,
-                app,
-                sorted_models
-            )
+            selected_model = curses.wrapper(interactive_model_selector, app, sorted_models)
 
             if selected_model:
                 # User selected a model
