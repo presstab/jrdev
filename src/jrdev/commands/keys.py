@@ -3,13 +3,15 @@ Command handler for API key management.
 """
 
 import asyncio
-import os
 import logging
+import os
 from getpass import getpass
-from typing import Dict, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
+
 from dotenv import load_dotenv
 
 from jrdev.file_operations.file_utils import add_to_gitignore, get_env_path
+from jrdev.models.api_provider import ApiProvider
 from jrdev.ui.ui import PrintType
 
 logger = logging.getLogger("jrdev")
@@ -48,8 +50,7 @@ def _mask_key(value: str) -> str:
         return ""
     if len(value) > 10:
         return value[:4] + "*" * (len(value) - 8) + value[-4:]
-    else:
-        return "*" * len(value)
+    return "*" * len(value)
 
 
 def _load_current_keys() -> Dict[str, str]:
@@ -63,7 +64,7 @@ def _load_current_keys() -> Dict[str, str]:
     env_path = get_env_path()
 
     if os.path.exists(env_path):
-        with open(env_path, "r") as f:
+        with open(env_path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith("#"):
@@ -87,7 +88,7 @@ def save_keys_to_env(keys: Dict[str, str]) -> None:
     env_path = get_env_path()
 
     # Filter out empty values and write to file
-    with open(env_path, "w") as f:
+    with open(env_path, "w", encoding="utf-8") as f:
         for k, v in filter(lambda x: x[1], keys.items()):
             f.write(f"{k}={v}\n")
             os.environ[k] = v
@@ -166,7 +167,7 @@ def _can_remove_key(app: Any, key_name_to_remove: str) -> bool:
 
     # Check if any other key exists in environment or remaining .env keys
     other_key_exists = False
-    for provider in app.state.clients._providers:
+    for provider in app.state.clients.provider_list():
         pk = provider["env_key"]
         if pk == key_name_to_remove:
             continue  # Skip the one we are trying to remove
@@ -210,7 +211,7 @@ async def _perform_key_removal(app: Any, key_name_to_remove: str, provider_name:
         try:
             del os.environ[key_name_to_remove]
         except KeyError:
-            logger.info(f"_perform_key_removal(): No env var: {key_name_to_remove}")
+            logger.info("_perform_key_removal(): No env var: %s", key_name_to_remove)
 
         app.state.clients.set_client_null(provider_name)
         await app.reload_api_clients()
@@ -251,7 +252,7 @@ def _validate_key_removal(app: Any, service: str) -> Tuple[Optional[Dict[str, An
     return provider_to_remove, None, True
 
 
-async def _execute_key_removal(app: Any, provider: Dict[str, Any]) -> Tuple[bool, str]:
+async def _execute_key_removal(app: Any, provider: Dict[str, Any]) -> None:
     """
     Execute the key removal workflow.
 
@@ -268,57 +269,56 @@ async def _execute_key_removal(app: Any, provider: Dict[str, Any]) -> Tuple[bool
     provider_name = provider["name"]
 
     if await _perform_key_removal(app, key_name_to_remove, provider_name):
-        return True, f"{provider_name.title()} API key removed successfully!"
+        app.ui.print_text(f"{provider_name.title()} API key removed successfully!", PrintType.SUCCESS)
     else:
-        return False, f"{provider_name.title()} API key not found."
+        app.ui.print_text(f"{provider_name.title()} API key not found.", PrintType.WARNING)
 
 
-async def handle_keys(app: Any, args: list[str], worker_id: str) -> None:
-    """Manage API keys through a menu or non-interactive commands."""
-    # If UI is textual, handle non-interactively
-    if app.ui.ui_name == "textual":
-        # Always show help if no subcommand or help flags
-        if len(args) < 2 or (len(args) > 1 and args[1] in ("help", "--help", "-h")):
-            app.ui.print_text("API Key Management (textual mode)", PrintType.HEADER)
-            app.ui.print_text("Usage:", PrintType.INFO)
-            app.ui.print_text("  /keys view", PrintType.INFO)
-            app.ui.print_text("  /keys add <SERVICE> <API_KEY>", PrintType.INFO)
-            app.ui.print_text("  /keys update <SERVICE> <API_KEY>", PrintType.INFO)
-            app.ui.print_text("  /keys remove <SERVICE>", PrintType.INFO)
-            app.ui.print_text("  /keys list", PrintType.INFO)
-            app.ui.print_text("  /keys help", PrintType.INFO)
-            app.ui.print_text("Available services:", PrintType.INFO)
-            for provider in app.state.clients._providers:
-                app.ui.print_text(f"  {provider['name'].lower()} ({provider['env_key']})", PrintType.INFO)
-            return
-        cmd = args[1].lower()
-        if cmd in ("view", "list"):
-            await _view_keys(app, textual_mode=True)
-        elif cmd in ("add", "update"):
-            if len(args) < 4:
-                app.ui.print_text("Usage: /keys add <SERVICE> <API_KEY>", PrintType.ERROR)
-                return
-            service = args[2]
-            api_key = args[3]
-            await _add_update_key(app, service, api_key, textual_mode=True)
-        elif cmd == "remove":
-            if len(args) < 3:
-                app.ui.print_text("Usage: /keys remove <SERVICE>", PrintType.ERROR)
-                return
-            service = args[2]
-            await _remove_key(app, service, textual_mode=True)
-        else:
-            app.ui.print_text(f"Unknown command: {cmd}", PrintType.ERROR)
-            app.ui.print_text("Type /keys help for usage.", PrintType.INFO)
+async def _handle_keys_non_interactive(app: Any, args: list[str]) -> None:
+    # Always show help if no subcommand or help flags
+    if len(args) < 2 or (len(args) > 1 and args[1] in ("help", "--help", "-h")):
+        app.ui.print_text("API Key Management (textual mode)", PrintType.HEADER)
+        app.ui.print_text("Usage:", PrintType.INFO)
+        app.ui.print_text("  /keys view", PrintType.INFO)
+        app.ui.print_text("  /keys add <SERVICE> <API_KEY>", PrintType.INFO)
+        app.ui.print_text("  /keys update <SERVICE> <API_KEY>", PrintType.INFO)
+        app.ui.print_text("  /keys remove <SERVICE>", PrintType.INFO)
+        app.ui.print_text("  /keys list", PrintType.INFO)
+        app.ui.print_text("  /keys help", PrintType.INFO)
+        app.ui.print_text("Available services:", PrintType.INFO)
+        for provider in app.state.clients.provider_list():
+            app.ui.print_text(f"  {provider['name'].lower()} ({provider['env_key']})", PrintType.INFO)
         return
+    cmd = args[1].lower()
+    if cmd in ("view", "list"):
+        await _view_keys(app, textual_mode=True)
+    elif cmd in ("add", "update"):
+        if len(args) < 4:
+            app.ui.print_text("Usage: /keys add <SERVICE> <API_KEY>", PrintType.ERROR)
+            return
+        service = args[2]
+        api_key = args[3]
+        await _add_update_key(app, service, api_key, textual_mode=True)
+    elif cmd == "remove":
+        if len(args) < 3:
+            app.ui.print_text("Usage: /keys remove <SERVICE>", PrintType.ERROR)
+            return
+        service = args[2]
+        await _remove_key(app, service, textual_mode=True)
+    else:
+        app.ui.print_text(f"Unknown command: {cmd}", PrintType.ERROR)
+        app.ui.print_text("Type /keys help for usage.", PrintType.INFO)
+    return
 
+
+async def _handle_keys_interactive(app: Any) -> None:
     # Interactive (non-textual) mode
     choices = """
-    1. View configured keys
-    2. Add/Update key
-    3. Remove key
-    4. Cancel/Exit
-    """
+        1. View configured keys
+        2. Add/Update key
+        3. Remove key
+        4. Cancel/Exit
+        """
 
     app.ui.print_text("API Key Management", PrintType.HEADER)
     app.ui.print_text(choices, PrintType.INFO)
@@ -334,8 +334,18 @@ async def handle_keys(app: Any, args: list[str], worker_id: str) -> None:
     elif choice == "4" or choice.lower() in ["cancel", "exit", "q", "quit"]:
         app.ui.print_text("Cancelled API key management.", PrintType.INFO)
         return
-    else:
-        app.ui.print_text("Invalid choice. Please try again.", PrintType.ERROR)
+
+    app.ui.print_text("Invalid choice. Please try again.", PrintType.ERROR)
+
+
+async def handle_keys(app: Any, args: list[str], _worker_id: str) -> None:
+    """Manage API keys through a menu or non-interactive commands."""
+    # If UI is textual, handle non-interactively
+    if app.ui.ui_name == "textual":
+        await _handle_keys_non_interactive(app, args)
+        return
+
+    await _handle_keys_interactive(app)
 
 
 async def _view_keys(app: Any, textual_mode: bool = False) -> None:
@@ -343,9 +353,8 @@ async def _view_keys(app: Any, textual_mode: bool = False) -> None:
     # Always reload the current keys from the .env file to reflect actual state
     keys = _load_current_keys()
     app.ui.print_text("Configured API Keys:", PrintType.INFO)
-    for provider in app.state.clients._providers:
+    for provider in app.state.clients.provider_list():
         key_name = provider["env_key"]
-        service_name = provider["name"].title()
         value = keys.get(key_name)
         if value:
             masked = _mask_key(value)
@@ -357,44 +366,43 @@ async def _view_keys(app: Any, textual_mode: bool = False) -> None:
         app.ui.print_text("Returning to main menu.", PrintType.INFO)
 
 
-async def _add_update_key(app: Any, service: str = "", api_key: str = "", textual_mode: bool = False) -> None:
-    """Add or update an API key."""
-    if textual_mode:
-        # service is the name or env_key, api_key is the value
-        # Find provider by name or env_key
-        provider = None
-        for p in app.state.clients._providers:
-            if service.lower() == p["name"].lower() or service.upper() == p["env_key"]:
-                provider = p
-                break
-        if not provider:
-            app.ui.print_text(f"Unknown service: {service}", PrintType.ERROR)
-            return
-        key_name = provider["env_key"]
-        is_required = provider["required"]  # This 'required' flag is from provider config, not the new logic
-        # The new logic is about *at least one key*, not specific key requirements for adding/updating.
-        # However, the _prompt_key function might still use this for its prompt text.
-        if not api_key and is_required:  # This check might be re-evaluated based on overall app logic for adding keys.
-            app.ui.print_text(f"API key for {provider['name']} is required by its configuration.", PrintType.ERROR)
-            return
-        keys = _load_current_keys()
-        keys[key_name] = api_key
-        save_keys_to_env(keys)
-        load_dotenv()
-        app.ui.print_text(f"{provider['name'].title()} API key updated successfully!", PrintType.SUCCESS)
+def _add_update_non_interactive(app: Any, service: str, api_key: str, provider_list: List[ApiProvider]) -> None:
+    # service is the name or env_key, api_key is the value
+    # Find provider by name or env_key
+    provider = None
+    for p in provider_list:
+        if service.lower() == p.name.lower() or service.upper() == p.env_key:
+            provider = p
+            break
+    if not provider:
+        app.ui.print_text(f"Unknown service: {service}", PrintType.ERROR)
+        return
+    key_name = provider.env_key
+    is_required = provider.required
+
+    if not api_key and is_required:  # This check might be re-evaluated based on overall app logic for adding keys.
+        app.ui.print_text(f"API key for {provider.name} is required by its configuration.", PrintType.ERROR)
         return
 
+    keys = _load_current_keys()
+    keys[key_name] = api_key
+    save_keys_to_env(keys)
+    load_dotenv()
+    app.ui.print_text(f"{provider.name.title()} API key updated successfully!", PrintType.SUCCESS)
+
+
+async def _add_update_key_interactive(app: Any, provider_list: List[ApiProvider]) -> None:
     # Interactive mode
     services = {}
-    for i, provider in enumerate(app.state.clients._providers, 1):
-        services[str(i)] = (provider["env_key"], provider["name"].title())
+    for i, provider in enumerate(provider_list, 1):
+        services[str(i)] = (provider.env_key, provider.name.title())
     services[str(len(services) + 1)] = ("", "Cancel/Back")
 
     app.ui.print_text("Select service to add/update key for:", PrintType.INFO)
     for num, (_, name) in services.items():
         app.ui.print_text(f"{num}. {name}", PrintType.INFO)
 
-    service_choice = await async_input("Enter your choice (1-{}): ".format(len(services)))
+    service_choice = await async_input(f"Enter your choice (1-{len(services)}): ")
 
     if service_choice == str(len(services)) or service_choice.lower() in ["cancel", "back", "q", "quit", "exit"]:
         app.ui.print_text("Cancelled key update.", PrintType.INFO)
@@ -407,7 +415,7 @@ async def _add_update_key(app: Any, service: str = "", api_key: str = "", textua
     key_name, service_name = services[service_choice]
     # The 'required' flag here is for the _prompt_key function's behavior, not for overall app validation.
     is_required_by_provider_config = any(
-        provider["env_key"] == key_name and provider["required"] for provider in app.state.clients._providers
+        provider.env_key == key_name and provider.required for provider in provider_list
     )
 
     app.ui.print_text(f"Enter API key for {service_name} (or press Ctrl+C to cancel):", PrintType.INFO)
@@ -426,28 +434,34 @@ async def _add_update_key(app: Any, service: str = "", api_key: str = "", textua
         app.ui.print_text("Cancelled key update.", PrintType.INFO)
 
 
-async def _remove_key(app: Any, service: str = "", textual_mode: bool = False) -> None:
-    """Remove an API key."""
+async def _add_update_key(app: Any, service: str = "", api_key: str = "", textual_mode: bool = False) -> None:
+    """Add or update an API key."""
+    provider_list = app.state.clients.provider_list()
     if textual_mode:
-        # Validate the removal request
-        provider_to_remove, error_message, can_remove = _validate_key_removal(app, service)
-        if not can_remove or not provider_to_remove:
-            app.logger.error(f"_remove_key: {error_message}")
-            app.ui.print_text(error_message, PrintType.ERROR)
-            return
-
-        # Execute the removal
-        success, message = await _execute_key_removal(app, provider_to_remove)
-        message_type = PrintType.SUCCESS if success else PrintType.WARNING
-        app.ui.print_text(message, message_type)
+        _add_update_non_interactive(app, service, api_key, provider_list)
         return
 
-    # Interactive mode
+    await _add_update_key_interactive(app, provider_list)
+
+
+async def _remove_key_non_interactive(app: Any, service: str = "") -> None:
+    # Validate the removal request
+    provider_to_remove, error_message, can_remove = _validate_key_removal(app, service)
+    if not can_remove or not provider_to_remove:
+        app.logger.error(f"_remove_key: {error_message}")
+        app.ui.print_text(error_message, PrintType.ERROR)
+        return
+
+    # Execute the removal
+    await _execute_key_removal(app, provider_to_remove)
+
+
+async def _remove_key_interactive(app: Any) -> None:
     # Filter list to show only configured keys for removal
     keys = _load_current_keys()
     removable_services = {}
     idx = 1
-    for provider in app.state.clients._providers:
+    for provider in app.state.clients.provider_list():
         if provider["env_key"] in keys and keys[provider["env_key"]]:
             removable_services[str(idx)] = (provider["env_key"], provider["name"].title(), provider)
             idx += 1
@@ -461,7 +475,7 @@ async def _remove_key(app: Any, service: str = "", textual_mode: bool = False) -
     for num, (_, name, _) in removable_services.items():
         app.ui.print_text(f"{num}. {name}", PrintType.INFO)
 
-    service_choice = await async_input("Enter your choice (1-{}): ".format(len(removable_services)))
+    service_choice = await async_input(f"Enter your choice (1-{len(removable_services)}): ")
 
     if service_choice == str(len(removable_services)) or service_choice.lower() in [
         "cancel",
@@ -477,7 +491,7 @@ async def _remove_key(app: Any, service: str = "", textual_mode: bool = False) -
         app.ui.print_text("Invalid choice.", PrintType.ERROR)
         return
 
-    key_name_to_remove, service_name, provider_to_remove = removable_services[service_choice]
+    _, service_name, provider_to_remove = removable_services[service_choice]
 
     # Validate the removal using the shared validation function
     _, error_message, can_remove = _validate_key_removal(app, provider_to_remove["name"])
@@ -492,9 +506,17 @@ async def _remove_key(app: Any, service: str = "", textual_mode: bool = False) -
         return
 
     # Execute the removal using the shared execution function
-    success, message = await _execute_key_removal(app, provider_to_remove)
-    message_type = PrintType.SUCCESS if success else PrintType.WARNING
-    app.ui.print_text(message, message_type)
+    await _execute_key_removal(app, provider_to_remove)
+
+
+async def _remove_key(app: Any, service: str = "", textual_mode: bool = False) -> None:
+    """Remove an API key."""
+    if textual_mode:
+        await _remove_key_non_interactive(app, service)
+        return
+
+    # Interactive mode
+    await _remove_key_interactive(app)
 
 
 async def _prompt_key(service: str, required: bool = False) -> Optional[str]:
@@ -525,9 +547,11 @@ async def _prompt_key(service: str, required: bool = False) -> Optional[str]:
                 return value
             # If required by provider config and empty, print error and re-prompt
             print(
-                "This key is marked as required by its provider configuration. Please enter a value or Ctrl+C to cancel."
+                "This key is marked as required by its provider configuration. Please enter a value or Ctrl+C to "
+                "cancel."
             )
         except KeyboardInterrupt:
+            logger.info("_prompt_key: KeyboardInterrupt")
             raise  # Re-raise to allow handling by caller
 
 
@@ -549,7 +573,8 @@ async def run_first_time_setup(app: Any) -> bool:
         app.ui.print_text("JrDev requires at least one API key to be configured to function.", PrintType.WARNING)
 
         app.ui.print_text("Available API Providers:", PrintType.SUBHEADER)
-        for provider in app.state.clients._providers:
+        provider_list = app.state.clients.provider_list()
+        for provider in provider_list:
             # The 'required' flag from provider config is less relevant now for the overall setup,
             # but can be mentioned for user info.
             req_text = "(provider suggests this key for full functionality)" if provider["required"] else "(optional)"
@@ -567,7 +592,7 @@ async def run_first_time_setup(app: Any) -> bool:
         app.ui.print_text("API Key Configuration", PrintType.HEADER)
         keys_entered = {}
         num_keys_provided = 0
-        for provider in app.state.clients._providers:
+        for provider in provider_list:
             # Pass the provider's 'required' flag to _prompt_key for its prompt text only.
             # The actual enforcement is 'at least one key overall'.
             key_value = await _prompt_key(f"{provider['name'].title()}", required=provider["required"])

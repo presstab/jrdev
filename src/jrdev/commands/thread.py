@@ -17,14 +17,15 @@ For more details, see the docs/threads.md documentation.
 
 import argparse
 import re
-from typing import Any, List, Optional
+from typing import Any, List
 
 from jrdev.commands.help import format_command_with_args_plain
 from jrdev.messages.thread import MessageThread  # For type hinting
 from jrdev.ui.ui import PrintType, show_conversation
 
 
-async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
+# pylint: disable=too-many-locals, too-many-branches, too-many-statements
+async def handle_thread(app: Any, args: List[str], _worker_id: str) -> None:
     """Handle the /thread command for creating and managing message threads.
 
     Args:
@@ -34,7 +35,11 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
     parser = argparse.ArgumentParser(
         prog="/thread",
         description="Manage isolated conversation contexts",
-        epilog=f"Examples:\n  {format_command_with_args_plain('/thread new', 'feature/auth')}\n  {format_command_with_args_plain('/thread switch', '3')}\n  {format_command_with_args_plain('/thread rename', 'thread-abc new-feature-name')}",
+        epilog=(
+            f"Examples:\n  {format_command_with_args_plain('/thread new', 'feature/auth')}\n  "
+            f"{format_command_with_args_plain('/thread switch', '3')}\n  "
+            f"{format_command_with_args_plain('/thread rename', 'thread-abc new-feature-name')}"
+        ),
         exit_on_error=False,
     )
 
@@ -47,10 +52,11 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
         description="Create new isolated conversation context",
         epilog=f"Example: {format_command_with_args_plain('/thread new', 'my_feature')}",
     )
-    new_parser.add_argument("name", type=str, nargs=argparse.REMAINDER, help="Optional name (3-20 chars, a-z0-9_- )")
+    help_str = "Optional name (3-20 chars, a-z0-9_- )"
+    new_parser.add_argument("name", type=str, nargs=argparse.REMAINDER, help=help_str)
 
     # List threads command
-    list_parser = subparsers.add_parser(
+    subparsers.add_parser(
         "list",
         help="List all threads",
         description="Display available conversation threads",
@@ -85,7 +91,7 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
     )
 
     # Show thread info command
-    info_parser = subparsers.add_parser(
+    subparsers.add_parser(
         "info",
         help="Current thread details",
         description="Show current thread statistics",
@@ -117,7 +123,7 @@ async def handle_thread(app: Any, args: List[str], worker_id: str) -> None:
             if len(args) == 2 and args[1] in ["-h", "--help"]:
                 parser.print_help()
                 return
-            elif len(args) >= 3 and args[2] in ["-h", "--help"]:
+            if len(args) >= 3 and args[2] in ["-h", "--help"]:
                 sub_cmd = args[1]
                 if sub_cmd in subparsers.choices:
                     subparsers.choices[sub_cmd].print_help()
@@ -295,7 +301,8 @@ async def _handle_switch_thread(app: Any, args: argparse.Namespace) -> None:
 
         app.ui.print_text(f"Successfully switched to thread {thread_id}{name_display}", PrintType.SUCCESS)
         app.ui.print_text(
-            f"Thread Stats:\n  Messages: {len(new_thread.messages)} | Context Files: {len(new_thread.context)}\nEmbedded Files: {len(new_thread.embedded_files)}",
+            f"Thread Stats:\n  Messages: {len(new_thread.messages)} | Context Files: {len(new_thread.context)}\n"
+            f"Embedded Files: {len(new_thread.embedded_files)}",
             PrintType.INFO,
         )
         app.ui.chat_thread_update(new_thread.thread_id)
@@ -312,12 +319,13 @@ async def _handle_rename_thread(app: Any, args: argparse.Namespace) -> None:
     if hasattr(args, "name") and args.name:
         new_thread_name = " ".join(args.name).strip()
     else:
-        app.ui.print_text(f"Error: No new name provided.", PrintType.ERROR)
+        app.ui.print_text("Error: No new name provided.", PrintType.ERROR)
         return
 
     if not re.match(r"^[\w\- ]{3,40}$", new_thread_name):
         app.ui.print_text(
-            f"Error: Invalid new name '{new_thread_name}'. Name must be 3-40 alphanumerics, underscores, hyphens, or spaces.",
+            f"Error: Invalid new name '{new_thread_name}'. Name must be 3-40 alphanumerics, underscores, hyphens, or "
+            "spaces.",
             PrintType.ERROR,
         )
         return

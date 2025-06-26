@@ -1,16 +1,10 @@
-#!/usr/bin/env python3
-
-"""
-Project context command implementation for the JrDev terminal.
-"""
-
-import asyncio
 import os
 from typing import Any, Dict, List
 
 from jrdev.ui.ui import PrintType
 
 
+# pylint: disable=too-many-branches
 async def handle_projectcontext(app: Any, args: List[str], worker_id: str) -> None:
     """
     Handle the /projectcontext command for managing project context.
@@ -239,7 +233,7 @@ async def _view_file_context(app: Any, file_path: str) -> None:
         file_path: Path to the file to view context for
     """
     context_manager = app.state.context_manager
-    context = context_manager._read_context_file(file_path)
+    context = context_manager.read_context_file(file_path)
 
     if not context:
         app.ui.print_text(f"No context found for {file_path}", PrintType.WARNING)
@@ -361,12 +355,12 @@ async def _remove_file_from_context(app: Any, file_path: str) -> None:
 
     try:
         # Get the context file path to delete it
-        context_file_path = context_manager._get_context_path(file_path)
+        context_file_path = context_manager.get_context_path(file_path)
 
         # Remove from the index
         if "files" in context_manager.index and file_path in context_manager.index["files"]:
             del context_manager.index["files"][file_path]
-            context_manager._save_index()
+            context_manager.save_index()
 
         # Delete the context file if it exists
         if os.path.exists(context_file_path):

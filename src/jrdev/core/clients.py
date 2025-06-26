@@ -27,6 +27,9 @@ class APIClients:
     def get_client(self, name):
         return self._clients.get(name, None)
 
+    def has_key(self, provider_name: str) -> bool:
+        return self.get_client(provider_name) is not None
+
     def _load_provider_config(self):
         """Load provider configurations from api_providers.json, with fallbacks for resilience."""
         user_config_path = file_utils.get_persistent_storage_path() / "user_api_providers.json"
@@ -115,9 +118,6 @@ class APIClients:
             self._clients[name] = anthropic.AsyncAnthropic(api_key=api_key)
         else:
             self._clients[name] = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=600)
-
-    def get_providers(self) -> List[ApiProvider]:
-        return self._providers
 
     def __getattr__(self, name: str):
         """Dynamic property access for clients"""

@@ -64,10 +64,10 @@ class ContextManager:
         else:
             # Initialize empty index
             self.index = {"files": {}}
-            self._save_index()
+            self.save_index()
             logger.info("Created new context index")
 
-    def _save_index(self) -> None:
+    def save_index(self) -> None:
         """Save the context index to disk."""
         try:
             with open(self.index_path, "w") as f:
@@ -84,7 +84,7 @@ class ContextManager:
     def _filename_to_path(self, filename: str) -> str:
         return filename.replace("-@-", "/")
 
-    def _get_context_path(self, file_path: str) -> str:
+    def get_context_path(self, file_path: str) -> str:
         """
         Get the path to the context file for a given file.
 
@@ -129,7 +129,7 @@ class ContextManager:
             logger.error(f"Error calculating hash for {file_path}: {str(e)}")
             return None
 
-    def _read_context_file(self, file_path: str) -> str:
+    def read_context_file(self, file_path: str) -> str:
         """
         Read the context file for a given source file.
 
@@ -139,7 +139,7 @@ class ContextManager:
         Returns:
             Contents of the context file or empty string if it doesn't exist
         """
-        context_path = self._get_context_path(file_path)
+        context_path = self.get_context_path(file_path)
 
         try:
             if os.path.exists(context_path):
@@ -210,7 +210,7 @@ class ContextManager:
         else:
             logger.info(f"Using cached context for {file_path}")
 
-        return self._read_context_file(file_path)
+        return self.read_context_file(file_path)
 
     async def generate_context(
         self,
@@ -297,7 +297,7 @@ class ContextManager:
             # Get context file path and create parent directories if needed
             # For multiple files, always use the first file as the primary file for context storage
             primary_file = file_path if isinstance(file_path, str) else file_path[0]
-            context_file_path = self._get_context_path(primary_file)
+            context_file_path = self.get_context_path(primary_file)
 
             # Ensure the directory exists for the context file
             context_dir = os.path.dirname(context_file_path)
@@ -364,7 +364,7 @@ class ContextManager:
         }
 
         # Save the updated index
-        self._save_index()
+        self.save_index()
         logger.info(f"Added {file_path} to context index")
 
     def get_outdated_files(self) -> List[str]:
@@ -395,7 +395,7 @@ class ContextManager:
         """
         indexes_list = []
         for file_path in self.index.get("files", {}):
-            context_path = self._get_context_path(file_path)
+            context_path = self.get_context_path(file_path)
             indexes_list.append([context_path, str(file_path)])
         return indexes_list
 
@@ -408,7 +408,7 @@ class ContextManager:
         """
         contexts = []
         for file_path in self.index.get("files", {}):
-            context = self._read_context_file(file_path)
+            context = self.read_context_file(file_path)
             if context:  # Only include if there's actual content
                 contexts.append(f"## {file_path} BEGIN ##\n{context}\n ## {file_path} END ##\n")
 
@@ -437,7 +437,7 @@ class ContextManager:
                 logger.info(f"No context found for file: {file_path}")
                 continue
 
-            context = self._read_context_file(file_path)
+            context = self.read_context_file(file_path)
             if context:  # Only include if there's actual content
                 contexts.append(f"## {file_path}\n{context}")
 

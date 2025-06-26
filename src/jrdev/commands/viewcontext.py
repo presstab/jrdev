@@ -1,15 +1,10 @@
-#!/usr/bin/env python3
-
-"""
-ViewContext command implementation for the JrDev application.
-"""
 import os
 from typing import Any, List
 
 from jrdev.ui.ui import PrintType
 
 
-async def handle_viewcontext(app: Any, args: List[str], worker_id: str):
+async def handle_viewcontext(app: Any, args: List[str], _worker_id: str):
     """
     Handle the /viewcontext command to view the content in the LLM context window.
 
@@ -47,7 +42,7 @@ async def handle_viewcontext(app: Any, args: List[str], worker_id: str):
         try:
             current_dir = os.getcwd()
             full_path = os.path.join(current_dir, file_path)
-            with open(full_path, "r") as f:
+            with open(full_path, "r", encoding="utf-8") as f:
                 file_content = f.read()
             app.ui.print_text(file_content, PrintType.INFO)
         except Exception as e:
@@ -65,7 +60,7 @@ async def handle_viewcontext(app: Any, args: List[str], worker_id: str):
         try:
             current_dir = os.getcwd()
             full_path = os.path.join(current_dir, file_path)
-            with open(full_path, "r") as f:
+            with open(full_path, "r", encoding="utf-8") as f:
                 preview = f.read(50).replace("\n", " ")
                 if os.path.getsize(full_path) > 50:
                     preview += "..."

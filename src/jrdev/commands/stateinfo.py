@@ -10,7 +10,7 @@ from typing import Any, List
 from jrdev.ui.ui import PrintType
 
 
-async def handle_stateinfo(app: Any, args: List[str], worker_id: str) -> None:
+async def handle_stateinfo(app: Any, _args: List[str], _worker_id: str) -> None:
     """
     Handle the /stateinfo command to display current application state.
 
@@ -34,7 +34,7 @@ async def handle_stateinfo(app: Any, args: List[str], worker_id: str) -> None:
         for ctx_file in current_thread.context:
             app.ui.print_text(f"    - {ctx_file}", print_type=PrintType.INFO)
     else:
-        app.ui.print_text(f"  Context files: 0", print_type=PrintType.INFO)
+        app.ui.print_text("  Context files: 0", print_type=PrintType.INFO)
 
     # If the app has any file context loaded
     project_files = app.state.project_files
@@ -47,7 +47,7 @@ async def handle_stateinfo(app: Any, args: List[str], worker_id: str) -> None:
     if loaded_files:
         app.ui.print_text(f"  Project context: {', '.join(loaded_files)}", print_type=PrintType.INFO)
     else:
-        app.ui.print_text(f"  Project context: None", print_type=PrintType.INFO)
+        app.ui.print_text("  Project context: None", print_type=PrintType.INFO)
 
     # Show Context Manager information
     if hasattr(app, "context_manager") and app.context_manager:
