@@ -23,17 +23,22 @@ async def handle_provider(app: Any, args: List[str], _worker_id: str) -> None:
 
     cmd = args[1].lower()
 
-    if cmd == "list":
-        _handle_list(app)
-    elif cmd == "add":
-        _handle_add(app, args)
-    elif cmd == "edit":
-        _handle_edit(app, args)
-    elif cmd == "remove":
-        _handle_remove(app, args)
-    else:
-        app.ui.print_text(f"Unknown command: {cmd}", PrintType.ERROR)
-        app.ui.print_text("Type /provider help for usage.", PrintType.INFO)
+    try:
+        if cmd == "list":
+            _handle_list(app)
+        elif cmd == "add":
+            _handle_add(app, args)
+        elif cmd == "edit":
+            _handle_edit(app, args)
+        elif cmd == "remove":
+            _handle_remove(app, args)
+        else:
+            app.ui.print_text(f"Unknown command: {cmd}", PrintType.ERROR)
+            app.ui.print_text("Type /provider help for usage.", PrintType.INFO)
+    except Exception as e:
+        msg = f"Failed to execute provider command: {cmd}. Error: {e}"
+        app.ui.print_text(msg)
+        app.logger.error(msg)
 
 
 def _handle_list(app: Any) -> None:
@@ -89,24 +94,21 @@ def _handle_edit(app: Any, args: List[str]) -> None:
     name = args[2]
     new_env_key = args[3]
     new_base_url = args[4]
-    try:
-        # Input validation (same as 'add')
-        if not is_valid_env_key(new_env_key):
-            app.ui.print_text(
-                f"Invalid env_key '{new_env_key}'. Allowed: 1-128 chars, alphanumeric, underscore, hyphen; no path "
-                "separators.",
-                PrintType.ERROR,
-            )
-            return
-        if not is_valid_url(new_base_url):
-            app.ui.print_text(f"Invalid base_url '{new_base_url}'. Must be a valid http(s) URL.", PrintType.ERROR)
-            return
-        updated_fields = {"env_key": new_env_key, "base_url": new_base_url}
-        app.state.clients.edit_provider(name, updated_fields)
-        app.ui.print_text(f"Provider '{name}' edited successfully.", PrintType.SUCCESS)
-        app.ui.providers_updated()
-    except Exception as e:
-        app.ui.print_text(f"Error editing provider: {e}", PrintType.ERROR)
+    # Input validation (same as 'add')
+    if not is_valid_env_key(new_env_key):
+        app.ui.print_text(
+            f"Invalid env_key '{new_env_key}'. Allowed: 1-128 chars, alphanumeric, underscore, hyphen; no path "
+            "separators.",
+            PrintType.ERROR,
+        )
+        return
+    if not is_valid_url(new_base_url):
+        app.ui.print_text(f"Invalid base_url '{new_base_url}'. Must be a valid http(s) URL.", PrintType.ERROR)
+        return
+    updated_fields = {"env_key": new_env_key, "base_url": new_base_url}
+    app.state.clients.edit_provider(name, updated_fields)
+    app.ui.print_text(f"Provider '{name}' edited successfully.", PrintType.SUCCESS)
+    app.ui.providers_updated()
 
 
 def _handle_remove(app: Any, args: List[str]) -> None:
@@ -114,10 +116,7 @@ def _handle_remove(app: Any, args: List[str]) -> None:
         app.ui.print_text("Usage: /provider remove <name>", PrintType.ERROR)
         return
     name = args[2]
-    try:
-        app.state.clients.remove_provider(name)
-        app.ui.print_text(f"Provider '{name}' removed successfully.", PrintType.SUCCESS)
-        app.ui.providers_updated()
-        app.refresh_model_list()
-    except Exception as e:
-        app.ui.print_text(f"Error removing provider: {e}", PrintType.ERROR)
+    app.state.clients.remove_provider(name)
+    app.ui.print_text(f"Provider '{name}' removed successfully.", PrintType.SUCCESS)
+    app.ui.providers_updated()
+    app.refresh_model_list()

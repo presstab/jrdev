@@ -16,7 +16,7 @@ from jrdev.models.api_provider import ApiProvider, DefaultProfiles
 
 # Helper: run async function in sync test
 def run_async(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 class DummyUI:
     def __init__(self):
@@ -26,6 +26,12 @@ class DummyUI:
     def providers_updated(self):
         self.printed.append(("providers_updated", None))
 
+class DummyLogger:
+    def info(self, msg):
+        pass
+    def error(self, msg):
+        pass
+
 class DummyApp:
     def __init__(self, clients):
         self.state = MagicMock()
@@ -34,6 +40,7 @@ class DummyApp:
         self.ui_name = "text"
         self.providers_updated = self.ui.providers_updated
         self.refresh_model_list = MagicMock()
+        self.logger = DummyLogger()
 
 class DummyClients:
     def __init__(self):
@@ -111,7 +118,7 @@ class TestProviderCommand(unittest.TestCase):
         args = ["/provider", "add", "baz", "BAZ_KEY", "https://baz.com"]
         run_async(provider_cmd.handle_provider(self.app, args, "w1"))
         out = "\n".join(msg for msg, _ in self.app.ui.printed)
-        self.assertIn("Error adding provider: failadd", out)
+        self.assertIn("Failed to execute provider command: add. Error: failadd", out)
 
     def test_edit_provider_success(self):
         self.clients.providers = [ApiProvider(name="editme", env_key="EDITME_KEY", base_url="https://editme.com", required=True, default_profiles=DefaultProfiles(profiles={}, default_profile=""))]
@@ -136,7 +143,7 @@ class TestProviderCommand(unittest.TestCase):
         args = ["/provider", "edit", "editme", "NEW_KEY", "https://new.com"]
         run_async(provider_cmd.handle_provider(self.app, args, "w1"))
         out = "\n".join(msg for msg, _ in self.app.ui.printed)
-        self.assertIn("Error editing provider: failedit", out)
+        self.assertIn("Failed to execute provider command: edit. Error: failedit", out)
 
     def test_remove_provider_success(self):
         self.clients.providers = [ApiProvider(name="toremove", env_key="KEY", base_url="https://rm.com", required=True, default_profiles=DefaultProfiles(profiles={}, default_profile=""))]
@@ -160,7 +167,7 @@ class TestProviderCommand(unittest.TestCase):
         args = ["/provider", "remove", "toremove"]
         run_async(provider_cmd.handle_provider(self.app, args, "w1"))
         out = "\n".join(msg for msg, _ in self.app.ui.printed)
-        self.assertIn("Error removing provider: failrm", out)
+        self.assertIn("Failed to execute provider command: remove. Error: failrm", out)
 
     def test_unknown_command(self):
         args = ["/provider", "unknowncmd"]
