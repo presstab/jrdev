@@ -5,6 +5,7 @@ import sys
 from typing import Any, Dict, List
 from dotenv import load_dotenv
 
+from jrdev.agents.router_agent import CommandInterpretationAgent
 from jrdev.core.clients import APIClients
 from jrdev.core.commands import Command, CommandHandler
 from jrdev.core.state import AppState
@@ -34,6 +35,10 @@ class Application:
         self.state = AppState(persisted_threads=persisted_threads, ui_mode=ui_mode) # Pass loaded threads to AppState
         self.state.clients = APIClients()
         self.ui: UiWrapper = UiWrapper()
+
+        # Add the new agent and its dedicated thread
+        self.router_agent = None
+        self.state.router_thread_id = self.state.create_thread("system_router_thread")
 
     def _load_persisted_threads(self) -> Dict[str, MessageThread]:
         """Load all persisted message threads from disk."""
@@ -193,6 +198,10 @@ class Application:
             await self._initialize_api_clients()
 
         self.message_service = MessageService(self)
+
+        # Initialize the router agent
+        self.router_agent = CommandInterpretationAgent(self)
+        self.logger.info("CommandInterpretationAgent initialized.")
 
         self.logger.info("Application services initialized")
         return True
@@ -421,7 +430,14 @@ class Application:
                 self.logger.info("Exit command received, forcing running state to False")
                 self.state.running = False
         else:
-            await self.process_chat_input(user_input, worker_id)
+            # Invoke the CommandInterpretationAgent
+            self.ui.print_text("Interpreting your request...", print_type=PrintType.INFO)
+            command_to_execute = await self.router_agent.interpret(user_input, worker_id)
+            if command_to_execute:
+                # The agent decided on a command, now execute it
+                self.ui.print_text(f"Running command: {command_to_execute}", print_type=PrintType.COMMAND)
+                command = Command(command_to_execute, worker_id)
+                await self.handle_command(command)
 
     async def process_chat_input(self, user_input, worker_id=None):
         # 1) get the active thread

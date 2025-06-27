@@ -34,12 +34,13 @@ class AppState:
 
         # Thread management
         self.active_thread = ""
+        self.router_thread_id: str = ""
         if persisted_threads:
             self.threads: Dict[str, MessageThread] = persisted_threads
             if ui_mode and ui_mode == "cli":
                 # for cli, look for an empty chat thread on init and use that as current
                 for thread in self.threads.values():
-                    if not thread.messages:
+                    if not thread.messages and thread.thread_id != "system_router_thread":
                         self.active_thread = thread.thread_id
                         break
                 # if no empty chat, then create new
@@ -47,11 +48,18 @@ class AppState:
                     self.active_thread = self.create_thread()
             else:
                 # for Textual UI choose the most recently modified thread as the current thread
-                latest = max(
-                    self.threads.values(),
-                    key=lambda t: t.metadata["last_modified"],
-                )
-                self.active_thread = latest.thread_id
+                user_threads = {
+                    tid: t for tid, t in self.threads.items()
+                    if tid != "system_router_thread"
+                }
+                if user_threads:
+                    latest = max(
+                        user_threads.values(),
+                        key=lambda t: t.metadata["last_modified"],
+                    )
+                    self.active_thread = latest.thread_id
+                else:
+                    self.active_thread = self.create_thread()
         else:
             self.threads: Dict[str, MessageThread] = {}
             self.active_thread = self.create_thread()
