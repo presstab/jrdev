@@ -1,4 +1,5 @@
 import json
+from asyncio import CancelledError
 from typing import Any, Dict, List, Set, Tuple
 
 from jrdev.agents.pipeline.stage import Stage
@@ -131,6 +132,9 @@ class ExecutePhase(Stage):
             return []
         except CodeTaskCancelled as e:
             self.app.ui.print_text(f"Code task cancelled by user: {str(e)}", PrintType.WARNING)
+            raise
+        except CancelledError:
+            self.app.logger.info("complete_step: Worker cancelled")
             raise
         except Exception as e:
             self.app.ui.print_text(f"Step failed: {str(e)}", PrintType.ERROR)

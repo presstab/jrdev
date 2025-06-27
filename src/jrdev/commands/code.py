@@ -24,6 +24,7 @@ async def handle_code(app: Any, args: List[str], worker_id: str) -> None:
         app.ui.print_text("Code Task Cancelled")
     except CancelledError:
         app.ui.print_text("Worker Cancelled")
+        raise
     except Exception as e:
         app.logger.error(f"Error in CodeAgent: {str(e)}")
         app.ui.print_text(f"Error in CodeAgent: {str(e)}")
