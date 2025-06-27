@@ -69,7 +69,7 @@ async def handle_init(app: Any, _args: List[str], worker_id: str) -> None:
         tree_output = app.get_file_tree()
 
         # Switch the model to the advanced reasoning profile
-        model_advanced_reasoning = app.profile_manager.get_model("advanced_reasoning")
+        model_advanced_reasoning = app.profile_manager().get_model("advanced_reasoning")
 
         # Send the file tree to the LLM with a request for file recommendations
         app.ui.print_text(
@@ -201,7 +201,7 @@ async def generate_conventions(app: Any, cleaned_file_list: List[str], worker_id
     app.ui.print_text("\nAnalyzing project conventions...", PrintType.PROCESSING)
 
     # Use a local model variable from profile instead of changing app.state.model
-    conventions_model = app.profile_manager.get_model("advanced_reasoning")
+    conventions_model = app.profile_manager().get_model("advanced_reasoning")
 
     # Use MessageBuilder for conventions
     conventions_builder = MessageBuilder(app)
@@ -291,7 +291,7 @@ async def _generate_project_overview(
 
     # Send request to the model for project overview
     try:
-        model = app.profile_manager.get_model("advanced_reasoning")
+        model = app.profile_manager().get_model("advanced_reasoning")
         full_overview = await generate_llm_response(app, model, overview_builder.build(), task_id=overview_task_id)
 
         # Save to markdown file
