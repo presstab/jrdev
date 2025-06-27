@@ -1,15 +1,10 @@
-#!/usr/bin/env python3
-
-"""
-ViewContext command implementation for the JrDev application.
-"""
 import os
 from typing import Any, List
 
 from jrdev.ui.ui import PrintType
 
 
-async def handle_viewcontext(app: Any, args: List[str], worker_id: str):
+async def handle_viewcontext(app: Any, args: List[str], _worker_id: str):
     """
     Handle the /viewcontext command to view the content in the LLM context window.
 
@@ -27,23 +22,27 @@ async def handle_viewcontext(app: Any, args: List[str], worker_id: str):
             return
     current_context = app.get_current_thread().context
     if not current_context:
-        app.ui.print_text("No context files have been added yet. Use /addcontext <file_path> to add files.", PrintType.INFO)
+        app.ui.print_text(
+            "No context files have been added yet. Use /addcontext <file_path> to add files.", PrintType.INFO
+        )
         return
 
     # If a specific file was requested
     if file_num is not None:
         if file_num < 0 or file_num >= len(current_context):
-            app.ui.print_text(f"Invalid file number. Please use a number between 1 and {len(current_context)}.", PrintType.ERROR)
+            app.ui.print_text(
+                f"Invalid file number. Please use a number between 1 and {len(current_context)}.", PrintType.ERROR
+            )
             return
 
         file_path = current_context[file_num]
         app.ui.print_text(f"Context File {file_num+1}: {file_path}", PrintType.HEADER)
-        
+
         # Read the file content to display
         try:
             current_dir = os.getcwd()
             full_path = os.path.join(current_dir, file_path)
-            with open(full_path, "r") as f:
+            with open(full_path, "r", encoding="utf-8") as f:
                 file_content = f.read()
             app.ui.print_text(file_content, PrintType.INFO)
         except Exception as e:
@@ -61,13 +60,13 @@ async def handle_viewcontext(app: Any, args: List[str], worker_id: str):
         try:
             current_dir = os.getcwd()
             full_path = os.path.join(current_dir, file_path)
-            with open(full_path, "r") as f:
-                preview = f.read(50).replace('\n', ' ')
+            with open(full_path, "r", encoding="utf-8") as f:
+                preview = f.read(50).replace("\n", " ")
                 if os.path.getsize(full_path) > 50:
-                    preview += '...'
+                    preview += "..."
         except Exception:
             preview = "(unable to read file)"
-            
+
         app.ui.print_text(f"  {i+1}. {file_path} - {preview}", PrintType.COMMAND)
 
     app.ui.print_text("\nUse '/viewcontext <number>' to view the full content of a specific file.", PrintType.INFO)

@@ -27,6 +27,9 @@ class APIClients:
     def get_client(self, name):
         return self._clients.get(name, None)
 
+    def has_key(self, provider_name: str) -> bool:
+        return self.get_client(provider_name) is not None
+
     def _load_provider_config(self):
         """Load provider configurations from api_providers.json, with fallbacks for resilience."""
         user_config_path = file_utils.get_persistent_storage_path() / "user_api_providers.json"

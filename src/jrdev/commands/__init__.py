@@ -13,14 +13,14 @@ from jrdev.commands.compact import handle_compact
 from jrdev.commands.cost import handle_cost
 from jrdev.commands.exit import handle_exit
 from jrdev.commands.git import handle_git
-from jrdev.commands.git_pr import handle_git_pr_summary, handle_git_pr_review
+from jrdev.commands.git_pr import handle_git_pr_review, handle_git_pr_summary
 from jrdev.commands.help import handle_help
 from jrdev.commands.init import handle_init
 from jrdev.commands.keys import handle_keys
 from jrdev.commands.migrate import handle_migrate
 from jrdev.commands.model import handle_model
-from jrdev.commands.models import handle_models
 from jrdev.commands.modelprofile import handle_modelprofile
+from jrdev.commands.models import handle_models
 from jrdev.commands.projectcontext import handle_projectcontext
 from jrdev.commands.provider import handle_provider
 from jrdev.commands.stateinfo import handle_stateinfo
@@ -51,10 +51,12 @@ __all__ = [
     "handle_tasks",
     "handle_cost",
     "handle_thread",
-    "handle_viewcontext"
+    "handle_viewcontext",
 ]
 
 # Debug commands
 if os.getenv("JRDEV_DEBUG"):  # Only include in debug mode
-    from jrdev.commands.debug import handle_modelswin, handle_git_debug_config_dump
+    from jrdev.commands.debug import (handle_git_debug_config_dump,
+                                      handle_modelswin)
+
     __all__ += ["handle_modelswin", "handle_git_debug_config_dump"]

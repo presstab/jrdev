@@ -1,6 +1,7 @@
 import abc
 from typing import Any, Dict
 
+
 class Stage(abc.ABC):
     """
     A single pipeline stage.  Each stage gets the same `ctx` dict,

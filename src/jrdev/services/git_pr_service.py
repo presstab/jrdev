@@ -22,7 +22,7 @@ async def generate_pr_analysis(
         prompt_path: str,
         user_prompt: str = "",
         add_project_files: bool = False,
-        worker_id: str = None
+        worker_id: str = ""
 ) -> Tuple[Optional[str], Optional[Exception]]:
     """
     Core business logic for PR analysis generation

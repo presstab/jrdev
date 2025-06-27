@@ -88,7 +88,7 @@ async def apply_file_changes(app, changes_json, code_processor):
             return {"success": False}
 
         # Check if 'Accept All' is active
-        if code_processor._accept_all_active:
+        if code_processor.accept_all_active:
             try:
                 # Apply change directly without confirmation
                 content_str = ''.join(new_lines)
@@ -115,7 +115,7 @@ async def apply_file_changes(app, changes_json, code_processor):
                 message = f"Updated {filepath}"
                 logger.info(message)
             elif result == 'accept_all':
-                code_processor._accept_all_active = True # Ensure flag is set for subsequent steps
+                code_processor.accept_all_active = True # Ensure flag is set for subsequent steps
                 files_changed.append(filepath)
                 message = f"Updated {filepath} (Accept All activated)"
                 logger.info(message)
@@ -147,7 +147,7 @@ async def apply_file_changes(app, changes_json, code_processor):
             logger.info(message)
 
         # Check if 'Accept All' is active
-        if code_processor._accept_all_active:
+        if code_processor.accept_all_active:
             try:
                 # Write the new file directly
                 with open(filepath, 'w', encoding='utf-8') as f:
@@ -168,7 +168,7 @@ async def apply_file_changes(app, changes_json, code_processor):
                 message = f"Created new file: {filepath}"
                 logger.info(message)
             elif result == 'accept_all':
-                code_processor._accept_all_active = True # Ensure flag is set for subsequent steps
+                code_processor.accept_all_active = True # Ensure flag is set for subsequent steps
                 files_changed.append(filepath)
                 message = f"Created new file: {filepath} (Accept All activated)"
                 logger.info(message)

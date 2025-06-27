@@ -6,11 +6,13 @@ Provides functionality to generate PR summaries and code reviews based on git di
 """
 
 import logging
-from typing import List, Optional, Protocol, Any
+from dataclasses import dataclass
+from typing import Any, List, Optional, Protocol
 
-from jrdev.commands.git_config import get_git_config, DEFAULT_GIT_CONFIG
-from jrdev.services.git_pr_service import generate_pr_analysis, GitPRServiceError
+from jrdev.commands.git_config import DEFAULT_GIT_CONFIG, get_git_config
+from jrdev.services.git_pr_service import GitPRServiceError, generate_pr_analysis
 from jrdev.ui.ui import PrintType
+
 
 # Define a Protocol for Application to avoid circular imports
 class ApplicationProtocol(Protocol):
@@ -18,15 +20,19 @@ class ApplicationProtocol(Protocol):
     logger: logging.Logger
 
 
+@dataclass
+class PrSettings:
+    prompt_path: str
+    operation_type: str
+    message_type: str
+    add_project_files: bool
+
+
 async def _handle_git_pr_common(
     app: Any,
     args: List[str],
-    prompt_path: str,
-    operation_type: str,
-    message_type: str,
-    error_message: str,
-    add_project_files: bool = False,
-    worker_id: str = None
+    settings: PrSettings,
+    worker_id: str = "",
 ) -> Optional[str]:
     """
     Common helper function for PR operations.
@@ -50,28 +56,27 @@ async def _handle_git_pr_common(
     user_prompt = " ".join(args[1:]) if len(args) > 1 else ""
 
     app.ui.print_text(
-        f"Generating PR {operation_type} using diff with {base_branch}...",
+        f"Generating PR {settings.operation_type} using diff with {base_branch}...",
         PrintType.INFO,
     )
     app.ui.print_text(
-        f"Warning: Unresolved merge conflicts may affect diff results and show items that are not part of the PR",
-        PrintType.WARNING
+        "Warning: Unresolved merge conflicts may affect diff results and show items that are not part of the PR",
+        PrintType.WARNING,
     )
     if user_prompt:
         app.ui.print_text(f"Using custom prompt: {user_prompt}", PrintType.INFO)
     app.ui.print_text(
-        f"This uses the configured base branch. To change it, run: "
-        f"/git config set base_branch <branch-name>",
+        "This uses the configured base branch. To change it, run: /git config set base_branch <branch-name>",
         PrintType.INFO,
     )
 
     response, error = await generate_pr_analysis(
         app=app,
         base_branch=base_branch,
-        prompt_path=prompt_path,
+        prompt_path=settings.prompt_path,
         user_prompt=user_prompt,
-        add_project_files=add_project_files,
-        worker_id=worker_id
+        add_project_files=settings.add_project_files,
+        worker_id=worker_id,
     )
 
     if error:
@@ -82,7 +87,7 @@ async def _handle_git_pr_common(
         return None
 
     # Display success
-    app.ui.print_text(f"Generated {message_type}:", PrintType.SUCCESS)
+    app.ui.print_text(f"Generated {settings.message_type}:", PrintType.SUCCESS)
     app.ui.print_text(response, PrintType.INFO)
     return response
 
@@ -94,15 +99,17 @@ async def handle_git_pr_summary(app: Any, args: List[str], worker_id: str) -> No
         app: The Application instance
         args: Command arguments
     """
-    await _handle_git_pr_common(
-        app=app,
-        args=args,
+    settings = PrSettings(
         prompt_path="git/pr_summary",
         operation_type="summary",
         message_type="pull request summary",
-        error_message="failed pull request summary",
         add_project_files=False,
-        worker_id=worker_id
+    )
+    await _handle_git_pr_common(
+        app=app,
+        args=args,
+        settings=settings,
+        worker_id=worker_id,
     )
 
 
@@ -113,13 +120,15 @@ async def handle_git_pr_review(app: Any, args: List[str], worker_id: str) -> Non
         app: The Application instance
         args: Command arguments
     """
-    await _handle_git_pr_common(
-        app=app,
-        args=args,
+    settings = PrSettings(
         prompt_path="git/pr_review",
         operation_type="code review",
         message_type="detailed code review",
-        error_message="failed pull request review",
         add_project_files=True,
-        worker_id=worker_id
+    )
+    await _handle_git_pr_common(
+        app=app,
+        args=args,
+        settings=settings,
+        worker_id=worker_id,
     )

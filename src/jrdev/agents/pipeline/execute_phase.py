@@ -1,16 +1,16 @@
+import json
 from asyncio import CancelledError
+from typing import Any, Dict, List, Set, Tuple
 
 from jrdev.agents.pipeline.stage import Stage
 from jrdev.core.exceptions import CodeTaskCancelled
 from jrdev.file_operations.apply_changes import apply_file_changes
+from jrdev.file_operations.delete import delete_with_confirmation
+from jrdev.file_operations.file_utils import cutoff_string, get_file_contents
 from jrdev.messages.message_builder import MessageBuilder
-from jrdev.file_operations.file_utils import get_file_contents, cutoff_string
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.services.llm_requests import generate_llm_response
-from jrdev.file_operations.delete import delete_with_confirmation
 from jrdev.ui.ui import PrintType, print_steps
-from typing import Any, Dict, List, Set
-import json
 
 
 class ExecutePhase(Stage):
@@ -30,6 +30,7 @@ class ExecutePhase(Stage):
       - Report progress and errors through the UI.
       - Populate ctx["changed_files"] so that downstream Review/Validate phases know what to inspect.
     """
+
     @property
     def name(self) -> str:
         return "Coding Phase"
@@ -40,14 +41,14 @@ class ExecutePhase(Stage):
         user_task = ctx["user_task"]
 
         # Process each step (first pass)
-        completed_steps = []
+        completed_steps: List[int] = []
         changed_files: Set[str] = set()
         failed_steps = []
         for i, step in enumerate(steps["steps"]):
             print_steps(self.app, steps, completed_steps, current_step=i)
             self.app.ui.print_text(
                 f"Working on step {i + 1}: {step.get('operation_type')} for {step.get('filename')}",
-                PrintType.PROCESSING
+                PrintType.PROCESSING,
             )
 
             coding_files = list(files_to_send)  # Start with the initial context files
@@ -75,7 +76,28 @@ class ExecutePhase(Stage):
         print_steps(self.app, steps, completed_steps)
         ctx["changed_files"] = changed_files
 
-    async def complete_step(self, step: Dict, user_task: str, files_to_send: List[str], retry_message: str = None) -> List[str]:
+    async def _handle_delete(self, step: Dict) -> List[str]:
+        filename = step.get("filename")
+        if not filename:
+            self.app.ui.print_text("DELETE step missing filename", PrintType.ERROR)
+            return []
+
+        try:
+            # Use delete_with_confirmation function
+            response, _ = await delete_with_confirmation(self.app, filename)
+            if response == "yes":
+                return [filename]  # File was successfully deleted
+
+            # User cancelled deletion - track this separately and return special marker
+            self.agent.user_cancelled_deletions.append(filename)
+            return ["__STEP_CANCELLED_BY_USER__"]  # Signals success but no files changed
+        except Exception as e:
+            self.app.ui.print_text(f"Failed to delete file {filename}: {str(e)}", PrintType.ERROR)
+            return []
+
+    async def complete_step(
+        self, step: Dict, user_task: str, files_to_send: List[str], retry_message: str = ""
+    ) -> List[str]:
         """
         Process an individual step:
           - Obtain the current file content.
@@ -88,30 +110,15 @@ class ExecutePhase(Stage):
 
         # Handle DELETE operations specially - skip AI model and prompt user directly
         if op_type == "DELETE":
-            filename = step.get("filename")
-            if not filename:
-                self.app.ui.print_text("DELETE step missing filename", PrintType.ERROR)
-                return []
-
-            try:
-                # Use delete_with_confirmation function
-                response, _ = await delete_with_confirmation(self.app, filename)
-                if response == 'yes':
-                    return [filename]  # File was successfully deleted
-                else:
-                    # User cancelled deletion - track this separately and return special marker
-                    self.agent.user_cancelled_deletions.append(filename)
-                    return ["__STEP_CANCELLED_BY_USER__"]  # Signals success but no files changed
-            except Exception as e:
-                self.app.ui.print_text(f"Failed to delete file {filename}: {str(e)}", PrintType.ERROR)
-                return []
+            return await self._handle_delete(step)
 
         # Handle all other operations (existing logic)
         self.app.logger.info(f"complete_step: sending with files: {str(files_to_send)}")
 
         file_content = get_file_contents(files_to_send)
-        code_response = await self.request_code(change_instruction=step, user_task=user_task, file_content=file_content,
-                                                additional_prompt=retry_message)
+        code_response = await self.request_code(
+            change_instruction=step, user_task=user_task, file_content=file_content, additional_prompt=retry_message
+        )
         try:
             result = await self.check_and_apply_code_changes(code_response)
             if result.get("success"):
@@ -121,23 +128,25 @@ class ExecutePhase(Stage):
                 retry_message = result["change_requested"]
                 self.app.ui.print_text("Retrying step with additional feedback...", PrintType.WARNING)
                 return await self.complete_step(step, user_task, files_to_send, retry_message)
-            raise Exception("Failed to apply code changes in step.")
+            self.app.logger.error(f"Failed to apply code changes in step. change_requested not in result: {result}")
+            return []
         except CodeTaskCancelled as e:
             self.app.ui.print_text(f"Code task cancelled by user: {str(e)}", PrintType.WARNING)
             raise
         except CancelledError:
-            # worker.cancel() should kill everything
+            self.app.logger.info("complete_step: Worker cancelled")
             raise
         except Exception as e:
             self.app.ui.print_text(f"Step failed: {str(e)}", PrintType.ERROR)
             return []
 
-    async def request_code(self, change_instruction: Dict, user_task: str, file_content: str, additional_prompt: str = None) -> str:
-        """
-        Construct and send a code change request.
-        Uses an operation-specific prompt (loaded from a markdown file) and a template prompt.
-        """
-        op_type = change_instruction.get("operation_type")
+    def _construct_prompt(
+        self, change_instruction: Dict, user_task: str, additional_prompt: str
+    ) -> Tuple[str, str, str]:
+        op_type: str = change_instruction.get("operation_type", "")
+        if not op_type:
+            self.app.logger.error(f"_construct_prompt: No operation type: {change_instruction}")
+            raise KeyError("operation_type")
         operation_prompt = PromptManager.load(f"operations/{op_type.lower()}")
         dev_msg_template = PromptManager.load("implement_step")
         if dev_msg_template:
@@ -151,7 +160,7 @@ class ExecutePhase(Stage):
         location = change_instruction.get("target_location")
         if not all([description, filename, location]):
             error_msg = "Missing required fields in change instruction."
-            self.app.logger.error(error_msg)
+            self.app.logger.error(f"{error_msg}\n {change_instruction}")
             raise KeyError(error_msg)
 
         prompt = (
@@ -162,6 +171,17 @@ class ExecutePhase(Stage):
         )
         if additional_prompt:
             prompt = f"{prompt} {additional_prompt}"
+
+        return prompt, dev_msg, op_type
+
+    async def request_code(
+        self, change_instruction: Dict, user_task: str, file_content: str, additional_prompt: str = ""
+    ) -> str:
+        """
+        Construct and send a code change request.
+        Uses an operation-specific prompt (loaded from a markdown file) and a template prompt.
+        """
+        prompt, dev_msg, op_type = self._construct_prompt(change_instruction, user_task, additional_prompt)
 
         # Use MessageBuilder to construct messages
         builder = MessageBuilder(self.app)
@@ -174,16 +194,22 @@ class ExecutePhase(Stage):
         # Send request
         model = self.agent.profile_manager.get_model("advanced_coding")
         self.app.logger.info(f"Sending code request to {model}")
-        self.app.ui.print_text(f"\nSending code request to {model} (advanced_coding profile)...\n", PrintType.PROCESSING)
+        self.app.ui.print_text(
+            f"\nSending code request to {model} (advanced_coding profile)...\n", PrintType.PROCESSING
+        )
 
         sub_task_str = None
         if self.agent.worker_id:
             # create a sub task id
             self.agent.sub_task_count += 1
             sub_task_str = f"{self.agent.worker_id}:{self.agent.sub_task_count }"
-            self.app.ui.update_task_info(self.agent.worker_id, update={"new_sub_task": sub_task_str, "description": op_type})
+            self.app.ui.update_task_info(
+                self.agent.worker_id, update={"new_sub_task": sub_task_str, "description": op_type}
+            )
 
-        response = await generate_llm_response(self.app, model, messages, task_id=sub_task_str, print_stream=True, json_output=True)
+        response = await generate_llm_response(
+            self.app, model, messages, task_id=sub_task_str, print_stream=True, json_output=True
+        )
 
         # mark sub_task complete
         if self.agent.worker_id:
@@ -201,11 +227,9 @@ class ExecutePhase(Stage):
         try:
             json_block = cutoff_string(response_text, "```json", "```")
             changes = json.loads(json_block)
-        except CancelledError:
-            # worker.cancel() should kill everything
-            raise
         except Exception as e:
-            raise Exception(f"Parsing failed in code changes: {str(e)}\n Blob:{json_block}\n")
+            self.app.logger.error(f"check_and_apply_code_changes: Parsing json failed: {str(e)}\n Blob:{json_block}")
+            raise ValueError() from e
 
         if "cancel_step" in changes:
             # AI model has determined this step is already completed

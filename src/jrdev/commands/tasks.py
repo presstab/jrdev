@@ -11,7 +11,7 @@ from typing import Any, List
 from jrdev.ui.ui import PrintType
 
 
-async def handle_tasks(app: Any, args: List[str], worker_id: str) -> None:
+async def handle_tasks(app: Any, _args: List[str], _worker_id: str) -> None:
     """
     Handle the /tasks command to display current background tasks.
 
@@ -35,10 +35,10 @@ async def handle_tasks(app: Any, args: List[str], worker_id: str) -> None:
         app.ui.print_text(f"  Task #{task_id} ({elapsed_str})", print_type=PrintType.INFO)
 
         if task_info["type"] == "file_response":
-            app.ui.print_text(f"    Type: Response → File", print_type=PrintType.INFO)
+            app.ui.print_text("    Type: Response → File", print_type=PrintType.INFO)
             app.ui.print_text(f"    Path: {task_info['path']}", print_type=PrintType.INFO)
         else:
-            app.ui.print_text(f"    Type: Message", print_type=PrintType.INFO)
+            app.ui.print_text("    Type: Message", print_type=PrintType.INFO)
             app.ui.print_text(f"    Prompt: {task_info['prompt']}", print_type=PrintType.INFO)
         app.ui.print_text("", print_type=PrintType.INFO)
 
@@ -47,11 +47,11 @@ def format_time(seconds: float) -> str:
     """Format seconds into a readable time string."""
     if seconds < 60:
         return f"{seconds:.1f}s"
-    elif seconds < 3600:
+    if seconds < 3600:
         minutes = seconds // 60
         sec_remainder = seconds % 60
         return f"{int(minutes)}m {int(sec_remainder)}s"
-    else:
-        hours = seconds // 3600
-        min_remainder = (seconds % 3600) // 60
-        return f"{int(hours)}h {int(min_remainder)}m"
+
+    hours = seconds // 3600
+    min_remainder = (seconds % 3600) // 60
+    return f"{int(hours)}h {int(min_remainder)}m"

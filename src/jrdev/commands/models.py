@@ -1,34 +1,20 @@
-#!/usr/bin/env python3
-
-"""
-Models command implementation for the JrDev terminal.
-"""
-from typing_extensions import Any, List, TypedDict
+from typing import Any, Dict, List
 
 # Import curses with Windows compatibility
 try:
     import curses
+
     CURSES_AVAILABLE = True
 except ImportError:
-    curses = None
     CURSES_AVAILABLE = False
 
-from jrdev.ui.ui import PrintType
-from jrdev.ui.model_selector import interactive_model_selector, text_based_model_selector
 from pydantic import parse_obj_as
 
-
-class ModelInfo(TypedDict):
-    """Type definition for model information."""
-    name: str
-    provider: str
-    is_think: bool
-    input_cost: int
-    output_cost: int
-    context_tokens: int
+from jrdev.ui.model_selector import interactive_model_selector, text_based_model_selector
+from jrdev.ui.ui import PrintType
 
 
-async def handle_models(app: Any, args: List[str], worker_id: str) -> None:
+async def handle_models(app: Any, args: List[str], _worker_id: str) -> None:
     """
     Handle the /models command to list all available models.
 
@@ -41,11 +27,8 @@ async def handle_models(app: Any, args: List[str], worker_id: str) -> None:
     models_list = app.get_models()
 
     # Sort models first by provider, then by name alphabetically
-    models = parse_obj_as(List[ModelInfo], models_list)
-    sorted_models = sorted(
-        models,
-        key=lambda model: (model["provider"], model["name"])
-    )
+    models = parse_obj_as(List[Dict[str, Any]], models_list)
+    sorted_models = sorted(models, key=lambda model: (model["provider"], model["name"]))
 
     # Use curses-based interactive selector if available, otherwise use text-based selector
     use_curses = CURSES_AVAILABLE and not (len(args) > 1 and args[1] == "--no-curses")
@@ -53,11 +36,7 @@ async def handle_models(app: Any, args: List[str], worker_id: str) -> None:
         use_curses = False
     if use_curses:
         try:
-            selected_model = curses.wrapper(
-                interactive_model_selector,
-                app,
-                sorted_models
-            )
+            selected_model = curses.wrapper(interactive_model_selector, app, sorted_models)
 
             if selected_model:
                 # User selected a model

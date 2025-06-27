@@ -1,0 +1,8 @@
+[tool.black]
+line-length = 120
+
+[tool.pylint.'MESSAGES CONTROL']
+disable = ["missing-docstring", "too-many-instance-attributes", "too-few-public-methods", "broad-exception-caught", "unnecessary-ellipsis", "superfluous-parens"]
+
+[tool.pylint.'FORMAT']
+max-line-length = 120

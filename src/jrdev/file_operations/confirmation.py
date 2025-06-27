@@ -60,7 +60,7 @@ async def write_with_confirmation(app, filepath: str, content: list | str, code_
                     return 'request_change', message
 
                 elif response == 'accept_all':
-                    code_processor._accept_all_active = True
+                    code_processor.accept_all_active = True
                     try:
                         temporary_file.save_to(filepath)
                         logger.info(f"Changes applied to {filepath} (Accept All)")

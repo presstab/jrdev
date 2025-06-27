@@ -1,8 +1,9 @@
-from jrdev.agents.pipeline.stage import Stage
-from jrdev.messages.message_builder import MessageBuilder
-from jrdev.file_operations.file_utils import get_file_contents
-from jrdev.services.llm_requests import generate_llm_response
 from typing import Any, Dict, Set
+
+from jrdev.agents.pipeline.stage import Stage
+from jrdev.file_operations.file_utils import get_file_contents
+from jrdev.messages.message_builder import MessageBuilder
+from jrdev.services.llm_requests import generate_llm_response
 
 
 class ValidatePhase(Stage):
@@ -19,6 +20,7 @@ class ValidatePhase(Stage):
     This step runs only once, at the end of the pipeline, to catch any malformed
     code before finalizing the task.
     """
+
     @property
     def name(self) -> str:
         return "Validate Changes"
@@ -51,7 +53,9 @@ class ValidatePhase(Stage):
             # create a sub task id
             self.agent.sub_task_count += 1
             sub_task_str = f"{self.agent.worker_id}:{self.agent.sub_task_count}"
-            self.app.ui.update_task_info(self.agent.worker_id, update={"new_sub_task": sub_task_str, "description": "validate"})
+            self.app.ui.update_task_info(
+                self.agent.worker_id, update={"new_sub_task": sub_task_str, "description": "validate"}
+            )
 
         validation_response = await generate_llm_response(
             self.app, model, messages, task_id=sub_task_str, print_stream=False
@@ -66,8 +70,7 @@ class ValidatePhase(Stage):
             self.app.ui.print_text("✓ Files validated successfully")
         elif "INVALID" in validation_response:
             reason = (
-                validation_response.split("INVALID:")[1].strip() if ":" in validation_response
-                else "Unspecified error"
+                validation_response.split("INVALID:")[1].strip() if ":" in validation_response else "Unspecified error"
             )
             self.app.ui.print_text(f"⚠ Files may be malformed: {reason}")
         else:

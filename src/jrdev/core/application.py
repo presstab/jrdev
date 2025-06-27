@@ -285,7 +285,7 @@ class Application:
     def get_models(self) -> List[Dict[str, Any]]:
         return self.state.model_list.get_model_list()
 
-    def get_model_names(self):
+    def get_model_names(self) -> List[str]:
         current_models = self.get_models()
         return [model["name"] for model in current_models]
 

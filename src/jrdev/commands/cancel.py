@@ -10,7 +10,7 @@ from typing import Any, List
 from jrdev.ui.ui import PrintType
 
 
-async def handle_cancel(app: Any, args: List[str], worker_id: str) -> None:
+async def handle_cancel(app: Any, args: List[str], _worker_id: str) -> None:
     """
     Handle the /cancel command to cancel background tasks.
 

@@ -142,7 +142,7 @@ def display_diff(app: Any, diff_lines: List[str]) -> None:
             app.ui.print_text(line.rstrip())
 
 
-def print_steps(app: Any, steps: Dict[str, Any], completed_steps: Optional[List[int]] = None, current_step: Optional[int] = None) -> None:
+def print_steps(app: Any, steps: Dict[str, Any], completed_steps: List[int], current_step: Optional[int] = None) -> None:
     """
     Print steps in the form of a colorful todo list with check marks for completed steps
     and highlighting for the current step being worked on.

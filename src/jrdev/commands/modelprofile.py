@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from jrdev.models.model_profiles import ModelProfileManager
 from jrdev.ui.ui import PrintType, terminal_print
@@ -23,7 +23,7 @@ async def async_input(prompt: str = "") -> str:
     return await loop.run_in_executor(None, lambda: input(prompt))
 
 
-async def handle_modelprofile(app: Any, args: List[str], worker_id: str) -> None:
+async def handle_modelprofile(app: Any, args: List[str], _worker_id: str) -> None:
     """
     Handle /modelprofile commands for managing model profiles.
 
@@ -40,8 +40,7 @@ async def handle_modelprofile(app: Any, args: List[str], worker_id: str) -> None
         args: Command line arguments
     """
 
-    usage_str = (
-        """
+    usage_str = """
 Usage:
   /modelprofile - Interactive menu for managing profiles
   /modelprofile list - Show all profiles and their assigned models
@@ -50,7 +49,6 @@ Usage:
   /modelprofile default [profile] - Set the default profile
   /modelprofile showdefault - Show the current default profile
         """
-    )
 
     manager = app.profile_manager()
 
@@ -66,42 +64,51 @@ Usage:
 
     # Process standard command-line arguments
     subcommand = args[1].lower()
+    await _handle_subcommand(app, subcommand, args, manager)
 
+
+def _handle_get(app: Any, args: List[str], manager: Any) -> None:
+    # Get model for a specific profile
+    if len(args) < 3:
+        app.ui.print_text(
+            "Missing profile name. Usage: /modelprofile get [profile]",
+            PrintType.ERROR,
+        )
+        return
+
+    profile = args[2]
+    model = manager.get_model(profile)
+    app.ui.print_text(f"Profile '{profile}' uses model: {model}", PrintType.INFO)
+
+
+def _handle_set(app: Any, args: List[str], manager: Any) -> None:
+    # Set a profile to use a different model
+    if len(args) < 4:
+        app.ui.print_text(
+            "Missing arguments. Usage: /modelprofile set [profile] [model]",
+            PrintType.ERROR,
+        )
+        return
+
+    profile = args[2]
+    model = args[3]
+    success = manager.update_profile(profile, model, app.state.model_list)
+
+    if not success:
+        app.ui.print_text(f"Failed to update profile '{profile}'", PrintType.ERROR)
+    else:
+        app.ui.print_text(f"Updated {profile} to use model: {model}")
+
+
+async def _handle_subcommand(app: Any, subcommand: str, args: List[str], manager: Any) -> None:
+    """Returns true if handled"""
     if subcommand == "list":
         # List all profiles and their models
         await list_profiles(app, manager)
-
     elif subcommand == "get":
-        # Get model for a specific profile
-        if len(args) < 3:
-            app.ui.print_text(
-                "Missing profile name. Usage: /modelprofile get [profile]",
-                PrintType.ERROR,
-            )
-            return
-
-        profile = args[2]
-        model = manager.get_model(profile)
-        app.ui.print_text(f"Profile '{profile}' uses model: {model}", PrintType.INFO)
-
+        _handle_get(app, args, manager)
     elif subcommand == "set":
-        # Set a profile to use a different model
-        if len(args) < 4:
-            app.ui.print_text(
-                "Missing arguments. Usage: /modelprofile set [profile] [model]",
-                PrintType.ERROR,
-            )
-            return
-
-        profile = args[2]
-        model = args[3]
-        success = manager.update_profile(profile, model, app.state.model_list)
-
-        if not success:
-            app.ui.print_text(f"Failed to update profile '{profile}'", PrintType.ERROR)
-        else:
-            app.ui.print_text(f"Updated {profile} to use model: {model}")
-
+        _handle_set(app, args, manager)
     elif subcommand == "default":
         # Set the default profile
         if len(args) < 3:
@@ -114,20 +121,16 @@ Usage:
         profile = args[2]
         success = manager.set_default_profile(profile)
 
-        if not success:
-            app.ui.print_text(
-                f"Failed to set '{profile}' as default profile", PrintType.ERROR
-            )
-        else:
+        if success:
             app.ui.print_text(f"Updated {profile} as default profile")
+        else:
+            app.ui.print_text(f"Failed to set '{profile}' as default profile", PrintType.ERROR)
 
     elif subcommand == "showdefault":
         # Show the current default profile
         default = manager.get_default_profile()
         model = manager.get_model(default)
-        app.ui.print_text(
-            f"Default profile: {default} (using model: {model})", PrintType.INFO
-        )
+        app.ui.print_text(f"Default profile: {default} (using model: {model})", PrintType.INFO)
 
     else:
         app.ui.print_text(f"Unknown subcommand: {subcommand}", PrintType.ERROR)
@@ -167,10 +170,10 @@ async def show_interactive_menu(app: Any, manager: ModelProfileManager) -> None:
         # Display current profiles summary at the top
         profiles = manager.list_available_profiles()
         default = manager.get_default_profile()
-        
+
         terminal_print("Model Profile Management", PrintType.HEADER)
         terminal_print("\nCurrent Profiles:", PrintType.SUBHEADER)
-        
+
         if profiles:
             # Display all profiles in a nicely formatted way
             for profile, model in sorted(profiles.items()):
@@ -180,7 +183,7 @@ async def show_interactive_menu(app: Any, manager: ModelProfileManager) -> None:
                     terminal_print(f"  {profile}: {model}", PrintType.INFO)
         else:
             terminal_print("  No profiles configured", PrintType.WARNING)
-        
+
         # Then show the menu options
         choices = """
 Choose an action:
@@ -192,22 +195,22 @@ Choose an action:
         terminal_print("\nMenu Options:", PrintType.SUBHEADER)
         terminal_print(choices, PrintType.INFO)
 
-        choice = await async_input("Enter your choice (1-4): ")
+        c = await async_input("Enter your choice (1-4): ")
 
-        if choice == "1":
+        if c == "1":
             # List all profiles
-            await list_profiles(manager)
+            await list_profiles(app, manager)
             await async_input("\nPress Enter to continue...")
 
-        elif choice == "2":
+        elif c == "2":
             # Set a profile model
             await set_profile_model_interactive(app, manager)
 
-        elif choice == "3":
+        elif c == "3":
             # Set default profile
             await set_default_profile_interactive(manager)
 
-        elif choice == "4" or choice.lower() in ["exit", "q", "quit", "cancel"]:
+        elif c == "4" or c.lower() in ["exit", "q", "quit", "cancel"]:
             terminal_print("Exiting profile management.", PrintType.INFO)
             break
 
@@ -215,9 +218,92 @@ Choose an action:
             terminal_print("Invalid choice. Please try again.", PrintType.ERROR)
 
 
-async def set_profile_model_interactive(
-    app: Any, manager: ModelProfileManager
-) -> None:
+async def _select_profile(profiles: Dict[str, str], manager: ModelProfileManager) -> int:
+    profile_names = sorted(profiles.keys())
+
+    for i, profile in enumerate(profile_names):
+        model = profiles[profile]
+        is_default = profile == manager.get_default_profile()
+        default_tag = " (default)" if is_default else ""
+        terminal_print(f"{i+1}. {profile}: {model}{default_tag}", PrintType.INFO)
+
+    terminal_print(f"{len(profile_names)+1}. Cancel", PrintType.INFO)
+
+    # Get user selection
+    return int(await async_input(f"Enter your choice (1-{len(profile_names)+1}): "))
+
+
+async def _select_model(app: Any) -> Optional[Dict[str, Any]]:
+    """
+    Prints a numbered list of models to the user, then returns
+    the chosen model dict, or None if the user cancels or gives an invalid choice.
+    """
+    # Get available models
+    models: List[Dict[str, Any]] = app.get_models()
+    providers_dict: Dict[str, List[Dict[str, Any]]] = {}
+
+    for model_info in models:
+        if isinstance(model_info, dict) and "name" in model_info and "provider" in model_info:
+            provider = str(model_info["provider"])
+            if provider not in providers_dict:
+                providers_dict[provider] = []
+            providers_dict[provider].append(model_info)
+
+    # Display models grouped by provider
+    terminal_print("\nAvailable models by provider:", PrintType.INFO)
+
+    # Create a combined list of model details for selection
+    all_models: List[Dict[str, Any]] = []
+
+    # Track model index for selection
+    model_index = 1
+
+    # Display models by provider with API key status
+    for provider in sorted(providers_dict.keys()):
+        # Check if user has API key for this provider
+        has_api_key = app.state.clients.has_key(provider.lower())
+
+        # Display provider heading
+        provider_label = f"{provider}"
+        if not has_api_key:
+            provider_label += " (no API key)"
+
+        terminal_print(f"\n{provider_label}:", PrintType.SUBHEADER)
+
+        # Display models for this provider
+        for model_info in sorted(providers_dict[provider], key=lambda m: m.get("name", "")):
+            name = str(model_info.get("name", "unknown"))
+
+            # Store model details for selection
+            all_models.append(model_info)
+
+            # Display with appropriate color based on API key status
+            if has_api_key:
+                terminal_print(f"  {model_index}. {name}", PrintType.INFO)
+            else:
+                # Display in gray if no API key
+                # Use PROCESSING type which includes the DIM color format
+                terminal_print(f"  {model_index}. {name} (no API key)", PrintType.PROCESSING)
+
+            model_index += 1
+
+    # Cancel option
+    terminal_print(f"\n{model_index}. Cancel", PrintType.INFO)
+
+    # Get user selection
+    choice_str = await async_input(f"Enter your choice (1-{model_index}): ")
+    try:
+        model_choice_num = int(choice_str)
+        if 1 <= model_choice_num <= len(all_models):
+            return all_models[model_choice_num - 1]
+    except ValueError:
+        return None
+
+    # cancel or out of range
+    return None
+
+
+async def set_profile_model_interactive(app: Any, manager: ModelProfileManager) -> None:
     """
     Interactive menu for setting a profile's model.
 
@@ -233,161 +319,56 @@ async def set_profile_model_interactive(
 
     # Display profiles to choose from
     terminal_print("Select a profile to modify:", PrintType.INFO)
+
+    choice_num = await _select_profile(profiles, manager)
     profile_names = sorted(profiles.keys())
 
-    for i, profile in enumerate(profile_names):
-        model = profiles[profile]
-        is_default = profile == manager.get_default_profile()
-        default_tag = " (default)" if is_default else ""
-        terminal_print(f"{i+1}. {profile}: {model}{default_tag}", PrintType.INFO)
+    if choice_num == len(profile_names) + 1:
+        terminal_print("Cancelled profile selection.", PrintType.INFO)
+    elif choice_num < 1 or choice_num > len(profile_names):
+        terminal_print("Invalid choice.", PrintType.ERROR)
+        return
 
-    terminal_print(f"{len(profile_names)+1}. Cancel", PrintType.INFO)
+    selected_profile = profile_names[choice_num - 1]
+    current_model = profiles[selected_profile]
+    terminal_print(f"Selected profile: {selected_profile}", PrintType.SUCCESS)
+    terminal_print(f"Current model: {current_model}", PrintType.INFO)
 
-    # Get user selection
-    choice = await async_input(f"Enter your choice (1-{len(profile_names)+1}): ")
+    selected_model_info = await _select_model(app)
+    if selected_model_info is None:
+        terminal_print("Cancelled model selection", PrintType.INFO)
+        return
 
-    try:
-        choice_num = int(choice)
-        if 1 <= choice_num <= len(profile_names):
-            selected_profile = profile_names[choice_num - 1]
-            current_model = profiles[selected_profile]
-            terminal_print(f"Selected profile: {selected_profile}", PrintType.SUCCESS)
-            terminal_print(f"Current model: {current_model}", PrintType.INFO)
+    selected_model = str(selected_model_info.get("name", ""))
 
-            # Get available models
-            models: List[Dict[str, Any]] = app.get_models()
-            
-            # Check which API keys are available
-            has_venice_key = bool(app.state.clients.venice if app.state.clients else None)
-            has_openai_key = bool(app.state.clients.openai if app.state.clients else None)
-            has_anthropic_key = bool(app.state.clients.anthropic if app.state.clients else None)
-            has_deepseek_key = bool(app.state.clients.deepseek if app.state.clients else None)
-            
-            # Group models by provider
-            providers_dict: Dict[str, List[Dict[str, Any]]] = {}
-            
-            for model_info in models:
-                if isinstance(model_info, dict) and "name" in model_info and "provider" in model_info:
-                    provider = str(model_info["provider"])
-                    if provider not in providers_dict:
-                        providers_dict[provider] = []
-                    providers_dict[provider].append(model_info)
-            
-            # Display models grouped by provider
-            terminal_print("\nAvailable models by provider:", PrintType.INFO)
-            
-            # Create a combined list of model details for selection
-            all_models: List[Dict[str, Any]] = []
-            
-            # Track model index for selection
-            model_index = 1
-            
-            # Display models by provider with API key status
-            for provider in sorted(providers_dict.keys()):
-                # Check if user has API key for this provider
-                has_api_key = True
-                
-                if provider.lower() == "openai":
-                    has_api_key = has_openai_key
-                elif provider.lower() == "anthropic":
-                    has_api_key = has_anthropic_key
-                elif provider.lower() == "deepseek":
-                    has_api_key = has_deepseek_key
-                elif provider.lower() == "venice":
-                    has_api_key = has_venice_key
-                
-                # Display provider heading
-                provider_label = f"{provider}"
-                if not has_api_key:
-                    provider_label += " (no API key)"
-                
-                terminal_print(f"\n{provider_label}:", PrintType.SUBHEADER)
-                
-                # Display models for this provider
-                for model_info in sorted(providers_dict[provider], key=lambda m: m.get("name", "")):
-                    name = str(model_info.get("name", "unknown"))
-                    
-                    # Store model details for selection
-                    all_models.append(model_info)
-                    
-                    # Display with appropriate color based on API key status
-                    if has_api_key:
-                        terminal_print(f"  {model_index}. {name}", PrintType.INFO)
-                    else:
-                        # Display in gray if no API key
-                        # Use PROCESSING type which includes the DIM color format
-                        terminal_print(f"  {model_index}. {name} (no API key)", PrintType.PROCESSING)
-                    
-                    model_index += 1
-            
-            # Cancel option
-            terminal_print(f"\n{model_index}. Cancel", PrintType.INFO)
-            
-            # Get user selection
-            model_choice = await async_input(
-                f"Enter your choice (1-{model_index}): "
-            )
+    # Check if selected model's provider has API key
+    provider = str(selected_model_info.get("provider", ""))
+    has_api_key = app.state.clients.has_key(provider.lower())
 
-            try:
-                model_choice_num = int(model_choice)
-                if 1 <= model_choice_num < model_index:  # model_index is already incremented above
-                    selected_model_info = all_models[model_choice_num - 1]
-                    selected_model = str(selected_model_info.get("name", ""))
-                    
-                    # Check if selected model's provider has API key
-                    provider = str(selected_model_info.get("provider", ""))
-                    has_api_key = True
-                    
-                    if provider.lower() == "openai":
-                        has_api_key = has_openai_key
-                    elif provider.lower() == "anthropic":
-                        has_api_key = has_anthropic_key
-                    elif provider.lower() == "deepseek":
-                        has_api_key = has_deepseek_key
-                    elif provider.lower() == "venice":
-                        has_api_key = has_venice_key
-                    
-                    if not has_api_key:
-                        terminal_print(
-                            f"Warning: You don't have an API key for {provider}. This model won't work until you add a key.",
-                            PrintType.WARNING,
-                        )
-                        # Ask for confirmation
-                        confirm = await async_input("Do you still want to set this model? (y/N): ")
-                        if not confirm.lower().startswith('y'):
-                            terminal_print("Cancelled model selection.", PrintType.INFO)
-                            return
-                    
-                    # Pass the terminal's model_list for proper validation
-                    success = manager.update_profile(
-                        selected_profile, 
-                        selected_model,
-                        model_list=app.state.model_list
-                    )
+    if not has_api_key:
+        terminal_print(
+            f"Warning: You don't have an API key for {provider}. This model won't work until " "you add a key.",
+            PrintType.WARNING,
+        )
+        # Ask for confirmation
+        confirm = await async_input("Do you still want to set this model? (y/N): ")
+        if not confirm.lower().startswith("y"):
+            terminal_print("Cancelled model selection.", PrintType.INFO)
+            return
 
-                    if success:
-                        terminal_print(
-                            f"Updated profile '{selected_profile}' to use model '{selected_model}'",
-                            PrintType.SUCCESS,
-                        )
-                    else:
-                        terminal_print(
-                            f"Failed to update profile '{selected_profile}'",
-                            PrintType.ERROR,
-                        )
-                elif model_choice_num == model_index:
-                    terminal_print("Cancelled model selection.", PrintType.INFO)
-                else:
-                    terminal_print("Invalid choice.", PrintType.ERROR)
-            except ValueError:
-                terminal_print("Invalid input. Please enter a number.", PrintType.ERROR)
+    # Pass the terminal's model_list for proper validation
+    success = manager.update_profile(selected_profile, selected_model, model_list=app.state.model_list)
 
-        elif choice_num == len(profile_names) + 1:
-            terminal_print("Cancelled profile selection.", PrintType.INFO)
-        else:
-            terminal_print("Invalid choice.", PrintType.ERROR)
-    except ValueError:
-        terminal_print("Invalid input. Please enter a number.", PrintType.ERROR)
+    if success:
+        terminal_print(
+            f"Updated profile '{selected_profile}' to use model '{selected_model}'",
+            PrintType.SUCCESS,
+        )
+    else:
+        terminal_print(
+            f"Failed to update profile '{selected_profile}'",
+            PrintType.ERROR,
+        )
 
 
 async def set_default_profile_interactive(manager: ModelProfileManager) -> None:
@@ -417,10 +398,10 @@ async def set_default_profile_interactive(manager: ModelProfileManager) -> None:
     terminal_print(f"{len(profile_names)+1}. Cancel", PrintType.INFO)
 
     # Get user selection
-    choice = await async_input(f"Enter your choice (1-{len(profile_names)+1}): ")
+    c = await async_input(f"Enter your choice (1-{len(profile_names)+1}): ")
 
     try:
-        choice_num = int(choice)
+        choice_num = int(c)
         if 1 <= choice_num <= len(profile_names):
             selected_profile = profile_names[choice_num - 1]
 

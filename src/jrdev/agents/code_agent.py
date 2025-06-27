@@ -1,13 +1,13 @@
-from asyncio import CancelledError
 from typing import Any, Dict, List
-from jrdev.core.exceptions import CodeTaskCancelled, Reprompt
-from jrdev.agents.pipeline.stage import Stage
+
 from jrdev.agents.pipeline.analyze_phase import AnalyzePhase
+from jrdev.agents.pipeline.execute_phase import ExecutePhase
 from jrdev.agents.pipeline.fetch_context_phase import FetchContextPhase
 from jrdev.agents.pipeline.plan_phase import PlanPhase
-from jrdev.agents.pipeline.execute_phase import ExecutePhase
 from jrdev.agents.pipeline.review_phase import ReviewPhase
+from jrdev.agents.pipeline.stage import Stage
 from jrdev.agents.pipeline.validate_phase import ValidatePhase
+from jrdev.core.exceptions import Reprompt
 
 
 class CodeAgent:
@@ -21,9 +21,9 @@ class CodeAgent:
         self.profile_manager = app.profile_manager()
         self.worker_id = worker_id
         self.sub_task_count = 0
-        self._accept_all_active = False  # Track if 'Accept All' is active for this instance
+        self.accept_all_active = False  # Track if 'Accept All' is active for this instance
         self.files_validated = False
-        self.files_original: Dict[str, str] = {} # Stores original file content: {filepath: content}
+        self.files_original: Dict[str, str] = {}  # Stores original file content: {filepath: content}
         self.user_cancelled_deletions: List[str] = []  # Stores filenames that user chose not to delete
 
         # get custom user set code context, which should be cleared from app state after fetching
@@ -37,7 +37,7 @@ class CodeAgent:
             PlanPhase(self),
             ExecutePhase(self),
             ReviewPhase(self),
-            ValidatePhase(self)
+            ValidatePhase(self),
         ]
 
     async def process(self, user_task: str) -> None:
@@ -54,13 +54,5 @@ class CodeAgent:
             for phase in self.phases:
                 self.app.ui.print_text(f"Starting phase: {phase.name}")
                 await phase.run(ctx)
-        except CodeTaskCancelled:
-            raise
         except Reprompt as additional_prompt:
             await self.process(f"{user_task} {additional_prompt}")
-        except CancelledError:
-            # worker.cancel() should kill everything
-            raise
-        except Exception as e:
-            self.app.logger.error(f"Error in CodeProcessor: {str(e)}")
-            self.app.ui.print_text(f"Error processing code: {str(e)}")
