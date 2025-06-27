@@ -57,12 +57,18 @@ async def get_file_summary(app: Any, file_path: Any, task_id: Optional[str] = No
 
 async def handle_init(app: Any, _args: List[str], worker_id: str) -> None:
     """
-    Handle the /init command to generate file tree, analyze files, and create
-    project overview.
+    Initializes JrDev's understanding of the current project.
 
-    Args:
-        app: The Application instance
-        args: Command arguments
+    This powerful command performs a one-time, comprehensive analysis of the
+    project. It scans the file tree, uses an LLM to identify key files,
+    generates summaries for them, and creates two crucial context files:
+    - `.jrdev/jrdev_conventions.md`: Outlines the project's coding conventions.
+    - `.jrdev/jrdev_overview.md`: Provides a high-level architectural overview.
+    This process populates the project context, enabling more accurate and
+    efficient AI assistance.
+
+    Usage:
+      /init
     """
     try:
         # Generate the tree structure using the token-efficient format

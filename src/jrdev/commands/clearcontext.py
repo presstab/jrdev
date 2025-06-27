@@ -11,11 +11,14 @@ from jrdev.ui.ui import PrintType
 
 async def handle_clearcontext(app: Any, _args: List[str], _worker_id: str) -> None:
     """
-    Handle the /clearcontext command to clear context files and conversation history.
+    Clears all files from the current thread's context window.
 
-    Args:
-        app: The Application instance
-        args: Command arguments (unused)
+    This removes all files that were added with `/addcontext`. It does not erase
+    the conversation history, but it prevents the cleared files from being
+    included in future prompts in this thread.
+
+    Usage:
+      /clearcontext
     """
     # Clear the context array
     msg_thread = app.get_current_thread()

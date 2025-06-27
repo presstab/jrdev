@@ -16,11 +16,12 @@ from jrdev.ui.ui import PrintType
 
 async def handle_models(app: Any, args: List[str], _worker_id: str) -> None:
     """
-    Handle the /models command to list all available models.
+    Router:Ignore
+    Lists all available models and provides an interactive way to set the active model.
 
-    Args:
-        app: The Application instance
-        args: Command arguments (unused)
+    Usage:
+      /models
+      /models --no-curses - Forces the text-based selector.
     """
 
     # Get all models

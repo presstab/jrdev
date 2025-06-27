@@ -27,12 +27,18 @@ def ensure_responses_dir():
 
 async def handle_asyncsend(app: Any, args: List[str], worker_id: str) -> None:
     """
-    Handle the /asyncsend command to send a message and optionally save the response to a file.
-    This command returns control to the terminal immediately while processing continues in background.
+    Sends a prompt to the LLM as a background task, returning control immediately.
 
-    Args:
-        app: The Application instance
-        args: Command arguments [filename] [prompt...]
+    This is useful for long-running queries. The response is added to the current
+    thread's history. If a filename is provided, the response is also saved to a
+    file in the `.jrdev/responses/` directory.
+
+    Usage:
+      /asyncsend [filename] <prompt>
+
+    Examples:
+      /asyncsend "Refactor this entire class for better performance."
+      /asyncsend refactor_notes.md "Refactor this entire class for better performance."
     """
 
     if len(args) < 2:

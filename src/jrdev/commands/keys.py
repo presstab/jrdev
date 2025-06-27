@@ -339,7 +339,7 @@ async def _handle_keys_interactive(app: Any) -> None:
 
 
 async def handle_keys(app: Any, args: list[str], _worker_id: str) -> None:
-    """Manage API keys through a menu or non-interactive commands."""
+    """Router:Ignore Manage API keys through a menu or non-interactive commands."""
     # If UI is textual, handle non-interactively
     if app.ui.ui_name == "textual":
         await _handle_keys_non_interactive(app, args)

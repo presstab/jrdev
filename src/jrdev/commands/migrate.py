@@ -8,6 +8,7 @@ from jrdev.ui.ui import PrintType
 
 async def handle_migrate(app: Any, _args: List[str], _worker_id: str):
     """
+    Router:Ignore
     Handle the /migrate command: migrate all data from 'jrdev/' to '.jrdev/'.
     """
     old_dir = os.path.join(os.getcwd(), "jrdev")

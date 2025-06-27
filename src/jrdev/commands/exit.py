@@ -11,11 +11,12 @@ from jrdev.ui.ui import PrintType
 
 async def handle_exit(app: Any, _args: List[str], _worker_id: str):
     """
-    Handle the /exit command to terminate the application.
+    Safely terminates the JrDev application.
 
-    Args:
-        app: The Application instance
-        args: Command arguments (unused)
+    This command signals the main application loop to stop, ensuring a clean shutdown.
+
+    Usage:
+      /exit
     """
     app.logger.info("User requested exit via /exit command")
     app.ui.print_text("Exiting JrDev terminal...", print_type=PrintType.INFO)

@@ -42,7 +42,6 @@ class CommandInterpretationAgent:
 
         # Add dynamic command list
         command_list_prompt = self._get_available_commands_prompt()
-        self.app.logger.info(f"*** commands:\n {command_list_prompt}")
         builder.append_to_user_section(command_list_prompt)
 
         # Add the actual user request

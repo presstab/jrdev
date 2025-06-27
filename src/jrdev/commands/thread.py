@@ -26,11 +26,23 @@ from jrdev.ui.ui import PrintType, show_conversation
 
 # pylint: disable=too-many-locals, too-many-branches, too-many-statements
 async def handle_thread(app: Any, args: List[str], _worker_id: str) -> None:
-    """Handle the /thread command for creating and managing message threads.
+    """
+    Manages isolated conversation threads, each with its own history and context.
 
-    Args:
-        app: The application instance
-        args: Command line arguments
+    Threads are useful for working on different tasks or features simultaneously
+    without mixing conversations.
+
+    Usage:
+      /thread <subcommand> [arguments]
+
+    Subcommands:
+      new [name]              - Creates and switches to a new thread.
+      list                    - Lists all available threads.
+      switch <thread_id>      - Switches to an existing thread.
+      rename <thread_id> <name> - Renames an existing thread.
+      info                    - Shows information about the current thread.
+      view [count]            - Views conversation history (default: 10 messages).
+      delete <thread_id>      - Deletes an existing thread.
     """
     parser = argparse.ArgumentParser(
         prog="/thread",
@@ -265,10 +277,13 @@ async def _handle_list_threads(app: Any) -> None:
     """
     threads = app.state.threads
     active_thread = app.state.active_thread
+    router_thread_id = app.state.router_thread_id
 
     app.ui.print_text("Message Threads:", PrintType.HEADER)
 
     for thread_id, thread in threads.items():
+        if thread_id == router_thread_id:
+            continue
         message_count = len(thread.messages)
         context_count = len(thread.context)
         active_marker = "* " if thread_id == active_thread else "  "

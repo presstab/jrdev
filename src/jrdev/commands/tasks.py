@@ -13,11 +13,14 @@ from jrdev.ui.ui import PrintType
 
 async def handle_tasks(app: Any, _args: List[str], _worker_id: str) -> None:
     """
-    Handle the /tasks command to display current background tasks.
+    Lists all currently active background tasks.
 
-    Args:
-        app: The Application instance
-        args: Command arguments (unused)
+    This command displays information about tasks running in the background,
+    such as those initiated by `/asyncsend` or `/code`. It shows the task ID,
+    its type, a brief description, and its running time.
+
+    Usage:
+      /tasks
     """
     if not app.state.active_tasks:
         app.ui.print_text("No active background tasks.", print_type=PrintType.INFO)
