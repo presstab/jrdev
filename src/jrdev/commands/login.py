@@ -1,46 +1,38 @@
+import asyncio
 import uuid
 import webbrowser
-import time
-import requests
+import aiohttp
+from typing import Any, List
 
-from jrdev.commands.command_container import command_container
-from jrdev.commands.provider import CommandProvider
+from jrdev.ui.ui import PrintType
 
-@command_container.command()
-class LoginCommand(CommandProvider):
+async def handle_login(app: Any, _args: List[str], _worker_id: str) -> None:
     """
-    Login to jrdev.
+    Handle the login command.
     """
+    device_id = str(uuid.uuid4())
+    login_url = f"http://localhost:8080/cli-login?device_id={device_id}"
+    
+    app.ui.print_text("Please log in to your jrdev account in the browser window that just opened.", PrintType.INFO)
+    webbrowser.open(login_url)
 
-    def handle(self, args: list[str]) -> None:
-        """
-        Handle the login command.
-        """
-        device_id = str(uuid.uuid4())
-        login_url = f"http://localhost:8080/cli-login?device_id={device_id}"
-        
-        print("Please log in to your jrdev account in the browser window that just opened.")
-        webbrowser.open(login_url)
-
-        # Poll for the token
-        token = None
+    # Poll for the token
+    token = None
+    async with aiohttp.ClientSession() as session:
         while token is None:
             try:
-                response = requests.get(f"http://localhost:8080/cli-login-status?device_id={device_id}")
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("status") == "success":
-                        token = data.get("token")
-                        print("Login successful!")
-                else:
-                    time.sleep(2)
-            except requests.exceptions.ConnectionError:
-                print("Waiting for server...")
-                time.sleep(2)
+                async with session.get(f"http://localhost:8080/cli-login-status?device_id={device_id}") as response:
+                    app.logger.info(f"Response: {response}")
+                    if response.status == 200:
+                        data = await response.json()
+                        if data.get("status") == "success":
+                            token = data.get("token")
+                            app.ui.print_text("Login successful!", PrintType.SUCCESS)
+                    else:
+                        await asyncio.sleep(2)
+            except aiohttp.ClientConnectorError:
+                app.ui.print_text("Waiting for server...", PrintType.INFO)
+                await asyncio.sleep(2)
 
-        # TODO: Store the token securely
-        print(f"Your token is: {token}")
-
-
-    def get_name(self) -> str:
-        return "login"
+    # TODO: Store the token securely
+    app.ui.print_text(f"Your token is: {token}", PrintType.INFO)

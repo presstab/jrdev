@@ -40,7 +40,8 @@ setup(
         "textual[syntax]>=0.40.0",
         "tiktoken",
         "pyperclip",
-        "anthropic"
+        "anthropic",
+        "aiohttp"
     ],
     entry_points={
         "console_scripts": [
