@@ -111,6 +111,8 @@ class TextualEvents(UiWrapper):
 
     def print_text(self, message: Any, print_type: PrintType = PrintType.INFO, end: str = "\n", prefix: Optional[str] = None, flush: bool = False):
         # Post custom message when print is called
+        if self.capture_active:
+            self.capture += message
         self.app.post_message(self.PrintMessage(message))
 
     def print_stream(self, message: str):
@@ -118,6 +120,8 @@ class TextualEvents(UiWrapper):
         while '\n' in self.word_stream:
             line, self.word_stream = self.word_stream.split('\n', 1)
             self.app.post_message(self.PrintMessage(line))
+            if self.capture_active:
+                self.capture += line
 
     def update_task_info(self, worker_id: str, update: dict = None) -> None:
         self.app.post_message(self.TaskUpdate(worker_id, update))

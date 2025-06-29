@@ -147,8 +147,9 @@ async def handle_model(app, args: List[str], _worker_id: str):
     subcommand = args[1].lower()
     _handle_subcommand(app, subcommand, args, available_model_names)
 
-    app.ui.print_text(f"Unknown subcommand: {subcommand}", PrintType.ERROR)
-    app.ui.print_text(detailed_usage_message, PrintType.INFO)
+    if subcommand not in ["list", "set", "remove", "add", "edit"]:
+        app.ui.print_text(f"Unknown subcommand: {subcommand}", PrintType.ERROR)
+        app.ui.print_text(detailed_usage_message, PrintType.INFO)
 
 
 def _handle_subcommand(app: Any, subcommand: str, args: List[str], available_model_names: List[str]):
