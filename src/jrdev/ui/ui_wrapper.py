@@ -1,9 +1,11 @@
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from jrdev.ui.ui import PrintType
 
 class UiWrapper:
     def __init__(self):
         self.ui_name = ""
+        self.capture_active = False
+        self.capture = ""
 
     def print_text(self, message: Any, print_type: PrintType = PrintType.INFO, end: str = "\n", prefix: Optional[str] = None, flush: bool = False):
         """Override this method in subclasses"""
@@ -22,6 +24,16 @@ class UiWrapper:
             chunk: The piece of text from the AI's response.
         """
         raise NotImplementedError("Subclasses must implement stream_chunk()")
+
+    def start_capture(self) -> None:
+        self.capture_active = True
+        self.capture = ""
+
+    def end_capture(self) -> None:
+        self.capture_active = False
+
+    def get_capture(self) -> str:
+        return self.capture
         
     async def prompt_for_confirmation(self, prompt_text: str = "Apply these changes?", diff_lines: Optional[List[str]] = None, error_msg: str = None) -> Tuple[str, Optional[str]]:
         """

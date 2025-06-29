@@ -88,17 +88,32 @@ def _parse_model_arguments(app, args: List[str], start_idx: int) -> dict | None:
 
 async def handle_model(app, args: List[str], _worker_id: str):
     """
-    Handle the /model command to manage available models and set the active chat model.
+    Manages the list of available models and sets the active model for the chat.
 
-    Args:
-        app: The Application instance.
-        args: Command arguments:
-              /model list
-              /model set <model_name>
-              /model remove <model_name>
-              /model add <name> <provider> <is_think> <input_cost> <output_cost> <context_window>
-              /model edit <name> <provider> <is_think> <input_cost> <output_cost> <context_window>
-        worker_id: The ID of the worker processing the command (unused in this handler).
+    This command allows you to view, set, add, edit, or remove models from your
+    personal configuration file (`.jrdev/user_models.json`).
+
+    Usage:
+      /model [subcommand] [arguments]
+
+    Subcommands:
+      (no subcommand)               - Shows the current model and basic usage.
+      list                          - Shows all models available in your configuration.
+      set <model_name>              - Sets the active model for the chat.
+      remove <model_name>           - Removes a model from your configuration.
+      add <name> <provider> <is_think> <input> <output> <context>
+                                    - Adds a new model to your configuration.
+      edit <name> <provider> <is_think> <input> <output> <context>
+                                    - Edits an existing model in your configuration.
+
+    Arguments for 'add' and 'edit':
+      <is_think>      - 'true' or 'false', indicating if the model supports tool use.
+      <input_cost>    - Cost in dollars per 1,000,000 input tokens (e.g., 0.50).
+      <output_cost>   - Cost in dollars per 1,000,000 output tokens (e.g., 1.50).
+      <context_window>- The model's context window size in tokens (e.g., 128000).
+
+    Example:
+      /model add google/gemini-2.5-pro open_router true 15.00 75.00 200000
     """
 
     current_chat_model = app.state.model
@@ -132,8 +147,9 @@ async def handle_model(app, args: List[str], _worker_id: str):
     subcommand = args[1].lower()
     _handle_subcommand(app, subcommand, args, available_model_names)
 
-    app.ui.print_text(f"Unknown subcommand: {subcommand}", PrintType.ERROR)
-    app.ui.print_text(detailed_usage_message, PrintType.INFO)
+    if subcommand not in ["list", "set", "remove", "add", "edit"]:
+        app.ui.print_text(f"Unknown subcommand: {subcommand}", PrintType.ERROR)
+        app.ui.print_text(detailed_usage_message, PrintType.INFO)
 
 
 def _handle_subcommand(app: Any, subcommand: str, args: List[str], available_model_names: List[str]):

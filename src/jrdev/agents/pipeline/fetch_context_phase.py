@@ -139,14 +139,18 @@ class FetchContextPhase(Stage):
 
         json_content = cutoff_string(response, "```json", "```")
         tool_calls = json.loads(json_content)
-        if tool_calls:
-            tool = tool_calls.get("tool")
-            if tool and tool == "read":
-                file_list = tool_calls.get("file_list", [])
-                if file_list:
-                    add_files = requested_files(f"get_files {str(file_list)}")
-                    for file in add_files:
-                        if file not in files:
-                            files.append(file)
-                            self.app.logger.info(f"Adding file {file}")
+        try:
+            if tool_calls:
+                tool = tool_calls.get("tool")
+                if tool and tool == "read":
+                    file_list = tool_calls.get("file_list", [])
+                    if file_list:
+                        add_files = requested_files(f"get_files {str(file_list)}")
+                        for file in add_files:
+                            if file not in files:
+                                files.append(file)
+                                self.app.logger.info(f"Adding file {file}")
+        except AttributeError as e:
+            self.app.logger.error("ask_files_sufficient: malformed additional files response %s", str(e))
+            self.app.ui.print_text("ask_files_sufficient response malformed")
         return files

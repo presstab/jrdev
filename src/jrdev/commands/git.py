@@ -30,11 +30,39 @@ GIT_SUBCOMMANDS: Dict[str, CommandHandler] = {}
 
 async def handle_git(app: Application, args: List[str], worker_id: str) -> None:
     """
-    Handle the /git command with subcommands.
+    Entry point for all Git-related operations: configuration management and PR analysis.
 
-    Args:
-        app: The Application instance
-        args: Command arguments
+    Usage:
+      # Git configuration commands
+      /git config list
+          List all JrDev Git configuration keys and their current values.
+      /git config get <key>
+          Retrieve the value of a specific configuration key (e.g., base_branch).
+      /git config set <key> <value> [--confirm]
+          Update a configuration key. Use --confirm to override format warnings.
+
+      # Pull-request commands
+      /git pr summary [custom prompt]
+          Generate a high-level summary of your current branch’s diff against the configured base branch.
+      /git pr review [custom prompt]
+          Generate a detailed code review of your current branch’s diff, including context from project files.
+
+    Subcommand details:
+      config:
+        list                        - Show all JrDev git config values.
+        get   <key>                 - Show the value of one key.
+        set   <key> <value> [--confirm]
+                                    - Change a config value (e.g. base_branch).
+      pr:
+        summary [prompt]            - Create a pull-request summary.
+        review  [prompt]            - Create a detailed PR code review.
+
+    Examples:
+      /git config list
+      /git config get base_branch
+      /git config set base_branch origin/main
+      /git pr summary "What changed in this feature branch?"
+      /git pr review "Please review the latest security fixes."
     """
     # If no arguments provided, show git command help
     if len(args) == 1:

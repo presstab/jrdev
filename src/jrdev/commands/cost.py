@@ -128,11 +128,14 @@ def _display_cost_report(ui: Any, costs_by_model: Dict[str, CostInfo], total_cos
 
 
 async def handle_cost(app: Any, _cmd_parts: List[str], _worker_id: str) -> None:
-    """Handle the /cost command.
+    """
+    Calculates and displays a report of token usage and estimated costs for the session.
 
-    Args:
-        app: The Application instance
-        cmd_parts: The command and its arguments
+    The report shows the total cost and a breakdown of input/output tokens and
+    costs for each model used during the current application session.
+
+    Usage:
+      /cost
     """
     usage_data = await get_instance().get_usage()
     if not usage_data:

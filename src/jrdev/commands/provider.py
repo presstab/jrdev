@@ -6,7 +6,21 @@ from jrdev.utils.string_utils import is_valid_env_key, is_valid_name, is_valid_u
 
 async def handle_provider(app: Any, args: List[str], _worker_id: str) -> None:
     """
-    Manage API providers: list, add, edit, remove.
+    Manages API provider configurations.
+
+    This allows adding, editing, or removing API providers, which define the
+    endpoints and environment keys for different LLM services (e.g., OpenAI,
+    Anthropic, or a custom local server).
+
+    Usage:
+      /provider <subcommand> [arguments]
+
+    Subcommands:
+      list                               - List all configured providers.
+      add <name> <env_key> <base_url>    - Add a new provider.
+      edit <name> <new_env_key> <new_base_url> - Edit an existing provider.
+      remove <name>                      - Remove a provider.
+      help                               - Show this usage information.
     """
     if len(args) < 2 or args[1] in ("help", "--help", "-h"):
         app.ui.print_text("API Provider Management", PrintType.HEADER)

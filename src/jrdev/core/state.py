@@ -34,6 +34,7 @@ class AppState:
 
         # Thread management
         self.active_thread = ""
+        self.router_thread_id: str = ""
         if persisted_threads:
             self.threads: Dict[str, MessageThread] = persisted_threads
             if ui_mode and ui_mode == "cli":
@@ -47,11 +48,17 @@ class AppState:
                     self.active_thread = self.create_thread()
             else:
                 # for Textual UI choose the most recently modified thread as the current thread
-                latest = max(
-                    self.threads.values(),
-                    key=lambda t: t.metadata["last_modified"],
-                )
-                self.active_thread = latest.thread_id
+                user_threads = {
+                    tid: t for tid, t in self.threads.items()
+                }
+                if user_threads:
+                    latest = max(
+                        user_threads.values(),
+                        key=lambda t: t.metadata["last_modified"],
+                    )
+                    self.active_thread = latest.thread_id
+                else:
+                    self.active_thread = self.create_thread()
         else:
             self.threads: Dict[str, MessageThread] = {}
             self.active_thread = self.create_thread()

@@ -5,9 +5,11 @@ import sys
 from typing import Any, Dict, List
 from dotenv import load_dotenv
 
+from jrdev.agents.router_agent import CommandInterpretationAgent
 from jrdev.core.clients import APIClients
 from jrdev.core.commands import Command, CommandHandler
 from jrdev.core.state import AppState
+from jrdev.core.tool_call import ToolCall
 from jrdev.file_operations.file_utils import add_to_gitignore, JRDEV_DIR, JRDEV_PACKAGE_DIR, get_env_path
 from jrdev.commands.keys import check_existing_keys, save_keys_to_env
 from jrdev.logger import setup_logger
@@ -34,6 +36,10 @@ class Application:
         self.state = AppState(persisted_threads=persisted_threads, ui_mode=ui_mode) # Pass loaded threads to AppState
         self.state.clients = APIClients()
         self.ui: UiWrapper = UiWrapper()
+
+        # Add the new agent and its dedicated chat thread
+        self.router_agent = None
+        self.state.router_thread_id = self.state.create_thread()
 
     def _load_persisted_threads(self) -> Dict[str, MessageThread]:
         """Load all persisted message threads from disk."""
@@ -193,6 +199,10 @@ class Application:
             await self._initialize_api_clients()
 
         self.message_service = MessageService(self)
+
+        # Initialize the router agent
+        self.router_agent = CommandInterpretationAgent(self)
+        self.logger.info("CommandInterpretationAgent initialized.")
 
         self.logger.info("Application services initialized")
         return True
@@ -421,7 +431,30 @@ class Application:
                 self.logger.info("Exit command received, forcing running state to False")
                 self.state.running = False
         else:
-            await self.process_chat_input(user_input, worker_id)
+            # Invoke the CommandInterpretationAgent
+            self.ui.print_text("Interpreting your request...", print_type=PrintType.INFO)
+            calls_made = []
+            while True:
+                tool_call: ToolCall = await self.router_agent.interpret(user_input, worker_id, calls_made)
+                if not tool_call:
+                    # Agent decided to clarify, chat, summarize, or failed. Stop processing.
+                    break
+
+                # The agent decided on a command, now execute it
+                command_to_execute = tool_call.formatted_cmd
+                self.ui.print_text(f"Running command: {command_to_execute}", print_type=PrintType.COMMAND)
+                self.ui.start_capture()
+                command = Command(command_to_execute, worker_id)
+                await self.handle_command(command)
+                self.ui.end_capture()
+                tool_call.result = self.ui.get_capture()
+
+                if not tool_call.has_next:
+                    # This was the final command in the chain.
+                    break
+
+                # This was an info-gathering step, add result to history and loop again.
+                calls_made.append(tool_call)
 
     async def process_chat_input(self, user_input, worker_id=None):
         # 1) get the active thread

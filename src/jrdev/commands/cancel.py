@@ -12,11 +12,14 @@ from jrdev.ui.ui import PrintType
 
 async def handle_cancel(app: Any, args: List[str], _worker_id: str) -> None:
     """
-    Handle the /cancel command to cancel background tasks.
+    Cancels active background tasks.
 
-    Args:
-        app: The Application instance
-        args: Command arguments (task_id or 'all')
+    This command can stop a single running task by its ID or all active tasks.
+    Use the `/tasks` command to see a list of active tasks and their IDs.
+
+    Usage:
+      /cancel <task_id>
+      /cancel all
     """
     # Check if there are any active tasks
     if not app.state.active_tasks:

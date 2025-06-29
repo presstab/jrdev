@@ -12,11 +12,14 @@ from jrdev.ui.ui import PrintType
 
 async def handle_stateinfo(app: Any, _args: List[str], _worker_id: str) -> None:
     """
-    Handle the /stateinfo command to display current application state.
+    Displays a snapshot of the current application and thread state for debugging.
 
-    Args:
-        app: The Application instance
-        args: Command arguments (unused)
+    This command provides diagnostic information, including the currently active model,
+    the number of messages in the current thread, the files in the context window,
+    and the number of files tracked by the persistent project context manager.
+
+    Usage:
+      /stateinfo
     """
     app.ui.print_text("\nCurrent Application State:", print_type=PrintType.HEADER)
     app.ui.print_text(f"  Model: {app.state.model}", print_type=PrintType.INFO)

@@ -150,11 +150,6 @@ class JrDevUI(App[None]):
     @on(CommandTextArea.Submitted, "#cmd_input")
     async def accept_input(self, event: CommandTextArea.Submitted) -> None:
         text = event.value
-        # if is not a command, encourage user to open chat window
-        if not text.startswith("/"):
-            self.terminal_output_widget.append_text(f"\nUnknown command: {text}\n- For a list of commands use '/help'\n- To open a new chat click the New Chat button.\n")
-            return
-
         # mirror user input to text area
         self.terminal_output_widget.append_text(f"> {text}\n")
 

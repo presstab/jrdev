@@ -13,6 +13,19 @@ from jrdev.ui.ui import PrintType
 
 
 async def handle_code(app: Any, args: List[str], worker_id: str) -> None:
+    """
+    Initiates an AI-driven, multi-step code generation or modification task.
+
+    The AI agent will analyze the request, ask for relevant files to read,
+    create a step-by-step plan, and then execute the plan by applying code
+    changes. The user can review and approve changes at various stages.
+
+    Usage:
+      /code <your_detailed_request>
+
+    Example:
+      /code "Refactor the login function in auth.py to use async/await."
+    """
     if len(args) < 2:
         app.ui.print_text("Usage: /code <message>", print_type=PrintType.ERROR)
         return

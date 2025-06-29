@@ -46,7 +46,13 @@ def format_command_with_args_plain(command, args=None):
 
 async def handle_help(app: Any, args: List[str], _worker_id: str):
     """
-    Handle the /help command to display available commands categorized.
+    Displays a categorized list of all available commands and their functions.
+
+    This command provides a comprehensive overview of the application's capabilities,
+    grouped by category for easy navigation.
+
+    Usage:
+      /help
     """
     if app.ui.ui_name == "textual":
         return await handle_help_plain(app, args)
