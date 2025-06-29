@@ -11,7 +11,7 @@ async def handle_login(app: Any, _args: List[str], _worker_id: str) -> None:
     Handle the login command.
     """
     device_id = str(uuid.uuid4())
-    login_url = f"http://localhost:8080/cli-login?device_id={device_id}"
+    login_url = f"http://localhost:8080/login?device_id={device_id}"
     
     app.ui.print_text("Please log in to your jrdev account in the browser window that just opened.", PrintType.INFO)
     webbrowser.open(login_url)
@@ -25,9 +25,8 @@ async def handle_login(app: Any, _args: List[str], _worker_id: str) -> None:
                     app.logger.info(f"Response: {response}")
                     if response.status == 200:
                         data = await response.json()
-                        if data.get("status") == "success":
-                            token = data.get("token")
-                            app.ui.print_text("Login successful!", PrintType.SUCCESS)
+                        token = data.get("token")
+                        app.ui.print_text("Login successful!", PrintType.SUCCESS)
                     else:
                         await asyncio.sleep(2)
             except aiohttp.ClientConnectorError:
