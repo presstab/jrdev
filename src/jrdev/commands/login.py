@@ -11,17 +11,25 @@ async def handle_login(app: Any, _args: List[str], _worker_id: str) -> None:
     Handle the login command.
     """
     device_id = str(uuid.uuid4())
-    login_url = f"http://localhost:8080/login?device_id={device_id}"
-    
+    base_url = "https://jrdev-web-261022528192.us-central1.run.app"
+    login_url = f"{base_url}/login?device_id={device_id}"
+    check_url = f"{base_url}/cli-login-status?device_id={device_id}"
+
     app.ui.print_text("Please log in to your jrdev account in the browser window that just opened.", PrintType.INFO)
     webbrowser.open(login_url)
-
-    # Poll for the token
+    # Poll for the token with a max polling time of 2 minutes
     token = None
+    max_poll_time = 120  # seconds
+    start_time = asyncio.get_event_loop().time()
+    interval = 5  # seconds
     async with aiohttp.ClientSession() as session:
         while token is None:
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if elapsed > max_poll_time:
+                app.ui.print_text("Login timed out. Please try again.", PrintType.ERROR)
+                return
             try:
-                async with session.get(f"http://localhost:8080/cli-login-status?device_id={device_id}") as response:
+                async with session.get(check_url) as response:
                     app.logger.info(f"Response: {response}")
                     if response.status == 200:
                         data = await response.json()
@@ -31,7 +39,7 @@ async def handle_login(app: Any, _args: List[str], _worker_id: str) -> None:
                         await asyncio.sleep(2)
             except aiohttp.ClientConnectorError:
                 app.ui.print_text("Waiting for server...", PrintType.INFO)
-                await asyncio.sleep(2)
+                await asyncio.sleep(interval)
 
     # TODO: Store the token securely
     app.ui.print_text(f"Your token is: {token}", PrintType.INFO)
