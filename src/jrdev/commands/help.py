@@ -94,6 +94,11 @@ async def handle_help(app: Any, args: List[str], _worker_id: str):
     app.ui.print_text(
         f"  {cmd_format}/init{reset} - Index important project files and familiarize LLM with project", print_type=None
     )
+    app.ui.print_text(
+        f"  {cmd_format}{format_command_with_args('/routeragent', '<set-max-iter> <number>')}{reset} - "
+        "Configure the router agent",
+        print_type=None,
+    )
 
     # Add experimental tag to code command with green color
     exp_tag = f"{COLORS['RESET']}{COLORS['BRIGHT_GREEN']}(WIP){FORMAT_MAP[PrintType.COMMAND]}"
@@ -219,6 +224,7 @@ async def handle_help_plain(app: Any, _args: List[str]):
         print_type=None,
     )
     app.ui.print_text("  /init - Index important project files and familiarize LLM with project", print_type=None)
+    app.ui.print_text("  /routeragent <set-max-iter> <number> - Configure the router agent", print_type=None)
     app.ui.print_text(
         "  /code <message> (WIP) - Send coding task to LLM. LLM will read and edit the code.", print_type=None
     )
