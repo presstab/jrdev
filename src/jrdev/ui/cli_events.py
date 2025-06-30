@@ -19,6 +19,8 @@ class CliEvents(UiWrapper):
     def print_stream(self, message: str):
         """print a stream of text"""
         terminal_print(message, PrintType.LLM, end="", flush=True)
+        if self.capture_active:
+            self.capture += message
 
     def stream_chunk(self, thread_id: str, chunk: str) -> None:
         """
