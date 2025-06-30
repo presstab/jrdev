@@ -34,18 +34,25 @@ class Application:
         self.state = AppState(persisted_threads=persisted_threads, ui_mode=ui_mode) # Pass loaded threads to AppState
         self.state.clients = APIClients()
         self.ui: UiWrapper = UiWrapper()
-        self.cli_token = None
+        self.id_token = None
+        self.refresh_token = None
         self.device_id = None
 
-    def set_cli_token(self, token: str):
-        """Set the cli token in memory for the current session."""
-        self.cli_token = token
-        self.logger.info("Cli token set for the current session.")
+    def set_auth_tokens(self, id_token: str, refresh_token: str):
+        """Set the authentication tokens in memory for the current session."""
+        self.id_token = id_token
+        self.refresh_token = refresh_token
+        self.logger.info("Authentication tokens set for the current session.")
 
-    def get_cli_token(self) -> str | None:
-        """Get the cli token."""
-        self.logger.info("Cli token retrieved for the current session.")
-        return self.cli_token
+    def get_id_token(self) -> str | None:
+        """Get the ID token."""
+        self.logger.info("ID token retrieved for the current session.")
+        return self.id_token
+
+    def get_refresh_token(self) -> str | None:
+        """Get the refresh token."""
+        self.logger.info("Refresh token retrieved for the current session.")
+        return self.refresh_token
 
     def set_device_id(self, device_id: str):
         """Set the device ID in memory for the current session."""

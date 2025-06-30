@@ -19,13 +19,14 @@ async def handle_login(app: Any, _args: List[str], _worker_id: str) -> None:
 
     app.ui.print_text("Please log in to your jrdev account in the browser window that just opened.", PrintType.INFO)
     webbrowser.open(login_url)
-    # Poll for the token with a max polling time of 2 minutes
-    token = None
+    # Poll for the tokens with a max polling time of 2 minutes
+    id_token = None
+    refresh_token = None
     max_poll_time = 120  # seconds
     start_time = asyncio.get_event_loop().time()
     interval = 5  # seconds
     async with aiohttp.ClientSession() as session:
-        while token is None:
+        while id_token is None:
             elapsed = asyncio.get_event_loop().time() - start_time
             if elapsed > max_poll_time:
                 app.ui.print_text("Login timed out. Please try again.", PrintType.ERROR)
@@ -35,9 +36,10 @@ async def handle_login(app: Any, _args: List[str], _worker_id: str) -> None:
                     app.logger.info(f"Response: {response}")
                     if response.status == 200:
                         data = await response.json()
-                        token = data.get("token")
-                        if token:
-                            app.set_cli_token(token)
+                        id_token = data.get("id_token")
+                        refresh_token = data.get("refresh_token")
+                        if id_token and refresh_token:
+                            app.set_auth_tokens(id_token, refresh_token)
                             app.ui.print_text("Login successful!", PrintType.SUCCESS)
                         else:
                             await asyncio.sleep(interval)
@@ -47,8 +49,8 @@ async def handle_login(app: Any, _args: List[str], _worker_id: str) -> None:
                 app.ui.print_text("Waiting for server...", PrintType.INFO)
                 await asyncio.sleep(interval)
 
-    if token:
-        app.set_cli_token(token)
+    if id_token and refresh_token:
+        app.set_auth_tokens(id_token, refresh_token)
         app.ui.print_text("You are now logged in.", PrintType.SUCCESS)
     else:
         app.ui.print_text("Login failed. Please try again.", PrintType.ERROR)

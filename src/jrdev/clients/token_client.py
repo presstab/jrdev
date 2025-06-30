@@ -6,15 +6,17 @@ async def report_token_usage(app: any, model: str, tokens: int) -> None:
     """
     Report token usage to the jrdev-web server.
     """
-    token = app.get_cli_token()
+    id_token = app.get_id_token()
+    refresh_token = app.get_refresh_token()
     device_id = app.get_device_id()
-    if not token or not device_id:
+    if not id_token or not refresh_token or not device_id:
         app.ui.print_text("Not logged in. Please run /login first.", print_type="ERROR")
         return
 
     url = f"{base_url}/api/tokens"
     headers = {
-        "X-CLI-Token": token,
+        "X-ID-Token": id_token,
+        "X-Refresh-Token": refresh_token,
         "X-Device-ID": device_id,
     }
     data = {"model": model, "tokens": tokens}
