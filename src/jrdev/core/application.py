@@ -37,12 +37,12 @@ class Application:
         self.cli_token = None
         self.device_id = None
 
-    def set__cli_token(self, token: str):
+    def set_cli_token(self, token: str):
         """Set the cli token in memory for the current session."""
         self.cli_token = token
         self.logger.info("Cli token set for the current session.")
 
-    def get__cli_token(self) -> str | None:
+    def get_cli_token(self) -> str | None:
         """Get the cli token."""
         self.logger.info("Cli token retrieved for the current session.")
         return self.cli_token

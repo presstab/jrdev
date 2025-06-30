@@ -12,7 +12,8 @@ async def handle_login(app: Any, _args: List[str], _worker_id: str) -> None:
     """
     device_id = str(uuid.uuid4())
     app.set_device_id(device_id)
-    base_url = "https://jrdev-web-261022528192.us-central1.run.app"
+    # base_url = "https://jrdev-web-261022528192.us-central1.run.app"
+    base_url = "http://localhost:8080"  # Adjust this to your local server URL for testing
     login_url = f"{base_url}/login?device_id={device_id}"
     check_url = f"{base_url}/cli-login-status?device_id={device_id}"
 
@@ -36,7 +37,7 @@ async def handle_login(app: Any, _args: List[str], _worker_id: str) -> None:
                         data = await response.json()
                         token = data.get("token")
                         if token:
-                            app.set__cli_token(token)
+                            app.set_cli_token(token)
                             app.ui.print_text("Login successful!", PrintType.SUCCESS)
                         else:
                             await asyncio.sleep(interval)
@@ -47,7 +48,7 @@ async def handle_login(app: Any, _args: List[str], _worker_id: str) -> None:
                 await asyncio.sleep(interval)
 
     if token:
-        app.set__cli_token(token)
+        app.set_cli_token(token)
         app.ui.print_text("You are now logged in.", PrintType.SUCCESS)
     else:
         app.ui.print_text("Login failed. Please try again.", PrintType.ERROR)
