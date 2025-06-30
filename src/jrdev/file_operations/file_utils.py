@@ -24,7 +24,7 @@ logger = logging.getLogger("jrdev")
 
 
 def requested_files(text) -> List[str]:
-    match = re.search(r"get_files\s+(\[.*?_])", text, re.DOTALL)
+    match = re.search(r"get_files\s+(\[.*?\])", text, re.DOTALL)
     file_list = []
     if match:
         file_list_str = match.group(1)

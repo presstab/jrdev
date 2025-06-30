@@ -493,16 +493,21 @@ class Application:
                     self.ui.end_capture()
                     tool_call.result = self.ui.get_capture()
                 elif tool_call.action_type == "tool":
-                    if tool_call.command not in agent_tools.tools_list:
-                        self.ui.print_text(f"tool_call {tool_call.command} DNE")
-                    elif tool_call.command == "read_files":
-                        tool_call.result = agent_tools.read_files(tool_call.args)
-                    elif tool_call.command == "get_file_tree":
-                        tool_call.result = agent_tools.get_file_tree()
-                    elif tool_call.command == "write_file":
-                        filename = tool_call.args[0]
-                        content = " ".join(tool_call.args[1:])
-                        tool_call.result = await agent_tools.write_file(self, filename, content)
+                    try:
+                        if tool_call.command not in agent_tools.tools_list:
+                            tool_call.result = f"Error: Tool '{tool_call.command}' does not exist."
+                        elif tool_call.command == "read_files":
+                            tool_call.result = agent_tools.read_files(tool_call.args)
+                        elif tool_call.command == "get_file_tree":
+                            tool_call.result = agent_tools.get_file_tree()
+                        elif tool_call.command == "write_file":
+                            filename = tool_call.args[0]
+                            content = " ".join(tool_call.args[1:])
+                            tool_call.result = await agent_tools.write_file(self, filename, content)
+                    except Exception as e:
+                        error_message = f"Error executing tool '{tool_call.command}': {str(e)}"
+                        self.logger.error(f"Tool execution failed: {error_message}", exc_info=True)
+                        tool_call.result = error_message
                 if not tool_call.has_next:
                     # This was the final command in the chain.
                     break

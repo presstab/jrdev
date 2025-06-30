@@ -36,7 +36,7 @@ class FetchContextPhase(Stage):
             salvaged_response = await self.salvage_get_files(raw_file_request)
             files_to_send = requested_files(salvaged_response)
             if not files_to_send and not self.agent.user_context:
-                self.app.logger.error("process_file_request: failed to salvage get_files")
+                self.app.logger.error("process_file_request: failed to salvage get_files response\n:%s", files_to_send)
                 raise ValueError("get_files")
         if self.agent.user_context:
             self.app.logger.info(f"User context added: {self.agent.user_context}")
