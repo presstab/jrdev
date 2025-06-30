@@ -5,6 +5,7 @@ from typing import List
 @dataclass
 class ToolCall:
     """Represents a tool call to be executed by the system."""
+    action_type: str
     command: str
     args: List[str] = field(default_factory=list)
     has_next: bool = True

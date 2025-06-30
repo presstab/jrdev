@@ -192,12 +192,15 @@ def get_file_contents(file_list, file_alias=None):
     return formatted_content
 
 
-def cutoff_string(input_string, cutoff_before_match, cutoff_after_match):
+def cutoff_string(input_string, cutoff_before_match, cutoff_after_match) -> str:
     """
     Removes all text up to and including the first occurrence of cutoff_before_match,
     and all text from the last occurrence of cutoff_after_match onwards.
     Returns the text between these cutoffs, stripped of leading/trailing whitespace.
     """
+    if not input_string or input_string == "":
+        return ""
+
     # Find the start index after the first occurrence of cutoff_before_match
     before_index = input_string.find(cutoff_before_match)
     if before_index != -1:

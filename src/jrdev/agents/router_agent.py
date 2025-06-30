@@ -5,6 +5,7 @@ from jrdev.agents import agent_tools
 from jrdev.core.tool_call import ToolCall
 from jrdev.file_operations.file_utils import cutoff_string
 from jrdev.messages.message_builder import MessageBuilder
+from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.services.llm_requests import generate_llm_response
 from jrdev.ui.ui import PrintType
 
@@ -15,43 +16,22 @@ class CommandInterpretationAgent:
         self.logger = app.logger
         # Use the dedicated system thread for conversation history
         self.thread = self.app.state.get_thread(self.app.state.router_thread_id)
-        self._register_agent_tools()
 
-    def _register_agent_tools(self):
-        """Register agent tools as commands so they can be executed."""
-
-        async def handle_read_files(app, args, worker_id):
-            """Router:Ignore"""
-            # args[0] is the command name, so we skip it.
-            files_to_read = args[1:]
-            result = agent_tools.read_files(files_to_read)
-            app.ui.print_text(result)
-
-        async def handle_get_file_tree(app, args, worker_id):
-            """Router:Ignore"""
-            result = agent_tools.get_file_tree()
-            app.ui.print_text(result)
-
-        # Registering directly to the commands dictionary to avoid the prepended '/'
-        self.app.command_handler.commands["read_files"] = handle_read_files
-        self.app.command_handler.commands["get_file_tree"] = handle_get_file_tree
-
-    def _get_available_commands_prompt(self) -> str:
-        """Generates a formatted string of available commands for the LLM."""
+    def _get_formatted_commands(self) -> str:
+        lines = []
         commands = self.app.command_handler.get_commands()
-        prompt_lines = ["Here are the available tools/commands you can use:"]
-
-        # Add agent tools from the dedicated list for the prompt
-        for name, description in agent_tools.tools_list.items():
-            prompt_lines.append(f"- `{name}`: {description}")
-
-        # Add regular commands
         for name, handler in commands.items():
             doc = handler.__doc__ if handler.__doc__ else "No description available."
             if "Router:Ignore" in doc:
                 continue
-            prompt_lines.append(f"- `{name}`: {doc}")
-        return "\n".join(prompt_lines)
+            lines.append(f"- `{name}`: {doc}")
+        return "\n".join(lines)
+
+    def _get_formatted_tools(self) -> str:
+        lines = []
+        for tool, desc in agent_tools.tools_list.items():
+            lines.append(f"- `{tool}`: {desc}")
+        return "\n".join(lines)
 
     async def interpret(self, user_input: str, worker_id: str, previous_tool_calls: List[ToolCall] = None) -> Optional[ToolCall]:
         """
@@ -64,16 +44,15 @@ class CommandInterpretationAgent:
             builder.add_historical_messages(self.thread.messages)
 
         # Build the prompt for the LLM
-        builder.load_system_prompt("router/select_command")
-
-        # Add dynamic command list
-        command_list_prompt = self._get_available_commands_prompt()
-        builder.append_to_user_section(command_list_prompt)
+        select_action_prompt = PromptManager().load("router/select_command")
+        select_action_prompt = select_action_prompt.replace("tools_list", self._get_formatted_tools())
+        select_action_prompt = select_action_prompt.replace("commands_list", self._get_formatted_commands())
+        builder.add_system_message(select_action_prompt)
 
         # Add the actual user request
         builder.append_to_user_section(f"\n--- User Request ---\n{user_input}")
         if previous_tool_calls:
-            call_summaries = "\n--- Previous Assistant Tool Calls For This User Request ---\n"
+            call_summaries = "\n--- Previous Assistant Actions For This User Request ---\n"
             for tc in previous_tool_calls:
                 call_summaries += f"Command Entered: {tc.formatted_cmd}\nCommand Results: {tc.result}\n"
             builder.append_to_user_section(call_summaries)
@@ -96,10 +75,11 @@ class CommandInterpretationAgent:
             response_json = json.loads(json_content)
             decision = response_json.get("decision")
 
-            if decision == "execute_command":
-                command = response_json.get("command")
+            if decision == "execute_action":
+                action = response_json.get("action")
+                action_type = action.get("type")
                 final_command = bool(response_json.get("final_command", False))
-                return ToolCall(command=command['name'], args=command['args'], has_next=not final_command)
+                return ToolCall(action_type=action_type, command=action['name'], args=action['args'], has_next=not final_command)
             if decision == "clarify":
                 question = response_json.get("question")
                 self.app.ui.print_text(f"Clarification needed: {question}", print_type=PrintType.INFO)

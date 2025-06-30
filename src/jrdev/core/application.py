@@ -5,6 +5,7 @@ import sys
 from typing import Any, Dict, List
 from dotenv import load_dotenv
 
+from jrdev.agents import agent_tools
 from jrdev.agents.router_agent import CommandInterpretationAgent
 from jrdev.core.clients import APIClients
 from jrdev.core.commands import Command, CommandHandler
@@ -443,11 +444,24 @@ class Application:
                 # The agent decided on a command, now execute it
                 command_to_execute = tool_call.formatted_cmd
                 self.ui.print_text(f"Running command: {command_to_execute}", print_type=PrintType.COMMAND)
-                self.ui.start_capture()
-                command = Command(command_to_execute, worker_id)
-                await self.handle_command(command)
-                self.ui.end_capture()
-                tool_call.result = self.ui.get_capture()
+                if tool_call.action_type == "command":
+                    # commands print directly to console, therefore we have to capture console output for results
+                    self.ui.start_capture()
+                    command = Command(command_to_execute, worker_id)
+                    await self.handle_command(command)
+                    self.ui.end_capture()
+                    tool_call.result = self.ui.get_capture()
+                elif tool_call.action_type == "tool":
+                    if tool_call.command not in agent_tools.tools_list:
+                        self.ui.print_text(f"tool_call {tool_call.command} DNE")
+                    elif tool_call.command == "read_files":
+                        tool_call.result = agent_tools.read_files(tool_call.args)
+                    elif tool_call.command == "get_file_tree":
+                        tool_call.result = agent_tools.get_file_tree()
+                    elif tool_call.command == "write_file":
+                        filename = tool_call.args[0]
+                        content = " ".join(tool_call.args[1:])
+                        tool_call.result = await agent_tools.write_file(self, filename, content)
 
                 if not tool_call.has_next:
                     # This was the final command in the chain.
