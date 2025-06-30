@@ -5,6 +5,7 @@ Code command implementation for the JrDev application.
 """
 
 from asyncio import CancelledError
+import traceback
 from typing import Any, List
 
 from jrdev.agents.code_agent import CodeAgent
@@ -39,5 +40,5 @@ async def handle_code(app: Any, args: List[str], worker_id: str) -> None:
         app.ui.print_text("Worker Cancelled")
         raise
     except Exception as e:
-        app.logger.error(f"Error in CodeAgent: {str(e)}")
-        app.ui.print_text(f"Error in CodeAgent: {str(e)}")
+        app.logger.error(f"Error in CodeAgent: {type(e)}{str(e)}\n{traceback.format_exc()}")
+        app.ui.print_text(f"Error in CodeAgent: {type(e)}{str(e)}")
