@@ -1,11 +1,12 @@
 import glob
+import json
 import logging
 import os
 import re
 import shutil
 from difflib import SequenceMatcher
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List, Optional, Union
 
 from jrdev.languages.utils import detect_language, is_headers_language
 from jrdev.ui.ui import PrintType
@@ -23,7 +24,7 @@ logger = logging.getLogger("jrdev")
 
 
 def requested_files(text) -> List[str]:
-    match = re.search(r"get_files\s+(\[.*?\])", text, re.DOTALL)
+    match = re.search(r"get_files\s+(\[.*?_])", text, re.DOTALL)
     file_list = []
     if match:
         file_list_str = match.group(1)
@@ -301,6 +302,55 @@ def get_persistent_storage_path() -> Path:
     if not os.path.exists(path):
         os.makedirs(path)
     return path
+
+def read_json_file(file_path: str) -> Optional[Union[Dict[str, Any], list]]:
+    """
+    Reads and parses a JSON file, returning its content.
+
+    Args:
+        file_path: The path to the JSON file.
+
+    Returns:
+        The parsed JSON data as a dictionary or list, or None if an error occurs.
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        logger.warning(f"JSON file not found at {file_path}. This may be expected if it's being created for the first time.")
+        return None
+    except json.JSONDecodeError:
+        logger.error(f"Failed to decode JSON from {file_path}. The file might be corrupted.")
+        return None
+    except IOError as e:
+        logger.error(f"An I/O error occurred while reading {file_path}: {e}")
+        return None
+
+
+def write_json_file(file_path: str, data: Union[Dict[str, Any], list]) -> bool:
+    """
+    Writes Python data (dict or list) to a file in JSON format.
+
+    Args:
+        file_path: The path to the destination JSON file.
+        data: The dictionary or list to write.
+
+    Returns:
+        True if the write operation was successful, False otherwise.
+    """
+    try:
+        # Ensure the directory for the file exists
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+        return True
+    except TypeError as e:
+        logger.error(f"Data provided for {file_path} is not JSON serializable: {e}")
+        return False
+    except IOError as e:
+        logger.error(f"An I/O error occurred while writing to {file_path}: {e}")
+        return False
+
 
 # ------------------- MIGRATION UTILITY FUNCTIONS -------------------
 
