@@ -11,6 +11,7 @@ async def handle_login(app: Any, _args: List[str], _worker_id: str) -> None:
     Handle the login command.
     """
     device_id = str(uuid.uuid4())
+    app.set_device_id(device_id)
     base_url = "https://jrdev-web-261022528192.us-central1.run.app"
     login_url = f"{base_url}/login?device_id={device_id}"
     check_url = f"{base_url}/cli-login-status?device_id={device_id}"
@@ -34,7 +35,11 @@ async def handle_login(app: Any, _args: List[str], _worker_id: str) -> None:
                     if response.status == 200:
                         data = await response.json()
                         token = data.get("token")
-                        app.ui.print_text("Login successful!", PrintType.SUCCESS)
+                        if token:
+                            app.set__cli_token(token)
+                            app.ui.print_text("Login successful!", PrintType.SUCCESS)
+                        else:
+                            await asyncio.sleep(interval)
                     else:
                         await asyncio.sleep(interval)
             except aiohttp.ClientConnectorError:
@@ -42,7 +47,7 @@ async def handle_login(app: Any, _args: List[str], _worker_id: str) -> None:
                 await asyncio.sleep(interval)
 
     if token:
-        app.set_token(token)
+        app.set__cli_token(token)
         app.ui.print_text("You are now logged in.", PrintType.SUCCESS)
     else:
         app.ui.print_text("Login failed. Please try again.", PrintType.ERROR)

@@ -6,21 +6,26 @@ async def report_token_usage(app: any, model: str, tokens: int) -> None:
     """
     Report token usage to the jrdev-web server.
     """
-    token = app.get_token() # I am assuming the app has a way to get the token
-    if not token:
+    token = app.get_cli_token()
+    device_id = app.get_device_id()
+    if not token or not device_id:
         app.ui.print_text("Not logged in. Please run /login first.", print_type="ERROR")
         return
 
     url = f"{base_url}/api/tokens"
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = {
+        "X-CLI-Token": token,
+        "X-Device-ID": device_id,
+    }
     data = {"model": model, "tokens": tokens}
 
     async with aiohttp.ClientSession() as session:
         try:
             async with session.post(url, headers=headers, json=data) as response:
                 if response.status != 204:
-                    app.logger.error(f"Failed to report token usage: {response.status}")
-                    app.ui.print_text("Failed to report token usage.", print_type="ERROR")
+                    error_text = await response.text()
+                    app.logger.error(f"Failed to report token usage: {response.status} {error_text}")
+                    app.ui.print_text(f"Failed to report token usage. Status: {response.status}, Info: {error_text}", print_type="ERROR")
         except aiohttp.ClientConnectorError as e:
             app.logger.error(f"Failed to connect to server: {e}")
-            app.ui.print_text("Failed to connect to server.", print_type="ERROR")
+            app.ui.print_text(f"Failed to connect to server to report token usage: {e}", print_type="ERROR")

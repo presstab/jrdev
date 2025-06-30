@@ -24,20 +24,27 @@ async def handle_code(app: Any, args: List[str], worker_id: str) -> None:
 
     code_processor = CodeAgent(app, worker_id)
     try:
+        app.logger.debug(f"Processing code message: {message}")
         await code_processor.process(message)
         
+        app.logger.debug("Fetching usage after code processing")
         after_usage = await usage_instance.get_usage()
 
         for model, usage in after_usage.items():
             input_tokens = usage["input_tokens"]
             output_tokens = usage["output_tokens"]
-            
+            app.logger.debug(f"Model: {model}, Input tokens: {input_tokens}, Output tokens: {output_tokens}")
+
             if model in before_usage:
                 input_tokens -= before_usage[model].get("input_tokens", 0)
                 output_tokens -= before_usage[model].get("output_tokens", 0)
+                app.logger.debug(
+                    f"Model: {model}, Delta input tokens: {input_tokens}, Delta output tokens: {output_tokens}"
+                )
 
             if input_tokens > 0 or output_tokens > 0:
                 total_tokens = input_tokens + output_tokens
+                app.logger.debug(f"Reporting token usage for model {model}: {total_tokens} tokens")
                 await report_token_usage(app, model, total_tokens)
 
     except CodeTaskCancelled:

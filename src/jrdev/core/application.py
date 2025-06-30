@@ -34,17 +34,28 @@ class Application:
         self.state = AppState(persisted_threads=persisted_threads, ui_mode=ui_mode) # Pass loaded threads to AppState
         self.state.clients = APIClients()
         self.ui: UiWrapper = UiWrapper()
-        self.token = None
+        self.cli_token = None
+        self.device_id = None
 
-    def set_token(self, token: str):
-        """Set the auth token in memory for the current session."""
-        self.token = token
-        self.logger.info("Auth token set for the current session.")
+    def set__cli_token(self, token: str):
+        """Set the cli token in memory for the current session."""
+        self.cli_token = token
+        self.logger.info("Cli token set for the current session.")
 
-    def get_token(self) -> str | None:
-        """Get the auth token."""
-        self.logger.info("Auth token retrieved for the current session.")
-        return self.token
+    def get__cli_token(self) -> str | None:
+        """Get the cli token."""
+        self.logger.info("Cli token retrieved for the current session.")
+        return self.cli_token
+
+    def set_device_id(self, device_id: str):
+        """Set the device ID in memory for the current session."""
+        self.device_id = device_id
+        self.logger.info("Device ID set for the current session.")
+
+    def get_device_id(self) -> str | None:
+        """Get the device ID."""
+        self.logger.info("Device ID retrieved for the current session.")
+        return self.device_id
 
     def _load_persisted_threads(self) -> Dict[str, MessageThread]:
         """Load all persisted message threads from disk."""
