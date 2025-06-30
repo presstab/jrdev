@@ -40,7 +40,7 @@ class Application:
 
         # Add the new agent and its dedicated chat thread
         self.router_agent = None
-        self.state.router_thread_id = self.state.create_thread()
+        self.state.router_thread_id = self.state.create_thread(thread_id="", meta_data={"type": "router"})
 
     def _load_persisted_threads(self) -> Dict[str, MessageThread]:
         """Load all persisted message threads from disk."""
@@ -62,6 +62,12 @@ class Application:
                         continue
 
                     thread = MessageThread.from_dict(data)
+
+                    # Don't load old router threads
+                    thread_type = thread.metadata.get("type")
+                    if thread_type and thread_type == "router":
+                        continue
+
                     loaded_threads[thread.thread_id] = thread
                     self.logger.debug(f"Successfully loaded thread: {thread.thread_id} from {file_path}")
                 except json.JSONDecodeError as e:
@@ -462,7 +468,6 @@ class Application:
                         filename = tool_call.args[0]
                         content = " ".join(tool_call.args[1:])
                         tool_call.result = await agent_tools.write_file(self, filename, content)
-
                 if not tool_call.has_next:
                     # This was the final command in the chain.
                     break

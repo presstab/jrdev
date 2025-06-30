@@ -68,7 +68,6 @@ class CommandInterpretationAgent:
         # Update the agent's private history
         self.thread.messages.append({"role": "user", "content": user_input})
         self.thread.messages.append({"role": "assistant", "content": response_text})
-        self.thread.save()  # Persist the conversation
 
         try:
             json_content = cutoff_string(response_text, "```json", "```")
@@ -94,11 +93,8 @@ class CommandInterpretationAgent:
                 chat_response = response_json.get("response")
                 self.app.ui.print_text(chat_response, print_type=PrintType.LLM)
 
-                # Add to the *user's* active thread, not the router's
-                user_thread = self.app.get_current_thread()
-                user_thread.messages.append({"role": "user", "content": user_input})
-                user_thread.messages.append({"role": "assistant", "content": chat_response})
-                user_thread.save()
+                self.thread.messages.append({"role": "user", "content": user_input})
+                self.thread.messages.append({"role": "assistant", "content": chat_response})
                 return None
         except (json.JSONDecodeError, KeyError) as e:
             self.logger.error(f"Failed to parse router LLM response: {e}\nResponse: {response_text}")
