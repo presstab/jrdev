@@ -65,13 +65,19 @@ class CommandInterpretationAgent:
         router_model = self.app.profile_manager().get_model("quick_reasoning")
         response_text = await generate_llm_response(self.app, router_model, messages, task_id=worker_id)
 
-        # Update the agent's private history
+        # The user's input is part of the request, so add it to history.
         self.thread.messages.append({"role": "user", "content": user_input})
-        self.thread.messages.append({"role": "assistant", "content": response_text})
 
         try:
             json_content = cutoff_string(response_text, "```json", "```")
             response_json = json.loads(json_content)
+
+            # Add the structured assistant response to history *after* successful parsing.
+            # The content is the JSON string of the decision.
+            self.thread.messages.append(
+                {"role": "assistant", "content": json.dumps(response_json, indent=2)}
+            )
+
             decision = response_json.get("decision")
 
             if decision == "execute_action":
@@ -92,9 +98,6 @@ class CommandInterpretationAgent:
                 # We can optionally have it return the chat response directly.
                 chat_response = response_json.get("response")
                 self.app.ui.print_text(chat_response, print_type=PrintType.LLM)
-
-                self.thread.messages.append({"role": "user", "content": user_input})
-                self.thread.messages.append({"role": "assistant", "content": chat_response})
                 return None
         except (json.JSONDecodeError, KeyError) as e:
             self.logger.error(f"Failed to parse router LLM response: {e}\nResponse: {response_text}")
