@@ -1,6 +1,6 @@
 import aiohttp
-# base_url = "https://jrdev-web-261022528192.us-central1.run.app"
-base_url = "http://localhost:8080"  # Adjust this to your local server URL for testing
+base_url = "https://jrdev-web-261022528192.us-central1.run.app"
+# base_url = "http://localhost:8080"  # Adjust this to your local server URL for testing
 
 async def report_token_usage(app: any, model: str, tokens: int) -> None:
     """

@@ -12,8 +12,8 @@ async def handle_login(app: Any, _args: List[str], _worker_id: str) -> None:
     """
     device_id = str(uuid.uuid4())
     app.set_device_id(device_id)
-    # base_url = "https://jrdev-web-261022528192.us-central1.run.app"
-    base_url = "http://localhost:8080"  # Adjust this to your local server URL for testing
+    base_url = "https://jrdev-web-261022528192.us-central1.run.app"
+    # base_url = "http://localhost:8080"  # Adjust this to your local server URL for testing
     login_url = f"{base_url}/login?device_id={device_id}"
     check_url = f"{base_url}/cli-login-status?device_id={device_id}"
 
