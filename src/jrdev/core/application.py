@@ -34,6 +34,17 @@ class Application:
         self.state = AppState(persisted_threads=persisted_threads, ui_mode=ui_mode) # Pass loaded threads to AppState
         self.state.clients = APIClients()
         self.ui: UiWrapper = UiWrapper()
+        self.token = None
+
+    def set_token(self, token: str):
+        """Set the auth token in memory for the current session."""
+        self.token = token
+        self.logger.info("Auth token set for the current session.")
+
+    def get_token(self) -> str | None:
+        """Get the auth token."""
+        self.logger.info("Auth token retrieved for the current session.")
+        return self.token
 
     def _load_persisted_threads(self) -> Dict[str, MessageThread]:
         """Load all persisted message threads from disk."""

@@ -36,10 +36,13 @@ async def handle_login(app: Any, _args: List[str], _worker_id: str) -> None:
                         token = data.get("token")
                         app.ui.print_text("Login successful!", PrintType.SUCCESS)
                     else:
-                        await asyncio.sleep(2)
+                        await asyncio.sleep(interval)
             except aiohttp.ClientConnectorError:
                 app.ui.print_text("Waiting for server...", PrintType.INFO)
                 await asyncio.sleep(interval)
 
-    # TODO: Store the token securely
-    app.ui.print_text(f"Your token is: {token}", PrintType.INFO)
+    if token:
+        app.set_token(token)
+        app.ui.print_text("You are now logged in.", PrintType.SUCCESS)
+    else:
+        app.ui.print_text("Login failed. Please try again.", PrintType.ERROR)
