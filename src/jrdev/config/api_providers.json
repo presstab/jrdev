@@ -66,8 +66,8 @@
           "intermediate_reasoning": "deepseek-chat",
           "intermediate_coding": "deepseek-chat",
           "quick_reasoning": "deepseek-chat",
-          "intent_router": "claude-3-5-haiku-20241022",
-          "low_cost_search": "claude-3-5-haiku-20241022"
+          "intent_router": "deepseek-chat",
+          "low_cost_search": "deepseek-chat"
         },
         "default_profile": "advanced_coding"
       }
