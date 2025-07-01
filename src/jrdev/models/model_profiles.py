@@ -82,7 +82,8 @@ class ModelProfileManager:
                 "intermediate_reasoning": "gpt-4.1-2025-04-14",
                 "intermediate_coding": "gpt-4.1-2025-04-14",
                 "quick_reasoning": "gpt-4.1-mini-2025-04-14",
-                "intent_router": "gpt-4.1-2025-04-14"
+                "intent_router": "gpt-4.1-2025-04-14",
+                "low_cost_search": "gpt-4.1-2025-04-14"
             },
             "default_profile": "advanced_coding",
             # chat_model will be derived from default_profile
