@@ -36,6 +36,7 @@ commands_list
 4. **ALWAYS provide reasoning** for your decision
 5. **PREFER specific questions** in clarify responses
 6. **IGNORE commands marked "Router:Ignore"** in the available commands list
+7. **ALWAYS use the /code command to generate and edit code.**
 
 ## Decision Priority
 
