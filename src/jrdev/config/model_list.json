@@ -132,33 +132,25 @@
             "name": "deepseek/deepseek-r1-0528",
             "provider": "open_router",
             "is_think": true,
-            "input_cost": 0,
-            "output_cost": 0,
-            "context_tokens": 164000
+            "input_cost": 5,
+            "output_cost": 22,
+            "context_tokens": 128000
         },
         {
-            "name": "google/gemini-2.5-pro-preview",
+            "name": "google/gemini-2.5-pro",
             "provider": "open_router",
             "is_think": true,
             "input_cost": 25,
             "output_cost": 150,
-            "context_tokens": 1000000
+            "context_tokens": 1050000
         },
         {
-            "name": "google/gemini-2.5-flash-preview-05-20",
-            "provider": "open_router",
-            "is_think": false,
-            "input_cost": 2,
-            "output_cost": 6,
-            "context_tokens": 1000000
-        },
-        {
-            "name": "microsoft/mai-ds-r1:free",
+            "name": "google/gemini-2.5-flash",
             "provider": "open_router",
             "is_think": true,
-            "input_cost": 0,
-            "output_cost": 0,
-            "context_tokens": 164000
+            "input_cost": 3,
+            "output_cost": 25,
+            "context_tokens": 1050000
         },
         {
             "name": "meta-llama/llama-4-maverick",
@@ -177,11 +169,19 @@
             "context_tokens": 40960
         },
         {
-            "name": "mistralai/mistral-medium-3",
+            "name": "inception/mercury",
             "provider": "open_router",
             "is_think": true,
-            "input_cost": 1,
-            "output_cost": 2,
+            "input_cost": 2,
+            "output_cost": 10,
+            "context_tokens": 32000
+        },
+        {
+            "name": "x-ai/grok-3-mini",
+            "provider": "open_router",
+            "is_think": true,
+            "input_cost": 3,
+            "output_cost": 5,
             "context_tokens": 131072
         }
     ]

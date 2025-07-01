@@ -117,7 +117,7 @@ class FetchContextPhase(Stage):
             builder.add_file(file)
         messages = builder.build()
 
-        model = self.agent.profile_manager.get_model("advanced_reasoning")
+        model = self.agent.profile_manager.get_model("low_cost_search")
         self.app.logger.info(f"Analyzing if more files are needed, using {model}")
         self.app.ui.print_text(f"\nAnalyzing if more files are needed, using {model} (advanced_reasoning profile)...")
 

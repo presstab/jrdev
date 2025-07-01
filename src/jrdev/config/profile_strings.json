@@ -29,6 +29,18 @@
       "description": "Handles intermediate‐level coding tasks.",
       "purpose": "Currently not used.",
       "usage": []
+    },
+    {
+      "name": "intent_router",
+      "description": "Understand and route user's natural language requests",
+      "purpose": "When user types plain English into the terminal input, this model will analyze the user request, create an execution plan, and execute using JrDev's tools and commands.",
+      "usage": ["terminal input"]
+    },
+    {
+      "name": "low_cost_search",
+      "description": "Analyze current provided context and suggest additional files to add to context. Prefer a reliable, fast, affordable model.",
+      "purpose": "In the code command, the first round of context collection is performed by the advanced_reasoning profile. A final context collection is then performed by low_cost_search.",
+      "usage": ["code"]
     }
   ]
 }

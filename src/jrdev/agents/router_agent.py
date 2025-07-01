@@ -62,7 +62,7 @@ class CommandInterpretationAgent:
         messages = builder.build()
 
         # Use a specific, fast model for this routing task
-        router_model = self.app.profile_manager().get_model("quick_reasoning")
+        router_model = self.app.profile_manager().get_model("intent_router")
         response_text = await generate_llm_response(self.app, router_model, messages, task_id=worker_id)
 
         # The user's input is part of the request, so add it to history.
