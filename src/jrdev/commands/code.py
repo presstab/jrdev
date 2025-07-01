@@ -6,6 +6,7 @@ Code command implementation for the JrDev application.
 
 from asyncio import CancelledError
 from typing import Any, List
+import copy
 
 from jrdev.agents.code_agent import CodeAgent
 from jrdev.clients.token_client import report_token_usage
@@ -20,32 +21,37 @@ async def handle_code(app: Any, args: List[str], worker_id: str) -> None:
     message = " ".join(args[1:])
     
     usage_instance = get_instance()
-    before_usage = await usage_instance.get_usage()
+    before_usage = copy.deepcopy(await usage_instance.get_usage())
+    
+    app.logger.debug(f"Before usage: {before_usage}")
+    app.ui.print_text(f"DEBUG: Before usage: {before_usage}", print_type=PrintType.INFO)
 
     code_processor = CodeAgent(app, worker_id)
     try:
-        app.logger.debug(f"Processing code message: {message}")
+
         await code_processor.process(message)
-        
-        app.logger.debug("Fetching usage after code processing")
         after_usage = await usage_instance.get_usage()
 
         for model, usage in after_usage.items():
             input_tokens = usage["input_tokens"]
             output_tokens = usage["output_tokens"]
-            app.logger.debug(f"Model: {model}, Input tokens: {input_tokens}, Output tokens: {output_tokens}")
 
             if model in before_usage:
-                input_tokens -= before_usage[model].get("input_tokens", 0)
-                output_tokens -= before_usage[model].get("output_tokens", 0)
-                app.logger.debug(
-                    f"Model: {model}, Delta input tokens: {input_tokens}, Delta output tokens: {output_tokens}"
-                )
+                before_input = before_usage[model].get("input_tokens", 0)
+                before_output = before_usage[model].get("output_tokens", 0)
+                input_tokens -= before_input
+                output_tokens -= before_output
 
+            total_tokens = input_tokens + output_tokens
             if input_tokens > 0 or output_tokens > 0:
-                total_tokens = input_tokens + output_tokens
-                app.logger.debug(f"Reporting token usage for model {model}: {total_tokens} tokens")
-                await report_token_usage(app, model, total_tokens)
+                try:
+                    await report_token_usage(app, model, total_tokens)
+                    app.ui.print_text(f"Successfully reported tokens for {model}", print_type=PrintType.SUCCESS)
+                except Exception as report_error:
+                    app.logger.error(f"Failed to report token usage for {model}: {report_error}")
+                    app.ui.print_text(f"Failed to report tokens for {model}: {report_error}", print_type=PrintType.ERROR)
+            else:
+                app.ui.print_text(f" No tokens to report for {model} (delta: {total_tokens})", print_type=PrintType.INFO)
 
     except CodeTaskCancelled:
         app.ui.print_text("Code Task Cancelled")
