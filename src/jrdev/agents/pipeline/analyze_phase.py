@@ -34,7 +34,7 @@ class AnalyzePhase(Stage):
         for file in self.agent.user_context:
             builder.add_file(file)
         builder.start_user_section(f"The user is seeking guidance for this task to complete: {user_task}")
-        builder.load_user_prompt("analyze_task_return_getfiles")
+        builder.load_system_prompt("analyze_task_return_getfiles")
         builder.add_project_files()
         builder.finalize_user_section()
         messages = builder.build()

@@ -121,6 +121,15 @@ When multiple decisions could apply, use this priority:
 }
 ```
 
+### Scenario 4: "What commands are there?"
+```json
+{
+  "decision": "chat",
+  "reasoning": "I see a list of commands and can format them for the user.",
+  "response": "Here is a list of commands: ..."
+}
+```
+
 ## Error Handling
 
 - **Tool returns error**: Decide whether to try alternative approach or clarify with user

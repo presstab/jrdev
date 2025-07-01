@@ -50,7 +50,7 @@ class CommandInterpretationAgent:
         builder.add_system_message(select_action_prompt)
 
         # Add the actual user request
-        builder.append_to_user_section(f"\n--- User Request ---\n{user_input}")
+        builder.append_to_user_section(user_input)
         if previous_tool_calls:
             call_summaries = "\n--- Previous Assistant Actions For This User Request ---\n"
             for tc in previous_tool_calls:
@@ -66,7 +66,13 @@ class CommandInterpretationAgent:
         response_text = await generate_llm_response(self.app, router_model, messages, task_id=worker_id)
 
         # The user's input is part of the request, so add it to history.
-        self.thread.messages.append({"role": "user", "content": user_input})
+        user_msg_needed = True
+        for msg in self.thread.messages:
+            if msg.get("role") == "user" and msg.get("content") == user_input:
+                user_msg_needed = False
+                break
+        if user_msg_needed:
+            self.thread.messages.append({"role": "user", "content": user_input})
 
         try:
             json_content = cutoff_string(response_text, "```json", "```")
