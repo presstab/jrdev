@@ -3,7 +3,13 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-from jrdev.file_operations.file_utils import JRDEV_DIR, JRDEV_PACKAGE_DIR, get_persistent_storage_path
+from jrdev.file_operations.file_utils import (
+    JRDEV_DIR,
+    JRDEV_PACKAGE_DIR,
+    get_persistent_storage_path,
+    read_json_file,
+    write_json_file,
+)
 from jrdev.models.api_provider import ApiProvider, DefaultProfiles
 
 # Get the global logger instance
@@ -85,19 +91,18 @@ class ModelProfileManager:
 
         try:
             # --- Check if config file exists and is valid ---
-            if not remove_fallback and os.path.exists(self.config_path):
-                with open(self.config_path, "r") as f:
-                    config: Dict[str, Any] = json.load(f)
-
-                # --- Validate required fields in config ---
-                if not all(key in config for key in ["profiles", "default_profile"]):
-                    logger.warning(
-                        f"Profile configuration {self.config_path} missing required fields. Re-creating with defaults."
-                    )
-                    # Fall through to default creation logic by not returning here
-                else:
-                    logger.info(f"Successfully loaded profile configuration from {self.config_path}")
-                    return config
+            if not remove_fallback:
+                config = read_json_file(self.config_path)
+                if config:
+                    # --- Validate required fields in config ---
+                    if not all(key in config for key in ["profiles", "default_profile"]):
+                        logger.warning(
+                            f"Profile configuration {self.config_path} missing required fields. Re-creating with defaults."
+                        )
+                        # Fall through to default creation logic by not returning here
+                    else:
+                        logger.info(f"Successfully loaded profile configuration from {self.config_path}")
+                        return config
             
             # --- Config file does not exist or was invalid; create a new default one. ---
             logger.info(f"Profile configuration file {self.config_path} not found or invalid. Attempting to create one.")
@@ -130,8 +135,7 @@ class ModelProfileManager:
                 logger.info(f"No suitable active provider default found or providers_path not configured. Using hardcoded default profiles for Model Profiles.")
 
             # --- Write the selected config to file ---
-            with open(self.config_path, "w") as f:
-                json.dump(final_config_to_save, f, indent=2)
+            write_json_file(self.config_path, final_config_to_save)
             logger.info(f"Created default profile configuration at {self.config_path}")
             return final_config_to_save
 
@@ -150,11 +154,10 @@ class ModelProfileManager:
         default_strings: Dict[str, Dict[str, Any]] = {}
 
         try:
-            if os.path.exists(self.profile_strings_path):
-                with open(self.profile_strings_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    profiles = data.get("profiles", [])
-                    return {p["name"]: p for p in profiles}
+            data = read_json_file(self.profile_strings_path)
+            if data:
+                profiles = data.get("profiles", [])
+                return {p["name"]: p for p in profiles}
             else:
                 logger.warning(
                     f"Profile strings file {self.profile_strings_path} not found, using empty defaults"
@@ -227,11 +230,11 @@ class ModelProfileManager:
             self.profiles["profiles"][profile_type] = model_name
 
             # Save the updated configuration
-            with open(self.config_path, "w") as f:
-                json.dump(self.profiles, f, indent=2)
-
-            logger.info(f"Updated profile '{profile_type}' to use model '{model_name}'")
-            return True
+            if write_json_file(self.config_path, self.profiles):
+                logger.info(f"Updated profile '{profile_type}' to use model '{model_name}'")
+                return True
+            else:
+                return False
 
         except Exception as e:
             logger.error(f"Error updating profile: {str(e)}")
@@ -274,11 +277,11 @@ class ModelProfileManager:
             self.profiles["default_profile"] = profile_type
 
             # Save the updated configuration
-            with open(self.config_path, "w") as f:
-                json.dump(self.profiles, f, indent=2)
-
-            logger.info(f"Set default profile to '{profile_type}'")
-            return True
+            if write_json_file(self.config_path, self.profiles):
+                logger.info(f"Set default profile to '{profile_type}'")
+                return True
+            else:
+                return False
 
         except Exception as e:
             logger.error(f"Error setting default profile: {str(e)}")
@@ -366,11 +369,7 @@ class ModelProfileManager:
         if is_fallback:
             new_profiles = self._load_profiles(remove_fallback=True)
             self.profiles = new_profiles
-            try:
-                with open(self.config_path, "w") as f:
-                    json.dump(self.profiles, f, indent=2)
-            except Exception as e:
-                logger.error(f"Failed to write reloaded profiles to file: {e}")
+            write_json_file(self.config_path, self.profiles)
             logger.info("Reloaded profiles from provider-based defaults after detecting fallback config.")
             return True
         return False

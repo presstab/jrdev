@@ -75,13 +75,15 @@ def _show_compact_help(app: Any) -> None:
 
 async def handle_compact(app: Any, args: List[str], worker_id: str) -> None:
     """
-    Handle the /compact command.
-    Compacts the conversation history to reduce token usage.
+    Compacts the current conversation history into a concise two-message summary.
 
-    Args:
-        app: The Application instance
-        args: Command arguments
-        worker_id: Worker ID for task tracking
+    This command sends the entire conversation to an AI model and replaces the
+    history with a summary. It is useful for reducing token usage in long-running
+    conversations, but it is a destructive action for the detailed history.
+
+    Usage:
+      /compact
+      /compact --help - Shows detailed information about the command.
     """
     if "--help" in args:
         _show_compact_help(app)

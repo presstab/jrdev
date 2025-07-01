@@ -12,11 +12,18 @@ from jrdev.ui.ui import PrintType
 
 async def handle_addcontext(app: Any, args: List[str], _worker_id: str) -> None:
     """
-    Handle the /addcontext command to add a file to the LLM context.
+    Adds one or more files to the LLM context for the current conversation thread.
 
-    Args:
-        app: The Application instance
-        args: Command arguments (file path or glob pattern)
+    This command makes the content of the specified file(s) available to the LLM
+    for subsequent prompts in the current thread. It supports adding single files
+    or multiple files using glob patterns.
+
+    Usage:
+      /addcontext <file_path_or_glob_pattern>
+
+    Examples:
+      /addcontext src/jrdev/core/application.py
+      /addcontext "src/jrdev/commands/*.py"
     """
     if len(args) < 2:
         app.ui.print_text("Error: File path required. Usage: /addcontext <file_path or pattern>", PrintType.ERROR)

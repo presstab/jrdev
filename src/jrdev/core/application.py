@@ -3,24 +3,34 @@ import json
 import os
 import sys
 from typing import Any, Dict, List
+
 from dotenv import load_dotenv
 
+from jrdev.agents import agent_tools
+from jrdev.agents.router_agent import CommandInterpretationAgent
+from jrdev.commands.keys import check_existing_keys, save_keys_to_env
 from jrdev.core.clients import APIClients
 from jrdev.core.commands import Command, CommandHandler
 from jrdev.core.state import AppState
-from jrdev.file_operations.file_utils import add_to_gitignore, JRDEV_DIR, JRDEV_PACKAGE_DIR, get_env_path
-from jrdev.commands.keys import check_existing_keys, save_keys_to_env
+from jrdev.core.tool_call import ToolCall
+from jrdev.core.user_settings import UserSettings
+from jrdev.file_operations.file_utils import (JRDEV_DIR, JRDEV_PACKAGE_DIR,
+                                              add_to_gitignore, get_env_path,
+                                              get_persistent_storage_path,
+                                              read_json_file, write_json_file,
+                                              write_string_to_file)
 from jrdev.logger import setup_logger
-from jrdev.messages.thread import USER_INPUT_PREFIX, MessageThread, THREADS_DIR # Added MessageThread, THREADS_DIR
+from jrdev.messages.thread import (  # Added MessageThread, THREADS_DIR
+    THREADS_DIR, USER_INPUT_PREFIX, MessageThread)
 from jrdev.models.api_provider import ApiProvider
-from jrdev.services.message_service import MessageService
 from jrdev.models.model_list import ModelList
 from jrdev.models.model_profiles import ModelProfileManager
-from jrdev.models.model_utils import save_models, load_models
+from jrdev.models.model_utils import load_models, save_models
 from jrdev.services.contextmanager import ContextManager
-from jrdev.utils.treechart import generate_compact_tree
+from jrdev.services.message_service import MessageService
 from jrdev.ui.ui import PrintType
 from jrdev.ui.ui_wrapper import UiWrapper
+from jrdev.utils.treechart import generate_compact_tree
 
 
 class Application:
@@ -34,6 +44,35 @@ class Application:
         self.state = AppState(persisted_threads=persisted_threads, ui_mode=ui_mode) # Pass loaded threads to AppState
         self.state.clients = APIClients()
         self.ui: UiWrapper = UiWrapper()
+
+        # Add the router agent and its dedicated chat thread
+        self.router_agent = None
+        self.state.router_thread_id = self.state.create_thread(thread_id="", meta_data={"type": "router"})
+
+        self.user_settings: UserSettings = UserSettings()
+        self._load_user_settings()
+
+    def _load_user_settings(self) -> None:
+        """Load user settings from disk"""
+        file_path = get_persistent_storage_path() / "user_settings.json"
+        try:
+            data = read_json_file(str(file_path))
+            if data and isinstance(data, Dict):
+                max_router_iterations = data.get("max_router_iterations") # type: ignore
+                if max_router_iterations:
+                    self.user_settings.max_router_iterations = max_router_iterations
+            else:
+                self.logger.info("Creating user settings file %s", str(file_path))
+                self.write_user_settings()
+        except Exception:
+            pass
+
+    def write_user_settings(self) -> None:
+        """Write user settings to disk"""
+        file_path = get_persistent_storage_path() / "user_settings.json"
+        settings = {"max_router_iterations": self.user_settings.max_router_iterations}
+        if not write_json_file(str(file_path), settings):
+            self.logger.error("Error writing user settings")
 
     def _load_persisted_threads(self) -> Dict[str, MessageThread]:
         """Load all persisted message threads from disk."""
@@ -55,6 +94,12 @@ class Application:
                         continue
 
                     thread = MessageThread.from_dict(data)
+
+                    # Don't load old router threads
+                    thread_type = thread.metadata.get("type")
+                    if thread_type and thread_type == "router":
+                        continue
+
                     loaded_threads[thread.thread_id] = thread
                     self.logger.debug(f"Successfully loaded thread: {thread.thread_id} from {file_path}")
                 except json.JSONDecodeError as e:
@@ -193,6 +238,10 @@ class Application:
             await self._initialize_api_clients()
 
         self.message_service = MessageService(self)
+
+        # Initialize the router agent
+        self.router_agent = CommandInterpretationAgent(self)
+        self.logger.info("CommandInterpretationAgent initialized.")
 
         self.logger.info("Application services initialized")
         return True
@@ -421,7 +470,54 @@ class Application:
                 self.logger.info("Exit command received, forcing running state to False")
                 self.state.running = False
         else:
-            await self.process_chat_input(user_input, worker_id)
+            # Invoke the CommandInterpretationAgent
+            self.ui.print_text("Interpreting your request...", print_type=PrintType.INFO)
+            calls_made = []
+            max_iter = self.user_settings.max_router_iterations
+            i = 0
+            while i < max_iter:
+                i += 1
+                tool_call: ToolCall = await self.router_agent.interpret(user_input, worker_id, calls_made)
+                if not tool_call:
+                    # Agent decided to clarify, chat, summarize, or failed. Stop processing.
+                    break
+
+                # The agent decided on a command, now execute it
+                command_to_execute = tool_call.formatted_cmd
+                self.ui.print_text(f"Running command: {command_to_execute}", print_type=PrintType.COMMAND)
+                if tool_call.action_type == "command":
+                    # commands print directly to console, therefore we have to capture console output for results
+                    self.ui.start_capture()
+                    command = Command(command_to_execute, worker_id)
+                    await self.handle_command(command)
+                    self.ui.end_capture()
+                    tool_call.result = self.ui.get_capture()
+                elif tool_call.action_type == "tool":
+                    try:
+                        if tool_call.command not in agent_tools.tools_list:
+                            tool_call.result = f"Error: Tool '{tool_call.command}' does not exist."
+                        elif tool_call.command == "read_files":
+                            tool_call.result = agent_tools.read_files(tool_call.args)
+                        elif tool_call.command == "get_file_tree":
+                            tool_call.result = agent_tools.get_file_tree()
+                        elif tool_call.command == "write_file":
+                            filename = tool_call.args[0]
+                            content = " ".join(tool_call.args[1:])
+                            tool_call.result = await agent_tools.write_file(self, filename, content)
+                    except Exception as e:
+                        error_message = f"Error executing tool '{tool_call.command}': {str(e)}"
+                        self.logger.error(f"Tool execution failed: {error_message}", exc_info=True)
+                        tool_call.result = error_message
+                if not tool_call.has_next:
+                    # This was the final command in the chain.
+                    break
+
+                # This was an info-gathering step, add result to history and loop again.
+                calls_made.append(tool_call)
+            if i >= max_iter:
+                self.ui.print_text(
+                    "My maximum command iterations have been hit for this request. Please reprompt to continue. You can"
+                    " adjust this using the /routeragent command")
 
     async def process_chat_input(self, user_input, worker_id=None):
         # 1) get the active thread

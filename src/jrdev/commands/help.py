@@ -46,7 +46,13 @@ def format_command_with_args_plain(command, args=None):
 
 async def handle_help(app: Any, args: List[str], _worker_id: str):
     """
-    Handle the /help command to display available commands categorized.
+    Displays a categorized list of all available commands and their functions.
+
+    This command provides a comprehensive overview of the application's capabilities,
+    grouped by category for easy navigation.
+
+    Usage:
+      /help
     """
     if app.ui.ui_name == "textual":
         return await handle_help_plain(app, args)
@@ -87,6 +93,11 @@ async def handle_help(app: Any, args: List[str], _worker_id: str):
     )
     app.ui.print_text(
         f"  {cmd_format}/init{reset} - Index important project files and familiarize LLM with project", print_type=None
+    )
+    app.ui.print_text(
+        f"  {cmd_format}{format_command_with_args('/routeragent', '<set-max-iter> <number>')}{reset} - "
+        "Configure the router agent",
+        print_type=None,
     )
 
     # Add experimental tag to code command with green color
@@ -213,6 +224,7 @@ async def handle_help_plain(app: Any, _args: List[str]):
         print_type=None,
     )
     app.ui.print_text("  /init - Index important project files and familiarize LLM with project", print_type=None)
+    app.ui.print_text("  /routeragent <set-max-iter> <number> - Configure the router agent", print_type=None)
     app.ui.print_text(
         "  /code <message> (WIP) - Send coding task to LLM. LLM will read and edit the code.", print_type=None
     )

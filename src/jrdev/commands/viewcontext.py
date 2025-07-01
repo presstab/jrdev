@@ -6,11 +6,18 @@ from jrdev.ui.ui import PrintType
 
 async def handle_viewcontext(app: Any, args: List[str], _worker_id: str):
     """
-    Handle the /viewcontext command to view the content in the LLM context window.
+    Displays the files currently loaded into the context window for the active thread.
 
-    Args:
-        app: The Application instance
-        args: Command arguments (optional file number to view in detail)
+    When run without arguments, it lists all files in the context with a brief preview.
+    To view the full content of a specific file, provide its number from the list.
+
+    Usage:
+      /viewcontext - Lists all files in the context.
+      /viewcontext <number> - Displays the full content of the specified file.
+
+    Examples:
+      /viewcontext
+      /viewcontext 2
     """
     # Check if a specific file number was requested
     file_num = None

@@ -25,19 +25,20 @@ async def async_input(prompt: str = "") -> str:
 
 async def handle_modelprofile(app: Any, args: List[str], _worker_id: str) -> None:
     """
-    Handle /modelprofile commands for managing model profiles.
+    Manages model profiles, which assign specific models to different task types.
 
-    Usage:
-      /modelprofile - Interactive menu for managing profiles
-      /modelprofile list - Show all profiles and their assigned models
-      /modelprofile get [profile] - Show the model assigned to a profile
-      /modelprofile set [profile] [model] - Set a profile to use a specific model
-      /modelprofile default [profile] - Set the default profile
-      /modelprofile showdefault - Show the current default profile
+    Profiles allow using a powerful model for complex tasks (e.g., 'advanced_coding')
+    and a faster, cheaper model for simpler tasks (e.g., 'quick_reasoning').
 
-    Args:
-        app: The Application instance
-        args: Command line arguments
+    Usage (Interactive):
+      /modelprofile - Shows an interactive menu for managing profiles.
+
+    Usage (Non-Interactive):
+      /modelprofile list                      - Shows all profiles and their assigned models.
+      /modelprofile get <profile_name>        - Shows the model assigned to a specific profile.
+      /modelprofile set <profile_name> <model_name> - Sets a profile to use a specific model.
+      /modelprofile default <profile_name>    - Sets the default profile for general tasks.
+      /modelprofile showdefault               - Shows the current default profile.
     """
 
     usage_str = """

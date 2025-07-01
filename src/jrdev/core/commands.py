@@ -20,6 +20,7 @@ from jrdev.commands import (
     handle_modelprofile,
     handle_projectcontext,
     handle_provider,
+    handle_routeragent,
     handle_stateinfo,
     handle_tasks,
     handle_thread,
@@ -62,6 +63,7 @@ class CommandHandler:
             "/git": handle_git,
             "/keys": handle_keys,
             "/provider": handle_provider,
+            "/routeragent": handle_routeragent,
             "/thread": handle_thread,
             "/migrate": handle_migrate
         }

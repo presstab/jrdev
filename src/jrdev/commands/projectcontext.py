@@ -7,24 +7,26 @@ from jrdev.ui.ui import PrintType
 # pylint: disable=too-many-branches
 async def handle_projectcontext(app: Any, args: List[str], worker_id: str) -> None:
     """
-    Handle the /projectcontext command for managing project context.
+    Manages the persistent, token-efficient project context.
 
-    Commands:
-        /projectcontext about - Display information about project context
-        /projectcontext on|off - Toggle using project context in requests
-        /projectcontext status - Show current status of project context
-        /projectcontext list - List all tracked files in context
-        /projectcontext view <filepath> - View context for a specific file
-        /projectcontext update - Refresh context for all tracked files
-        /projectcontext refresh <filepath> - Refresh context for a specific file
-        /projectcontext add <filepath> - Add and index a file to the context
-        /projectcontext remove <filepath> - Remove a file from the context
-        /projectcontext help - Show usage information
+    This context consists of AI-generated summaries of key project files, which are
+    used to give the AI long-term awareness of the project's architecture and
+    conventions without consuming excessive tokens.
 
-    Args:
-        app: The Application instance
-        args: Command arguments
-        worker_id: Worker ID for task tracking
+    Usage:
+      /projectcontext <subcommand> [arguments]
+
+    Subcommands:
+      about                  - Display information about project context.
+      on|off                 - Toggle using project context in requests.
+      status                 - Show current status, including outdated files.
+      list                   - List all files tracked in the project context.
+      view <filepath>        - View the summarized context for a specific file.
+      update                 - Refresh context for all tracked files that are out of date.
+      refresh <filepath>     - Force a refresh of the context for a specific file.
+      add <filepath>         - Add and index a new file to the project context.
+      remove <filepath>      - Remove a file from the project context.
+      help                   - Show this usage information.
     """
     if len(args) < 2:
         _show_usage(app)

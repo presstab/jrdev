@@ -34,6 +34,7 @@ class AppState:
 
         # Thread management
         self.active_thread = ""
+        self.router_thread_id: str = ""
         if persisted_threads:
             self.threads: Dict[str, MessageThread] = persisted_threads
             if ui_mode and ui_mode == "cli":
@@ -47,11 +48,17 @@ class AppState:
                     self.active_thread = self.create_thread()
             else:
                 # for Textual UI choose the most recently modified thread as the current thread
-                latest = max(
-                    self.threads.values(),
-                    key=lambda t: t.metadata["last_modified"],
-                )
-                self.active_thread = latest.thread_id
+                user_threads = {
+                    tid: t for tid, t in self.threads.items()
+                }
+                if user_threads:
+                    latest = max(
+                        user_threads.values(),
+                        key=lambda t: t.metadata["last_modified"],
+                    )
+                    self.active_thread = latest.thread_id
+                else:
+                    self.active_thread = self.create_thread()
         else:
             self.threads: Dict[str, MessageThread] = {}
             self.active_thread = self.create_thread()
@@ -93,16 +100,19 @@ class AppState:
         return list(self.threads.values())
 
     # Thread management
-    def create_thread(self, thread_id: str="") -> str:
+    def create_thread(self, thread_id: str="", meta_data: Dict[str, str]=None) -> str:
         """Create a new message thread"""
         if thread_id == "":
             thread_id = f"thread_{uuid.uuid4().hex[:8]}"
         if thread_id not in self.threads:
-            self.threads[thread_id] = MessageThread(thread_id)
             # New threads should also be saved immediately if persistence is active
             # This is handled by @auto_persist on MessageThread methods like set_name or if it's saved on creation
             # For now, MessageThread constructor doesn't auto-save, so an explicit save might be needed
             # or ensure first mutation triggers save. The current design relies on mutation.
+            self.threads[thread_id] = MessageThread(thread_id)
+            if meta_data:
+                for k, v in meta_data.items():
+                    self.threads[thread_id].metadata[k] = v
         return thread_id
 
     def switch_thread(self, thread_id: str) -> bool:

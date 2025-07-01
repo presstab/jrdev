@@ -108,7 +108,7 @@ async def apply_file_changes(app, changes_json, code_processor):
                 # Decide if we should stop or continue? For now, continue.
         else:
             # Write the updated lines to a temp file, show diff, and ask for confirmation
-            result, user_message = await write_with_confirmation(app, filepath, new_lines, code_processor)
+            result, user_message = await write_with_confirmation(app, filepath, new_lines)
 
             if result == 'yes':
                 files_changed.append(filepath)
@@ -161,7 +161,7 @@ async def apply_file_changes(app, changes_json, code_processor):
                 app.ui.print_text(f"Error creating file {filepath}: {e}", PrintType.ERROR)
         else:
             # Write the new file with confirmation
-            result, user_message = await write_with_confirmation(app, filepath, new_content, code_processor)
+            result, user_message = await write_with_confirmation(app, filepath, new_content)
 
             if result == 'yes':
                 files_changed.append(filepath)

@@ -45,6 +45,11 @@ class ChatList(Widget):
         btn.styles.align_horizontal = "center"
 
     async def add_thread(self, msg_thread: MessageThread) -> None:
+        # filter out any router threads
+        thread_type = msg_thread.metadata.get("type")
+        if thread_type and thread_type == "router":
+            return
+
         tid = msg_thread.thread_id
         name = tid.removeprefix("thread_")
         if msg_thread.name:
@@ -57,16 +62,6 @@ class ChatList(Widget):
         if self.active_thread_id is None:
             self.set_active(tid)
         self.style_button(btn)
-
-    async def thread_update(self, msg_thread: MessageThread):
-        # if this is a new thread, add it
-        if self.threads.get(msg_thread.thread_id, None) is None:
-            await self.add_thread(msg_thread)
-        else:
-            # check if thread name may have changed
-            btn = self.buttons[msg_thread.thread_id]
-            if msg_thread.name and msg_thread.name != str(btn.label):
-                btn.label = msg_thread.name
 
     def check_threads(self, all_threads: List[str]) -> None:
         # check our list of threads against the list from app state
