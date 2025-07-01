@@ -61,8 +61,9 @@ class ModelProfileManager:
                 "profile_strings.json"
             )
 
-        self.profiles = self._load_profiles()
         self.profile_strings = self._load_profile_strings()
+        self.profiles = self._load_profiles()
+
 
     def _load_profiles(self, remove_fallback=False) -> Dict[str, Any]:
         """
@@ -81,6 +82,7 @@ class ModelProfileManager:
                 "intermediate_reasoning": "gpt-4.1-2025-04-14",
                 "intermediate_coding": "gpt-4.1-2025-04-14",
                 "quick_reasoning": "gpt-4.1-mini-2025-04-14",
+                "intent_router": "gpt-4.1-2025-04-14"
             },
             "default_profile": "advanced_coding",
             # chat_model will be derived from default_profile
@@ -101,6 +103,23 @@ class ModelProfileManager:
                         )
                         # Fall through to default creation logic by not returning here
                     else:
+                        missing = []
+                        for profile_name in self.profile_strings.keys():
+                            if profile_name not in config.get("profiles").keys():
+                                logger.error("Missing profile for: %s", profile_name)
+                                missing.append(profile_name)
+
+                        # Create missing, default to intermediate-reasoning if it exists, else use hardcoded default
+                        if missing:
+                            for profile_name in missing:
+                                ir_profile = config["profiles"].get("intermediate_reasoning")
+                                if ir_profile:
+                                    config["profiles"][profile_name] = ir_profile
+                                else:
+                                    config["profiles"][profile_name] = hardcoded_fallback_config["profiles"][profile_name]
+                                logger.info("Set %s to %s", profile_name, config["profiles"][profile_name])
+                            write_json_file(self.config_path, config)
+                            logger.info("Wrote profile configuration to %s", self.config_path)
                         logger.info(f"Successfully loaded profile configuration from {self.config_path}")
                         return config
             

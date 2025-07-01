@@ -29,6 +29,12 @@
       "description": "Handles intermediate‐level coding tasks.",
       "purpose": "Currently not used.",
       "usage": []
+    },
+    {
+      "name": "intent_router",
+      "description": "Understand and route user's natural language requests",
+      "purpose": "When user types plain English into the terminal input, this model will analyze the user request, create an execution plan, and execute using JrDev's tools and commands.",
+      "usage": ["terminal input"]
     }
   ]
 }
