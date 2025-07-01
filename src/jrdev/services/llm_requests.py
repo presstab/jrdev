@@ -107,7 +107,7 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
                     output_tokens_estimate += len(tokens)
                     if chunk_count % 10 == 0 and stream_start_time:
                         elapsed = time.time() - stream_start_time
-                        app.ui.update_task_info(worker_id=task_id, update={"output_token_estimate": output_tokens_estimate, "tokens_per_second": (output_tokens_estimate*10)/elapsed if elapsed>0 else 0})
+                        app.ui.update_task_info(worker_id=task_id, update={"output_token_estimate": output_tokens_estimate, "tokens_per_second": (output_tokens_estimate)/elapsed if elapsed>0 else 0})
                 except Exception as e:
                     app.logger.error(f"Error estimating output tokens for chunk: {e}")
             yield chunk_text
@@ -195,7 +195,7 @@ async def stream_messages_format(app, model, messages, task_id=None, print_strea
                             output_tokens_estimate += len(tokens)
                             if chunk_count % 10 == 0 and output_tokens_estimate>0:
                                 elapsed = time.time() - stream_start_time
-                                app.ui.update_task_info(worker_id=task_id, update={"output_token_estimate": output_tokens_estimate, "tokens_per_second": (output_tokens_estimate*10)/elapsed if elapsed>0 else 0})
+                                app.ui.update_task_info(worker_id=task_id, update={"output_token_estimate": output_tokens_estimate, "tokens_per_second": (output_tokens_estimate)/elapsed if elapsed>0 else 0})
                         except Exception as e:
                             app.logger.error(f"Error estimating output tokens for Anthropic chunk: {e}")
                     yield ct
