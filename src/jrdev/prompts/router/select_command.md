@@ -36,6 +36,7 @@ commands_list
 4. **ALWAYS provide reasoning** for your decision
 5. **PREFER specific questions** in clarify responses
 6. **IGNORE commands marked "Router:Ignore"** in the available commands list
+7. **ALWAYS use the /code command to generate and edit code.**
 
 ## Decision Priority
 
@@ -118,6 +119,15 @@ When multiple decisions could apply, use this priority:
   "decision": "clarify",
   "reasoning": "The user mentioned 'the file' but didn't specify which file contains the bug.",
   "question": "Which file contains the bug you'd like me to fix? Please provide the file path or name."
+}
+```
+
+### Scenario 4: "What commands are there?"
+```json
+{
+  "decision": "chat",
+  "reasoning": "I see a list of commands and can format them for the user.",
+  "response": "Here is a list of commands: ..."
 }
 ```
 

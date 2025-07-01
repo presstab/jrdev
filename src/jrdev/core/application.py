@@ -492,6 +492,10 @@ class Application:
                     await self.handle_command(command)
                     self.ui.end_capture()
                     tool_call.result = self.ui.get_capture()
+                    # If the command was /code, we should break out of the router loop
+                    # as /code is a self-contained agentic process.
+                    if command_to_execute.startswith("/code"):
+                        break
                 elif tool_call.action_type == "tool":
                     try:
                         if tool_call.command not in agent_tools.tools_list:

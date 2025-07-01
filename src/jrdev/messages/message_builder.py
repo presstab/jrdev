@@ -23,7 +23,7 @@ class MessageBuilder:
 
     def add_system_message(self, content: str) -> None:
         """Add a system-level message to the conversation"""
-        self.messages.append({"role": "system", "content": content})
+        self.messages.insert(0, {"role": "system", "content": content})
 
     def add_user_message(self, content: str) -> None:
         """Add a user message to the conversation"""
