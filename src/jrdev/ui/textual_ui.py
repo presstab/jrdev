@@ -45,7 +45,7 @@ class JrDevUI(App[None]):
         self.vlayout_right = Vertical()
         self.vlayout_left = Vertical()
         self.terminal_output_widget = TerminalOutputWidget(id="terminal_output_container")
-        self.task_monitor = TaskMonitor()
+        self.task_monitor = TaskMonitor(self.jrdev)
         self.directory_widget = DirectoryWidget(core_app=self.jrdev, id="directory_widget")
         self.model_list = ModelSelectionWidget(id="model_list")
         self.task_count = 0

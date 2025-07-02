@@ -118,9 +118,9 @@ def save_models(models_list: List[Dict[str, Any]]) -> None:
     except Exception as e:
         logger.error(f"Error saving models to user config {user_config_path}: {e}")
 
-def get_model_cost(model_name: str, available_models: List[Dict[str, Any]]) -> Optional[Dict[str, int]]:
+def get_model_cost(model_name: str, available_models: List[Dict[str, Any]]) -> Optional[Dict[str, float]]:
     """
-    Get model input and output cost per million tokens (cost denominated in VCU).
+    Get model input and output cost per million tokens (cost denominated per million tokens).
 
     Args:
         model_name: Name of the model to get costs for.
@@ -139,7 +139,9 @@ def get_model_cost(model_name: str, available_models: List[Dict[str, Any]]) -> O
             if not isinstance(output_cost, int):
                 logger.warning(f"Model '{model_name}' has non-integer output_cost '{output_cost}'. Defaulting to 0.")
                 output_cost = 0
-            return {"input_cost": input_cost, "output_cost": output_cost}
+            # costs are stored per 100k tokens, covert to million
+            scale = Price_Per_Token_Scale()
+            return {"input_cost": input_cost * scale, "output_cost": output_cost * scale}
     logger.debug(f"Model '{model_name}' not found in available models for cost lookup.")
     return None
 
@@ -164,6 +166,6 @@ def is_think_model(model_name: str, available_models: List[Dict[str, Any]]) -> b
     logger.debug(f"Model '{model_name}' not found in available models for is_think lookup.")
     return False
 
-def VCU_Value() -> float:
-    """Get the VCU dollar value."""
+def Price_Per_Token_Scale() -> float:
+    """Token price storage is scaled. Multiply the price per token by this."""
     return 0.1

@@ -13,7 +13,7 @@ except ImportError:
     curses = None
     CURSES_AVAILABLE = False
 
-from jrdev.models.model_utils import VCU_Value
+from jrdev.models.model_utils import Price_Per_Token_Scale
 from jrdev.ui.ui import PrintType
 
 
@@ -25,8 +25,8 @@ async def text_based_model_selector(app: Any, models: List[Dict[str, Any]]) -> N
         app: The Application instance
         models: List of models to display
     """
-    # Get VCU dollar value for cost calculations
-    vcu_usd = VCU_Value()
+    # Get token dollar value for cost calculations
+    price_per_token_scale = Price_Per_Token_Scale()
 
     # Print header
     app.ui.print_text("\nAvailable Models:", print_type=PrintType.HEADER)
@@ -45,8 +45,8 @@ async def text_based_model_selector(app: Any, models: List[Dict[str, Any]]) -> N
 
         # Format strings
         think_status = "Reasoning" if is_think else "Standard"
-        input_cost_str = f"${input_cost/100*vcu_usd:.3f}/10K"
-        output_cost_str = f"${output_cost/100*vcu_usd:.3f}/10K"
+        input_cost_str = f"${input_cost/price_per_token_scale:.3f}/M"
+        output_cost_str = f"${output_cost/price_per_token_scale:.3f}/M"
         context_str = f"{context_tokens//1024}K"
 
         # Truncate long model names
@@ -137,8 +137,8 @@ def interactive_model_selector(stdscr, app, models):
             if current_idx >= offset + max_rows:
                 offset = current_idx - max_rows + 1
 
-            # Get VCU dollar value for cost calculations
-            vcu_usd = VCU_Value()
+            # Get token dollar value for cost calculations
+            price_per_token_scale = Price_Per_Token_Scale()
 
             # Display visible models
             for i in range(min(max_rows, len(models) - offset)):
@@ -155,8 +155,8 @@ def interactive_model_selector(stdscr, app, models):
 
                 # Format strings
                 think_status = "Reasoning" if is_think else "Standard"
-                input_cost_str = f"${input_cost/100*vcu_usd:.3f}/10K"
-                output_cost_str = f"${output_cost/100*vcu_usd:.3f}/10K"
+                input_cost_str = f"${input_cost*price_per_token_scale:.3f}/M"
+                output_cost_str = f"${output_cost*price_per_token_scale:.3f}/M"
                 context_str = f"{context_tokens//1024}K"
 
                 # Truncate long model names
