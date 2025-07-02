@@ -9,7 +9,7 @@ from jrdev.ui.textual_events import TextualEvents
 import logging
 import time
 
-from jrdev.models.model_utils import get_model_cost, VCU_Value
+from jrdev.models.model_utils import get_model_cost, Price_Per_Token_Scale
 
 logger = logging.getLogger("jrdev")
 
@@ -155,14 +155,11 @@ class TaskMonitorTable(DataTable):
             input_tokens = int(self.get_cell(row_key, "tok_in"))
             output_tokens = int(self.get_cell(row_key, "tok_out"))
 
-            # Costs are in VCU per million tokens
-            input_cost_per_mil = costs.get("input_cost", 0)
-            output_cost_per_mil = costs.get("output_cost", 0)
-            vcu_value = VCU_Value()
+            # Costs are per million tokens
+            input_cost_per_mil = float(costs.get("input_cost", 0))
+            output_cost_per_mil = float(costs.get("output_cost", 0))
 
-            total_cost_vcu = (input_tokens * input_cost_per_mil) + (output_tokens * output_cost_per_mil)
-            total_cost_usd = (total_cost_vcu / 1_000_000) * vcu_value
-            return total_cost_usd
+            return (input_tokens * input_cost_per_mil / 1_000_000) + (output_tokens * output_cost_per_mil / 1_000_000)
         except (ValueError, TypeError):  # Can happen if cells are not numbers yet
             return 0.0
         except Exception as e:
