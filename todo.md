@@ -1,0 +1,3 @@
+- TAB to complete command
+- change directory with /cd ?
+- ctrl+c quits

@@ -73,6 +73,7 @@ async def handle_help(app: Any, args: List[str], _worker_id: str):
     app.ui.print_text(f"  {cmd_format}/help{reset} - Show this help message", print_type=None)
     app.ui.print_text(f"  {cmd_format}/cost{reset} - Display session costs", print_type=None)
     app.ui.print_text(f"  {cmd_format}/keys{reset} - Manage API keys", print_type=None)
+    app.ui.print_text(f"  {cmd_format}/login{reset} - Log in to your jrdev account", print_type=None)
 
     # Use AI commands
     app.ui.print_text(
@@ -209,6 +210,7 @@ async def handle_help_plain(app: Any, _args: List[str]):
     app.ui.print_text("  /help - Show this help message", print_type=None)
     app.ui.print_text("  /cost - Display session costs", print_type=None)
     app.ui.print_text("  /keys - Manage API keys", print_type=None)
+    app.ui.print_text("  /login - Log in to your jrdev account", print_type=None)
 
     # Use AI commands
     app.ui.print_text("Use AI:", print_type=None)
