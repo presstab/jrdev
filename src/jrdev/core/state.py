@@ -122,6 +122,13 @@ class AppState:
             return True
         return False
 
+    def reset_router_thread(self):
+        """Clear messages and context of router thread"""
+        if self.router_thread_id in self.threads:
+            router_thread = self.threads[self.router_thread_id]
+            router_thread.messages = []
+            router_thread.context.clear()
+
     # Code Command Context
     def stage_code_context(self, file_path) -> None:
         """Stage files that will be added as context to the next /code command"""

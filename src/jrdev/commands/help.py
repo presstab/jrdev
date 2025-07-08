@@ -95,7 +95,7 @@ async def handle_help(app: Any, args: List[str], _worker_id: str):
         f"  {cmd_format}/init{reset} - Index important project files and familiarize LLM with project", print_type=None
     )
     app.ui.print_text(
-        f"  {cmd_format}{format_command_with_args('/routeragent', '<set-max-iter> <number>')}{reset} - "
+        f"  {cmd_format}{format_command_with_args('/routeragent', '<clear|set-max-iter> <number>')}{reset} - "
         "Configure the router agent",
         print_type=None,
     )

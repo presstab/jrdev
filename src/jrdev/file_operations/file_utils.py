@@ -219,15 +219,17 @@ def cutoff_string(input_string, cutoff_before_match, cutoff_after_match) -> str:
     # Extract and return the desired portion
     return input_string[start:end].strip()
 
-def write_string_to_file(filename: str, content: str):
+def write_string_to_file(filename: str, content: str, append: bool = False):
     """
     Writes a given string to a file, correctly interpreting '\n' as line breaks.
 
     :param filename: The name of the file to write to.
     :param content: The string content to write, including line breaks.
+    :param append: Append the string to the end of the file
     """
     content = content.replace("\\n", "\n").replace("\\\"", "\"")
-    with open(filename, 'w', encoding='utf-8') as file:
+    mode = 'a' if append else 'w'
+    with open(filename, mode, encoding='utf-8') as file:
         logger.info(f"Writing {filename}")
         file.write(content)
 

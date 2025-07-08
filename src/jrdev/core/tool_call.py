@@ -9,6 +9,7 @@ class ToolCall:
     command: str
     args: List[str] = field(default_factory=list)
     has_next: bool = True
+    reasoning: str = ""
     result: str = ""
 
     @property

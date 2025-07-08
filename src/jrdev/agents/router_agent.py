@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 from jrdev.agents import agent_tools
 from jrdev.core.tool_call import ToolCall
 from jrdev.file_operations.file_utils import cutoff_string
+from jrdev.messages import MessageThread
 from jrdev.messages.message_builder import MessageBuilder
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.services.llm_requests import generate_llm_response
@@ -15,7 +16,7 @@ class CommandInterpretationAgent:
         self.app = app
         self.logger = app.logger
         # Use the dedicated system thread for conversation history
-        self.thread = self.app.state.get_thread(self.app.state.router_thread_id)
+        self.thread: MessageThread = self.app.state.get_thread(self.app.state.router_thread_id)
 
     def _get_formatted_commands(self) -> str:
         lines = []
@@ -33,7 +34,9 @@ class CommandInterpretationAgent:
             lines.append(f"- `{tool}`: {desc}")
         return "\n".join(lines)
 
-    async def interpret(self, user_input: str, worker_id: str, previous_tool_calls: List[ToolCall] = None) -> Optional[ToolCall]:
+    async def interpret(
+        self, user_input: str, worker_id: str, previous_tool_calls: List[ToolCall] = None
+    ) -> Optional[ToolCall]:
         """
         Interpret user input, decide on a command, or ask for clarification.
         Returns a ToolCall object to be executed, or None.
@@ -72,7 +75,7 @@ class CommandInterpretationAgent:
                 user_msg_needed = False
                 break
         if user_msg_needed:
-            self.thread.messages.append({"role": "user", "content": user_input})
+            self.thread.messages.append({"role": "user", "content": f"**User Request**: {user_input}"})
 
         try:
             json_content = cutoff_string(response_text, "```json", "```")
@@ -90,7 +93,14 @@ class CommandInterpretationAgent:
                 action = response_json.get("action")
                 action_type = action.get("type")
                 final_command = bool(response_json.get("final_command", False))
-                return ToolCall(action_type=action_type, command=action['name'], args=action['args'], has_next=not final_command)
+                reasoning = response_json.get("reasoning", "")
+                return ToolCall(
+                    action_type=action_type,
+                    command=action["name"],
+                    args=action["args"],
+                    reasoning=reasoning,
+                    has_next=not final_command,
+                )
             if decision == "clarify":
                 question = response_json.get("question")
                 self.app.ui.print_text(f"Clarification needed: {question}", print_type=PrintType.INFO)
@@ -106,7 +116,7 @@ class CommandInterpretationAgent:
                 self.app.ui.print_text(chat_response, print_type=PrintType.LLM)
                 return None
         except (json.JSONDecodeError, KeyError) as e:
-            self.logger.error(f"Failed to parse router LLM response: {e}\nResponse: {response_text}")
+            self.logger.error(f"Failed to parse router LLM response: {e}\nResponse:\n {response_text}")
             self.app.ui.print_text(
                 "Sorry, I had trouble understanding that. Please try rephrasing or use a direct /command.",
                 print_type=PrintType.ERROR,
