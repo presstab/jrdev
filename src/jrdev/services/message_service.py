@@ -3,6 +3,9 @@ from jrdev.messages.message_builder import MessageBuilder
 from jrdev.services.llm_requests import stream_request
 from jrdev.messages.thread import MessageThread
 import re
+import logging
+
+logger = logging.getLogger("jrdev")
 
 if TYPE_CHECKING:
     from jrdev.core.application import Application # To avoid circular imports
@@ -58,34 +61,39 @@ class MessageService:
 
         # Stream response from LLM
         response_accumulator = ""
-        # stream_request returns an async generator directly as per refactoring note (b)
-        llm_response_stream = stream_request(
-            self.app,
-            self.app.state.model,
-            messages_for_llm,
-            task_id
-        )
+        try:
+            # stream_request returns an async generator directly as per refactoring note (b)
+            llm_response_stream = stream_request(
+                self.app,
+                self.app.state.model,
+                messages_for_llm,
+                task_id
+            )
 
-        # completely filter out thinking
-        is_first_chunk = True
-        in_think = False
-        async for chunk in llm_response_stream:
-            if is_first_chunk:
-                is_first_chunk = False
-                if chunk == "<think>":
-                    in_think = True
-                    yield "Thinking..."
+            # completely filter out thinking
+            is_first_chunk = True
+            in_think = False
+            async for chunk in llm_response_stream:
+                if is_first_chunk:
+                    is_first_chunk = False
+                    if chunk == "<think>":
+                        in_think = True
+                        yield "Thinking..."
+                    else:
+                        response_accumulator += chunk
+                        msg_thread.add_response_partial(chunk)  # Update thread with partial assistant response
+                        yield chunk
+                elif in_think:
+                    if chunk == "</think>":
+                        in_think = False
                 else:
                     response_accumulator += chunk
-                    msg_thread.add_response_partial(chunk)  # Update thread with partial assistant response
+                    msg_thread.add_response_partial(chunk) # Update thread with partial assistant response
                     yield chunk
-            elif in_think:
-                if chunk == "</think>":
-                    in_think = False
-            else:
-                response_accumulator += chunk
-                msg_thread.add_response_partial(chunk) # Update thread with partial assistant response
-                yield chunk
 
-        # Finalize the full response in the message thread
-        msg_thread.finalize_response(response_accumulator.strip())
+            # Finalize the full response in the message thread
+            msg_thread.finalize_response(response_accumulator.strip())
+        except Exception as e:
+            logger.error("Message Service: %s", e)
+            if task_id:
+                self.app.ui.update_task_info(worker_id=task_id, update={"error": e})

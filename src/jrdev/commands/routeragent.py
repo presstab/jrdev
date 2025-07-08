@@ -16,6 +16,7 @@ async def handle_routeragent(app: Any, args: List[str], _worker_id: str):
 
     Subcommands:
       (no subcommand)               - Shows the current settings and basic usage.
+      clear                         - Clears the message history of the router agent
       set-max-iter <number>         - Sets the maximum number of iterations (tool calls)
                                       the router agent can perform for a single request.
                                       A reasonable range is 1-20.
@@ -36,6 +37,10 @@ async def handle_routeragent(app: Any, args: List[str], _worker_id: str):
         return
 
     subcommand = args[1].lower()
+    if subcommand == "clear":
+        app.state.reset_router_thread()
+        app.ui.print_text(f"Cleared router thread and context", print_type=PrintType.INFO)
+        return
 
     if subcommand == "set-max-iter":
         if len(args) < 3:

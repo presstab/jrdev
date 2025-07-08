@@ -484,7 +484,7 @@ class Application:
 
                 # The agent decided on a command, now execute it
                 command_to_execute = tool_call.formatted_cmd
-                self.ui.print_text(f"Running command: {command_to_execute}", print_type=PrintType.COMMAND)
+                self.ui.print_text(f"Running command: {command_to_execute}\nCommand Purpose: {tool_call.reasoning}\n", print_type=PrintType.COMMAND)
                 if tool_call.action_type == "command":
                     # commands print directly to console, therefore we have to capture console output for results
                     self.ui.start_capture()

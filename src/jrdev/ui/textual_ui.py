@@ -25,7 +25,7 @@ from jrdev.ui.tui.bordered_switcher import BorderedSwitcher
 from jrdev.ui.tui.file_deletion_screen import FileDeletionScreen
 from jrdev.ui.tui.settings_screen import SettingsScreen
 
-from typing import Any, Generator
+from typing import Any, Generator, Set
 import logging
 logger = logging.getLogger("jrdev")
 
@@ -35,6 +35,7 @@ class JrDevUI(App[None]):
     def __init__(self):
         super().__init__()
         self.settings_screen = None
+        self.chat_tasks: Set[str] = set()
 
     def compose(self) -> Generator[Any, None, None]:
         self.jrdev = Application()
@@ -151,7 +152,7 @@ class JrDevUI(App[None]):
     async def accept_input(self, event: CommandTextArea.Submitted) -> None:
         text = event.value
         # mirror user input to text area
-        self.terminal_output_widget.append_text(f"> {text}\n")
+        self.terminal_output_widget.append_text(f"\n{text}\n\n")
 
         # is this something that should be tracked as an active task?
         task_id = None
@@ -182,6 +183,7 @@ class JrDevUI(App[None]):
         # and initiating the streaming response.
         worker = self.run_worker(self.jrdev.process_chat_input(text, task_id))
         if task_id:
+            self.chat_tasks.add(task_id)
             worker.name = task_id
             self.task_monitor.add_task(task_id, text, "") # Add to task monitor if tracked
 
@@ -313,6 +315,11 @@ class JrDevUI(App[None]):
     @on(TextualEvents.TaskUpdate)
     def handle_task_update(self, message: TextualEvents.TaskUpdate) -> None:
         """An update to a task/worker is being sent from the core app"""
+        if message.worker_id in self.chat_tasks:
+            # check for chat error
+            if "error" in message.update:
+                # notify user of error
+                self.notify(f"Chat message failed. Error: {message.update.get('error')}", severity="error")
         self.task_monitor.handle_task_update(message)
 
     @on(TextualEvents.ExitRequest)

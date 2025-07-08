@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 from jrdev.agents.pipeline.stage import Stage
 from jrdev.file_operations.file_utils import cutoff_string, requested_files
 from jrdev.messages.message_builder import MessageBuilder
+from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.services.llm_requests import generate_llm_response
 
 
@@ -43,6 +44,7 @@ class FetchContextPhase(Stage):
         for file in self.agent.user_context:
             if file not in files_to_send:
                 files_to_send.append(file)
+        self.app.logger.info(f"Initial files requested: {files_to_send}")
 
         # Check that included files are sufficient
         files_to_send = await self.ask_files_sufficient(files_to_send, user_task)
@@ -73,13 +75,10 @@ class FetchContextPhase(Stage):
         """
         builder = MessageBuilder(self.app)
         builder.load_system_prompt("get_files_format")
+        prompt = PromptManager().load("files/salvage_files")
+        prompt = prompt.replace("MSG_CONTENT", bad_message)
         builder.start_user_section()
-        builder.append_to_user_section(
-            (
-                "Parse the included message to see what files are being requested. You must only respond with the "
-                f"correct format of getfiles. Extract files from this message {bad_message}"
-            )
-        )
+        builder.append_to_user_section(prompt)
         builder.add_tree()
         messages = builder.build()
 

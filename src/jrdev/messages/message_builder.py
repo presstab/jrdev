@@ -118,8 +118,8 @@ class MessageBuilder:
         # Add project files, including file tree
         if self.project_files or self.include_tree:
             # Load current file tree, with short explanation of how to read the format.
-            tree_explanation = PromptManager.load("init/filetree_format")
-            content.append(tree_explanation)
+            # tree_explanation = PromptManager.load("init/filetree_format")
+            # content.append(tree_explanation)
             file_tree = f"\n\n--- BEGIN FILE DIRECTORY ---\n{self.app.get_file_tree()}\n--- END FILE DIRECTORY ---\n"
             content.append(file_tree)
 
