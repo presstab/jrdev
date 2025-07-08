@@ -152,7 +152,7 @@ class JrDevUI(App[None]):
     async def accept_input(self, event: CommandTextArea.Submitted) -> None:
         text = event.value
         # mirror user input to text area
-        self.terminal_output_widget.append_text(f"> {text}\n")
+        self.terminal_output_widget.append_text(f"\n{text}\n\n")
 
         # is this something that should be tracked as an active task?
         task_id = None
