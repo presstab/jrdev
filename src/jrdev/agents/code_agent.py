@@ -8,6 +8,7 @@ from jrdev.agents.pipeline.review_phase import ReviewPhase
 from jrdev.agents.pipeline.stage import Stage
 from jrdev.agents.pipeline.validate_phase import ValidatePhase
 from jrdev.core.exceptions import Reprompt
+from jrdev.ui.ui import PrintType
 
 
 class CodeAgent:
@@ -52,7 +53,7 @@ class CodeAgent:
         ctx: Dict[str, Any] = {"user_task": user_task}
         try:
             for phase in self.phases:
-                self.app.ui.print_text(f"Starting phase: {phase.name}")
+                self.app.ui.print_text(f"Starting phase: {phase.name}", print_type=PrintType.PROCESSING)
                 await phase.run(ctx)
         except Reprompt as additional_prompt:
             await self.process(f"{user_task} {additional_prompt}")

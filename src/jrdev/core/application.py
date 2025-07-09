@@ -31,6 +31,7 @@ from jrdev.services.message_service import MessageService
 from jrdev.ui.ui import PrintType
 from jrdev.ui.ui_wrapper import UiWrapper
 from jrdev.utils.treechart import generate_compact_tree
+from jrdev.ui.tui.terminal_text_styles import TerminalTextStyles
 
 
 class Application:
@@ -51,6 +52,8 @@ class Application:
 
         self.user_settings: UserSettings = UserSettings()
         self._load_user_settings()
+
+        self.terminal_text_styles = TerminalTextStyles()
 
     def _load_user_settings(self) -> None:
         """Load user settings from disk"""
@@ -73,6 +76,11 @@ class Application:
         settings = {"max_router_iterations": self.user_settings.max_router_iterations}
         if not write_json_file(str(file_path), settings):
             self.logger.error("Error writing user settings")
+
+    def write_terminal_text_styles(self) -> None:
+        """Write terminal text styles to disk"""
+        if not self.terminal_text_styles.save_styles():
+            self.logger.error("Error writing terminal text styles")
 
     def _load_persisted_threads(self) -> Dict[str, MessageThread]:
         """Load all persisted message threads from disk."""
@@ -471,7 +479,7 @@ class Application:
                 self.state.running = False
         else:
             # Invoke the CommandInterpretationAgent
-            self.ui.print_text("Interpreting your request...", print_type=PrintType.INFO)
+            self.ui.print_text("Interpreting your request...\n", print_type=PrintType.PROCESSING)
             calls_made = []
             max_iter = self.user_settings.max_router_iterations
             i = 0
@@ -484,7 +492,7 @@ class Application:
 
                 # The agent decided on a command, now execute it
                 command_to_execute = tool_call.formatted_cmd
-                self.ui.print_text(f"Running command: {command_to_execute}\nCommand Purpose: {tool_call.reasoning}\n", print_type=PrintType.COMMAND)
+                self.ui.print_text(f"Running command: {command_to_execute}\nCommand Purpose: {tool_call.reasoning}\n", print_type=PrintType.PROCESSING)
                 if tool_call.action_type == "command":
                     # commands print directly to console, therefore we have to capture console output for results
                     self.ui.start_capture()
@@ -521,7 +529,7 @@ class Application:
             if i >= max_iter:
                 self.ui.print_text(
                     "My maximum command iterations have been hit for this request. Please reprompt to continue. You can"
-                    " adjust this using the /routeragent command")
+                    " adjust this using the /routeragent command", print_type=PrintType.ERROR)
 
     async def process_chat_input(self, user_input, worker_id=None):
         # 1) get the active thread

@@ -4,6 +4,7 @@ from jrdev.agents.pipeline.stage import Stage
 from jrdev.file_operations.file_utils import get_file_contents
 from jrdev.messages.message_builder import MessageBuilder
 from jrdev.services.llm_requests import generate_llm_response
+from jrdev.ui.ui import PrintType
 
 
 class ValidatePhase(Stage):
@@ -46,7 +47,9 @@ class ValidatePhase(Stage):
         # Validation Model
         model = self.agent.profile_manager.get_model("intermediate_reasoning")
         self.app.logger.info(f"Validating changed files with {model}")
-        self.app.ui.print_text(f"\nValidating changed files with {model} (intermediate_reasoning profile)")
+        self.app.ui.print_text(
+            f"\nValidating changed files with {model} (intermediate_reasoning profile)", PrintType.PROCESSING
+        )
 
         sub_task_str = None
         if self.agent.worker_id:
@@ -67,11 +70,11 @@ class ValidatePhase(Stage):
 
         self.app.logger.info(f"Validation response: {validation_response}")
         if validation_response.strip().startswith("VALID"):
-            self.app.ui.print_text("✓ Files validated successfully")
+            self.app.ui.print_text("✓ Files validated successfully", PrintType.SUCCESS)
         elif "INVALID" in validation_response:
             reason = (
                 validation_response.split("INVALID:")[1].strip() if ":" in validation_response else "Unspecified error"
             )
-            self.app.ui.print_text(f"⚠ Files may be malformed: {reason}")
+            self.app.ui.print_text(f"⚠ Files may be malformed: {reason}", PrintType.ERROR)
         else:
-            self.app.ui.print_text("⚠ Could not determine file validation status")
+            self.app.ui.print_text("⚠ Could not determine file validation status", PrintType.ERROR)

@@ -1,3 +1,4 @@
+from jrdev.ui.ui import printtype_to_string
 from textual import on
 from textual.app import App
 from textual.containers import Horizontal, Vertical
@@ -152,7 +153,7 @@ class JrDevUI(App[None]):
     async def accept_input(self, event: CommandTextArea.Submitted) -> None:
         text = event.value
         # mirror user input to text area
-        self.terminal_output_widget.append_text(f"\n{text}\n\n")
+        self.terminal_output_widget.append_text(f"[PrintType=USER]\n>{text}\n\n")
 
         # is this something that should be tracked as an active task?
         task_id = None
@@ -206,11 +207,12 @@ class JrDevUI(App[None]):
         self.task_monitor.worker_updated(worker, state)
 
     @on(TextualEvents.PrintMessage)
-    def handle_print_message(self, event: Any) -> None:
+    def handle_print_message(self, event: TextualEvents.PrintMessage) -> None:
+        type_string = printtype_to_string(event.print_type)
         if isinstance(event.text, list):
             self.terminal_output_widget.append_text("\n".join(event.text) + "\n")
         else:
-            self.terminal_output_widget.append_text(event.text + "\n")
+            self.terminal_output_widget.append_text(f"[PrintType={type_string}]" + event.text + "\n")
 
     @on(TextualEvents.StreamChunk)
     async def handle_stream_chunk(self, event: TextualEvents.StreamChunk) -> None:

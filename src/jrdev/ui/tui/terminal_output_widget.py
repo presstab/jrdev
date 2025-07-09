@@ -37,7 +37,7 @@ class TerminalOutputWidget(Widget):
         super().__init__(id=id)
         # output_widget_mode provides the output widget, without the input widget
         self.output_widget_mode = output_widget_mode
-        self.terminal_output = TerminalTextArea(_id="terminal_output", language="markdown")
+        self.terminal_output = TerminalTextArea(_id="terminal_output")
         self.copy_button = Button(label="Copy Selection", id="copy_button")
         if not self.output_widget_mode:
             self.terminal_input = CommandTextArea(placeholder="Enter Command", id="cmd_input")

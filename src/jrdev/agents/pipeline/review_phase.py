@@ -7,6 +7,7 @@ from jrdev.agents.pipeline.stage import Stage
 from jrdev.file_operations.file_utils import cutoff_string
 from jrdev.messages.message_builder import MessageBuilder
 from jrdev.services.llm_requests import generate_llm_response
+from jrdev.ui.ui import PrintType
 
 
 class ReviewPhase(Stage):
@@ -144,7 +145,8 @@ class ReviewPhase(Stage):
         model = self.agent.profile_manager.get_model("advanced_reasoning")
         self.app.logger.info(f"Checking work: {model}")
         self.app.ui.print_text(
-            f"\nChecking code changes to ensure completion with {model} (advanced_reasoning profile)"
+            f"\nChecking code changes to ensure completion with {model} (advanced_reasoning profile)",
+            PrintType.PROCESSING,
         )
 
         sub_task_str = None
@@ -161,6 +163,6 @@ class ReviewPhase(Stage):
         # mark sub_task complete
         if self.agent.worker_id:
             self.app.ui.update_task_info(sub_task_str, update={"sub_task_finished": True})
-        self.app.ui.print_text(f"Check Work:\n {response}")
+        self.app.ui.print_text(f"Check Work:\n {response}", PrintType.PROCESSING)
 
         return response
