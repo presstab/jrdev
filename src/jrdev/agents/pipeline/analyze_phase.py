@@ -3,6 +3,7 @@ from typing import Any, Dict
 from jrdev.agents.pipeline.stage import Stage
 from jrdev.messages.message_builder import MessageBuilder
 from jrdev.services.llm_requests import generate_llm_response
+from jrdev.ui.ui import PrintType
 
 
 class AnalyzePhase(Stage):
@@ -40,7 +41,9 @@ class AnalyzePhase(Stage):
         messages = builder.build()
 
         model_name = self.agent.profile_manager.get_model("advanced_reasoning")
-        self.app.ui.print_text(f"\n{model_name} is processing the request... (advanced_reasoning profile)")
+        self.app.ui.print_text(
+            f"\n{model_name} is processing the request... (advanced_reasoning profile)", PrintType.PROCESSING
+        )
         sub_task_str = None
         if self.agent.worker_id:
             # create a sub task id

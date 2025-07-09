@@ -7,6 +7,7 @@ from jrdev.file_operations.file_utils import cutoff_string, requested_files
 from jrdev.messages.message_builder import MessageBuilder
 from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.services.llm_requests import generate_llm_response
+from jrdev.ui.ui import PrintType
 
 
 class FetchContextPhase(Stage):
@@ -84,7 +85,9 @@ class FetchContextPhase(Stage):
 
         model = self.agent.profile_manager.get_model("quick_reasoning")
         self.app.logger.info(f"Attempting to reformat file request with {model}")
-        self.app.ui.print_text(f"\nAttempting to reformat file request with {model} (quick_reasoning profile)...")
+        self.app.ui.print_text(
+            f"\nAttempting to reformat file request with {model} (quick_reasoning profile)...", PrintType.PROCESSING
+        )
 
         sub_task_str = None
         if self.agent.worker_id:
@@ -118,7 +121,9 @@ class FetchContextPhase(Stage):
 
         model = self.agent.profile_manager.get_model("low_cost_search")
         self.app.logger.info(f"Analyzing if more files are needed, using {model}")
-        self.app.ui.print_text(f"\nAnalyzing if more files are needed, using {model} (advanced_reasoning profile)...")
+        self.app.ui.print_text(
+            f"\nAnalyzing if more files are needed, using {model} (advanced_reasoning profile)...", PrintType.PROCESSING
+        )
 
         sub_task_str = None
         if self.agent.worker_id:
@@ -151,5 +156,5 @@ class FetchContextPhase(Stage):
                                 self.app.logger.info(f"Adding file {file}")
         except AttributeError as e:
             self.app.logger.error("ask_files_sufficient: malformed additional files response %s", str(e))
-            self.app.ui.print_text("ask_files_sufficient response malformed")
+            self.app.ui.print_text("ask_files_sufficient response malformed", PrintType.ERROR)
         return files

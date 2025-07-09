@@ -66,7 +66,7 @@ class ExecutePhase(Stage):
 
         # Second pass for any steps that did not succeed on the first try.
         for idx, step in failed_steps:
-            self.app.ui.print_text(f"Retrying step {idx + 1}", PrintType.PROCESSING)
+            self.app.ui.print_text(f"Retrying step {idx + 1}", PrintType.WARNING)
             print_steps(self.app, steps, completed_steps, current_step=idx)
             new_changes = await self.complete_step(step, user_task, files_to_send)
             if new_changes:

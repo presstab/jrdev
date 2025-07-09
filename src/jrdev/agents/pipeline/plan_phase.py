@@ -52,7 +52,7 @@ class PlanPhase(Stage):
 
         # Prompt user to accept or edit steps, unless accept_all is active
         if self.agent.accept_all_active:
-            self.app.ui.print_text("Accept All is active, skipping steps confirmation.")
+            self.app.ui.print_text("Accept All is active, skipping steps confirmation.", PrintType.WARNING)
             # Keep existing steps, proceed as if accepted
         else:
             user_result = await self.app.ui.prompt_steps(steps)
