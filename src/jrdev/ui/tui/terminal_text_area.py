@@ -1,5 +1,8 @@
 import logging
+import re
+from typing import Dict
 
+from rich.text import Text
 from textual import events
 from textual.geometry import Offset
 from textual.reactive import Reactive, reactive
@@ -13,13 +16,88 @@ class TerminalTextArea(TextArea):
     follow_tail: Reactive[bool] = reactive(True, init=True)  # replaces _auto_scroll
     _TOLERANCE = 1  # px / rows
 
-    def __init__(self, _id: str, language: str):
-        super().__init__(id=_id, language=language)
+    # compile a regex that captures what's inside the [...] after "PrintType="
+    PATTERN = re.compile(r"\[PrintType=(.*?)\]")
+
+    def __init__(self, _id: str):
+        # map of line index -> style name
+        self._line_styles: Dict[int, str] = {}
+        super().__init__(id=_id)
         self.cursor_blink = False
         # start in auto‑scroll mode
         self._auto_scroll = True
 
+    def load_text(self, text: str) -> None:
+        """
+        Override load_text to pre-process the text, stripping tags and building a style map before loading to document
+        """
+        self._line_styles.clear()
+        cleaned_lines = []
+
+        if not text:
+            super().load_text(text)
+            return
+
+        for line_index, line_content in enumerate(text.splitlines()):
+            print_type, cleaned_line = self._extract_and_strip(line_content)
+            if print_type:
+                # store the style info for this line index
+                self._line_styles[line_index] = print_type
+            cleaned_lines.append(cleaned_line)
+
+        super().load_text("\n".join(cleaned_lines))
+
+    def get_line(self, line_index: int) -> Text:
+        # grab the plain Rich.Text for this line
+        line = super().get_line(line_index)
+
+        print_type = self._line_styles.get(line_index)
+        if print_type:
+            if print_type == "INFO":
+                pass
+            elif print_type == "LLM":
+                line.stylize("white")
+            elif print_type == "USER":
+                line.stylize("bold blue")
+            elif print_type == "PROCESSING":
+                line.stylize("italic white")
+
+        # command highlight
+        if line and line.plain.startswith("/"):
+            space_idx = line.plain.find(" ")
+            end = space_idx if space_idx >=0 else None
+            line.stylize("bold blue", 0, end)
+
+        return line
+
+    def append_text(self, new_text: str) -> None:
+        # First extract print_type info
+        print_type, cleaned_text = self._extract_and_strip(new_text)
+        idx_start = self.document.end[0]
+        result = self.insert(cleaned_text, location=self.document.end)
+        if print_type:
+            idx_end = result.end_location[0]
+            while idx_start <= idx_end:
+                self._line_styles[idx_start] = print_type
+                idx_start += 1
+        self.call_after_refresh(lambda: self.scroll_end(animate=False) if self.follow_tail else None)
+
     # ---------- helpers -------------------------------------------------
+    def _extract_and_strip(self, line: str) -> tuple[str | None, str]:
+        """
+        Returns (print_type, cleaned_line).
+        print_type is the type the tag, or None if no tag.
+        cleaned_line is the original text with the entire '[PrintType=…]' removed.
+        """
+        m = self.PATTERN.search(line)
+        if not m:
+            return None, line
+
+        # now remove ALL occurrences of '[PrintType=…]'
+        print_type = m.group(1)
+        cleaned = self.PATTERN.sub("", line)
+        return print_type, cleaned
+
     def _is_at_bottom(self) -> bool:
         max_scroll = max(self.virtual_size.height - self.size.height, 0)
         return self.scroll_y >= max_scroll - self._TOLERANCE
@@ -38,10 +116,6 @@ class TerminalTextArea(TextArea):
         # arrow‐up/down, page‐up/down are also manual scroll triggers
         if event.key in ("up", "down", "pageup", "pagedown"):
             self._after_any_scroll()
-
-    def append_text(self, new_text: str) -> None:
-        self.insert(new_text, location=self.document.end)
-        self.call_after_refresh(lambda: self.scroll_end(animate=False) if self.follow_tail else None)
 
     def scroll_cursor_visible(self, center: bool = False, animate: bool = False) -> Offset:
         return Offset()

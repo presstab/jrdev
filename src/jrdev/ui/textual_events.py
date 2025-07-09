@@ -20,9 +20,10 @@ class TextualEvents(UiWrapper):
         self.steps_future = None
 
     class PrintMessage(Message):
-        def __init__(self, text):
+        def __init__(self, text, print_type: PrintType = PrintType.INFO):
             super().__init__()
             self.text = text
+            self.print_type: PrintType = print_type
 
     class TaskUpdate(Message):
         """Send the UI update info about a worker thread's activities"""
@@ -113,7 +114,7 @@ class TextualEvents(UiWrapper):
         # Post custom message when print is called
         if self.capture_active:
             self.capture += message
-        self.app.post_message(self.PrintMessage(message))
+        self.app.post_message(self.PrintMessage(message, print_type))
 
     def print_stream(self, message: str):
         self.word_stream += message

@@ -36,6 +36,21 @@ class PrintType(Enum):
     HEADER = auto()      # Headers/titles
     SUBHEADER = auto()   # Category headers
 
+def printtype_to_string(print_type: PrintType):
+    mapping = {
+        PrintType.INFO: "INFO",
+        PrintType.ERROR: "ERROR",
+        PrintType.PROCESSING: "PROCESSING",
+        PrintType.LLM: "LLM",
+        PrintType.USER: "USER",
+        PrintType.SUCCESS: "SUCCESS",
+        PrintType.WARNING: "WARNING",
+        PrintType.COMMAND: "COMMAND",
+        PrintType.HEADER: "HEADER",
+        PrintType.SUBHEADER: "SUBHEADER"
+    }
+    return mapping.get(print_type, f"UNKNOWN_{print_type}")
+
 
 # ANSI color codes
 COLORS: Dict[str, str] = {

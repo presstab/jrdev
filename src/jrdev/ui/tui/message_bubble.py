@@ -50,7 +50,7 @@ class MessageBubble(Vertical):
 
     def compose(self) -> ComposeResult:
         """Compose the message bubble with a text area and a copy button."""
-        self.text_area = TerminalTextArea(_id=f"{self.id}-text_area", language="markdown")
+        self.text_area = TerminalTextArea(_id=f"{self.id}-text_area")
         yield self.text_area
         yield Button("Copy Selection")
 

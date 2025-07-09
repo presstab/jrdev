@@ -471,7 +471,7 @@ class Application:
                 self.state.running = False
         else:
             # Invoke the CommandInterpretationAgent
-            self.ui.print_text("Interpreting your request...", print_type=PrintType.INFO)
+            self.ui.print_text("Interpreting your request...\n", print_type=PrintType.PROCESSING)
             calls_made = []
             max_iter = self.user_settings.max_router_iterations
             i = 0
@@ -484,7 +484,7 @@ class Application:
 
                 # The agent decided on a command, now execute it
                 command_to_execute = tool_call.formatted_cmd
-                self.ui.print_text(f"Running command: {command_to_execute}\nCommand Purpose: {tool_call.reasoning}\n", print_type=PrintType.COMMAND)
+                self.ui.print_text(f"Running command: {command_to_execute}\nCommand Purpose: {tool_call.reasoning}\n", print_type=PrintType.PROCESSING)
                 if tool_call.action_type == "command":
                     # commands print directly to console, therefore we have to capture console output for results
                     self.ui.start_capture()
@@ -521,7 +521,7 @@ class Application:
             if i >= max_iter:
                 self.ui.print_text(
                     "My maximum command iterations have been hit for this request. Please reprompt to continue. You can"
-                    " adjust this using the /routeragent command")
+                    " adjust this using the /routeragent command", print_type=PrintType.ERROR)
 
     async def process_chat_input(self, user_input, worker_id=None):
         # 1) get the active thread
