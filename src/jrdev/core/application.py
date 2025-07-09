@@ -31,6 +31,7 @@ from jrdev.services.message_service import MessageService
 from jrdev.ui.ui import PrintType
 from jrdev.ui.ui_wrapper import UiWrapper
 from jrdev.utils.treechart import generate_compact_tree
+from jrdev.ui.tui.terminal_text_styles import TerminalTextStyles
 
 
 class Application:
@@ -51,6 +52,8 @@ class Application:
 
         self.user_settings: UserSettings = UserSettings()
         self._load_user_settings()
+
+        self.terminal_text_styles = TerminalTextStyles()
 
     def _load_user_settings(self) -> None:
         """Load user settings from disk"""
@@ -73,6 +76,11 @@ class Application:
         settings = {"max_router_iterations": self.user_settings.max_router_iterations}
         if not write_json_file(str(file_path), settings):
             self.logger.error("Error writing user settings")
+
+    def write_terminal_text_styles(self) -> None:
+        """Write terminal text styles to disk"""
+        if not self.terminal_text_styles.save_styles():
+            self.logger.error("Error writing terminal text styles")
 
     def _load_persisted_threads(self) -> Dict[str, MessageThread]:
         """Load all persisted message threads from disk."""

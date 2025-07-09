@@ -17,7 +17,7 @@ class TerminalTextArea(TextArea):
     _TOLERANCE = 1  # px / rows
 
     # compile a regex that captures what's inside the [...] after "PrintType="
-    PATTERN = re.compile(r"\[PrintType=(.*?)\]")
+    PATTERN = re.compile(r"\[PrintType=(.*?)]")
 
     def __init__(self, _id: str):
         # map of line index -> style name
@@ -51,16 +51,11 @@ class TerminalTextArea(TextArea):
         # grab the plain Rich.Text for this line
         line = super().get_line(line_index)
 
-        print_type = self._line_styles.get(line_index)
-        if print_type:
-            if print_type == "INFO":
-                pass
-            elif print_type == "LLM":
-                line.stylize("white")
-            elif print_type == "USER":
-                line.stylize("bold blue")
-            elif print_type == "PROCESSING":
-                line.stylize("italic white")
+        print_type_str = self._line_styles.get(line_index)
+        if print_type_str:
+            # Get style from the central style manager
+            style_str = self.app.jrdev.terminal_text_styles.styles.get(print_type_str, "white")
+            line.stylize(style_str)
 
         # command highlight
         if line and line.plain.startswith("/"):

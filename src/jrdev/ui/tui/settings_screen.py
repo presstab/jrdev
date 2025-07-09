@@ -10,6 +10,7 @@ from textual.widgets import Button, Label, Input, Static
 from jrdev.ui.tui.providers_widget import ProvidersWidget
 from jrdev.ui.tui.models_widget import ModelsWidget
 from jrdev.ui.tui.api_key_entry import ApiKeyEntry
+from jrdev.ui.tui.terminal_styles_widget import TerminalStylesWidget
 
 logger = logging.getLogger("jrdev")
 
@@ -97,7 +98,7 @@ class SettingsScreen(ModalScreen):
         layout: vertical;
     }
 
-    #providers-view, #models-view {
+    #providers-view, #models-view, #styles-view {
         height: 1fr;
         display: block;
         padding: 0;
@@ -121,9 +122,10 @@ class SettingsScreen(ModalScreen):
     def __init__(self, core_app: Any) -> None:
         super().__init__()
         self.core_app = core_app
-        self.active_view = "providers"  # 'providers' or 'models'
+        self.active_view = "providers"  # 'providers', 'models', or 'styles'
         self.providers_widget = ProvidersWidget(core_app=self.core_app)
         self.models_widget = ModelsWidget(core_app=self.core_app)
+        self.styles_widget = TerminalStylesWidget(core_app=self.core_app)
         self.header_subtitle_label = None
 
     def get_active_subtitle(self) -> str:
@@ -131,6 +133,8 @@ class SettingsScreen(ModalScreen):
             return "Api Providers"
         elif self.active_view == "models":
             return "Edit Models"
+        elif self.active_view == "styles":
+            return "Terminal Styles"
         else:
             return ""
 
@@ -148,12 +152,15 @@ class SettingsScreen(ModalScreen):
                     yield Button("API Keys", id="btn-api-keys", classes="sidebar-button")
                     yield Button("Providers", id="btn-providers", classes="sidebar-button selected")
                     yield Button("Models", id="btn-models", classes="sidebar-button")
+                    yield Button("Terminal Styles", id="btn-styles", classes="sidebar-button")
                 # Content Area
                 with Vertical(id="content-area"):
                     with ScrollableContainer(id="providers-view"):
                         yield self.providers_widget
                     with ScrollableContainer(id="models-view"):
                         yield self.models_widget
+                    with ScrollableContainer(id="styles-view"):
+                        yield self.styles_widget
             # Footer
             with Horizontal(id="footer"):
                 yield Button("Close", id="close-settings-btn", variant="default")
@@ -169,11 +176,13 @@ class SettingsScreen(ModalScreen):
     def update_view_visibility(self) -> None:
         views = {
             "providers": "#providers-view",
-            "models": "#models-view"
+            "models": "#models-view",
+            "styles": "#styles-view",
         }
         buttons = {
             "providers": "#btn-providers",
-            "models": "#btn-models"
+            "models": "#btn-models",
+            "styles": "#btn-styles",
         }
         for view_name, view_id in views.items():
             try:
@@ -195,6 +204,10 @@ class SettingsScreen(ModalScreen):
         elif button_id == "btn-models":
             self.active_view = "models"
             self.query_one("#btn-models", Button).focus()
+            self.update_view_visibility()
+        elif button_id == "btn-styles":
+            self.active_view = "styles"
+            self.query_one("#btn-styles", Button).focus()
             self.update_view_visibility()
         elif button_id == "btn-api-keys":
             self.open_api_keys_modal()
