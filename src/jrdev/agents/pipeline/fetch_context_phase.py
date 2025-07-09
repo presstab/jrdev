@@ -122,7 +122,7 @@ class FetchContextPhase(Stage):
         model = self.agent.profile_manager.get_model("low_cost_search")
         self.app.logger.info(f"Analyzing if more files are needed, using {model}")
         self.app.ui.print_text(
-            f"\nAnalyzing if more files are needed, using {model} (advanced_reasoning profile)...", PrintType.PROCESSING
+            f"\nAnalyzing if more files are needed, using {model} (low_cost_search profile)...", PrintType.PROCESSING
         )
 
         sub_task_str = None
