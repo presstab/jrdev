@@ -23,7 +23,7 @@ class AppState:
         except Exception:
             loaded_model = None
         # Use loaded model or default
-        self.model: str = loaded_model if loaded_model else "deepseek-r1-671b"
+        self.model: str = loaded_model if loaded_model else ""
 
         # Model list and profiles (initialized later)
         self.model_list: Any = None  # Will be initialized with ModelList

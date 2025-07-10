@@ -57,6 +57,7 @@ async def get_file_summary(app: Any, file_path: Any, task_id: Optional[str] = No
 
 async def handle_init(app: Any, _args: List[str], worker_id: str) -> None:
     """
+    Router:Ignore
     Initializes JrDev's understanding of the current project.
 
     This powerful command performs a one-time, comprehensive analysis of the

@@ -275,6 +275,17 @@ class Application:
         self.router_agent = CommandInterpretationAgent(self)
         self.logger.info("CommandInterpretationAgent initialized.")
 
+        if not self.state.model:
+            # set default chat model
+            try:
+                chat_model = self.profile_manager().get_model("intermediate_reasoning")
+                self.set_model(chat_model)
+                self.logger.info("Setting chat model to %s", chat_model)
+            except Exception as e:
+                err_msg = f"Failed to set default chat model: {e}"
+                self.logger.error(err_msg)
+                self.ui.print_text(err_msg, PrintType.ERROR)
+
         self.logger.info("Application services initialized")
         return True
 
@@ -365,7 +376,7 @@ class Application:
         """
         await self.message_service.send_message(msg_thread, content, writepath, print_stream, worker_id)
 
-    def profile_manager(self):
+    def profile_manager(self) -> ModelProfileManager:
         return self.state.model_profile_manager
 
     def get_models(self) -> List[Dict[str, Any]]:
@@ -499,6 +510,8 @@ class Application:
         if not user_input:
             return
 
+        restricted_commands = ["/init", "/migrate", "/keys"]
+
         if user_input.startswith("/"):
             command = Command(user_input, worker_id)
             result = await self.handle_command(command)
@@ -523,6 +536,12 @@ class Application:
                 command_to_execute = tool_call.formatted_cmd
                 self.ui.print_text(f"Running command: {command_to_execute}\nCommand Purpose: {tool_call.reasoning}\n", print_type=PrintType.PROCESSING)
                 if tool_call.action_type == "command":
+                    if tool_call.command in restricted_commands:
+                        self.ui.print_text(
+                            f"Error: Router Agent is restricted from using the {tool_call.command} command.",
+                            PrintType.ERROR
+                        )
+                        break
                     # commands print directly to console, therefore we have to capture console output for results
                     self.ui.start_capture()
                     command = Command(command_to_execute, worker_id)
