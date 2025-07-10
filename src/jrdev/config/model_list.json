@@ -49,54 +49,6 @@
             "context_tokens": 64000
         },
         {
-            "name": "deepseek-r1-671b",
-            "provider": "venice",
-            "is_think": true,
-            "input_cost": 35,
-            "output_cost": 140,
-            "context_tokens": 131072
-        },
-        {
-            "name": "qwen-2.5-coder-32b",
-            "provider": "venice",
-            "is_think": false,
-            "input_cost": 5,
-            "output_cost": 20,
-            "context_tokens": 32768
-        },
-        {
-            "name": "qwen3-235b",
-            "provider": "venice",
-            "is_think": true,
-            "input_cost": 15,
-            "output_cost": 60,
-            "context_tokens": 32768
-        },
-        {
-            "name": "llama-3.3-70b",
-            "provider": "venice",
-            "is_think": false,
-            "input_cost": 7,
-            "output_cost": 28,
-            "context_tokens": 65536
-        },
-        {
-            "name": "llama-3.1-405b",
-            "provider": "venice",
-            "is_think": false,
-            "input_cost": 15,
-            "output_cost": 60,
-            "context_tokens": 65536
-        },
-        {
-            "name": "mistral-31-24b",
-            "provider": "venice",
-            "is_think": false,
-            "input_cost": 5,
-            "output_cost": 20,
-            "context_tokens": 131072
-        },
-        {
             "name": "o4-mini-2025-04-16",
             "provider": "openai",
             "is_think": false,
@@ -127,14 +79,6 @@
             "input_cost": 4,
             "output_cost": 16,
             "context_tokens": 1000000
-        },
-        {
-            "name": "deepseek/deepseek-r1-0528",
-            "provider": "open_router",
-            "is_think": true,
-            "input_cost": 5,
-            "output_cost": 22,
-            "context_tokens": 128000
         },
         {
             "name": "google/gemini-2.5-pro",
@@ -169,6 +113,22 @@
             "context_tokens": 40960
         },
         {
+            "name": "deepseek/deepseek-chat-v3-0324:free",
+            "provider": "open_router",
+            "is_think": false,
+            "input_cost": 0,
+            "output_cost": 0,
+            "context_tokens": 16384
+        },
+        {
+            "name": "deepseek/deepseek-r1-0528:free",
+            "provider": "open_router",
+            "is_think": true,
+            "input_cost": 0,
+            "output_cost": 0,
+            "context_tokens": 163840
+        },
+        {
             "name": "inception/mercury",
             "provider": "open_router",
             "is_think": true,
@@ -182,6 +142,30 @@
             "is_think": true,
             "input_cost": 3,
             "output_cost": 5,
+            "context_tokens": 131072
+        },
+        {
+            "name": "x-ai/grok-4",
+            "provider": "open_router",
+            "is_think": true,
+            "input_cost": 30,
+            "output_cost": 150,
+            "context_tokens": 131072
+        },
+        {
+            "name": "mistralai/devstral-small-2507",
+            "provider": "open_router",
+            "is_think": true,
+            "input_cost": 1,
+            "output_cost": 3,
+            "context_tokens": 131072
+        },
+        {
+            "name": "mistralai/devstral-medium-2507",
+            "provider": "open_router",
+            "is_think": true,
+            "input_cost": 4,
+            "output_cost": 20,
             "context_tokens": 131072
         }
     ]
