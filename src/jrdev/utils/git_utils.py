@@ -300,3 +300,28 @@ def get_staged_diff() -> Optional[str]:
     except Exception as e:
         logger.error(f"An unexpected error occurred while getting staged git diff: {e}")
         return None
+
+def is_git_installed() -> bool:
+    """
+    Checks if git is installed by attempting to run 'git --version'.
+
+    Returns:
+        True if git is installed and accessible, False otherwise.
+    """
+    try:
+        subprocess.check_output(
+            ["git", "--version"],
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=5
+        )
+        return True
+    except FileNotFoundError:
+        logger.error("Git is not installed or not in PATH.")
+        return False
+    except subprocess.TimeoutExpired:
+        logger.error("Git version check timed out.")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error checking git installation: {e}")
+        return False
