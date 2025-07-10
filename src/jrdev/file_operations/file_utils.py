@@ -24,7 +24,7 @@ logger = logging.getLogger("jrdev")
 
 
 def requested_files(text) -> List[str]:
-    match = re.search(r"get_files\s+(\[.*?\])", text, re.DOTALL)
+    match = re.search(r"get_files\s+(\[.*])", text, re.DOTALL)
     file_list = []
     if match:
         file_list_str = match.group(1)
@@ -32,7 +32,7 @@ def requested_files(text) -> List[str]:
         try:
             file_list = eval(file_list_str)
         except Exception as e:
-            logger.error(f"Error parsing file list: {str(e)}")
+            logger.error(f"Error parsing file list: {str(e)}\nfile_list:\n{file_list_str}\nRaw:\n{text}")
             file_list = []
 
     if file_list == []:
