@@ -13,6 +13,7 @@ from jrdev.services.git_pr_service import generate_pr_analysis, GitPRServiceErro
 from jrdev.file_operations.file_utils import JRDEV_ROOT_DIR # Import JRDEV_ROOT_DIR
 from jrdev.ui.tui.terminal_output_widget import TerminalOutputWidget # Import the new widget
 from jrdev.ui.tui.git_overview_widget import GitOverviewWidget # Import the new widget
+from jrdev.utils.git_utils import is_git_installed
 
 logger = logging.getLogger("jrdev")
 
@@ -305,10 +306,31 @@ class GitToolsScreen(ModalScreen):
         self.load_config()
         self.load_help_content()
         self.update_view_visibility()
-        try:
-            self.query_one("#unstaged-files-list", ListView).focus()
-        except Exception as e:
-            logger.error(f"Could not focus default element on mount: {e}")
+        if not is_git_installed():
+            self.query_one("#btn-overview").disabled = True
+            self.query_one("#btn-pr-summary").disabled = True
+            self.query_one("#btn-pr-review").disabled = True
+            overview_view = self.query_one("#overview-view", Vertical)
+            for child in overview_view.children:
+                child.remove()
+            warning_text = (
+                "[bold red]Git is not installed![/]\n\n"
+                "Please install Git to use the Git tools.\n\n"
+                "Installation instructions:\n"
+                "- [bold]Mac[/]: Install via Homebrew: [code]brew install git[/]\n"
+                "  Or download from https://git-scm.com/download/mac\n"
+                "- [bold]Linux[/]: Use your package manager, e.g.,\n"
+                "  Ubuntu: [code]sudo apt install git[/]\n"
+                "  CentOS: [code]sudo yum install git[/]\n"
+                "- [bold]Windows[/]: Download the installer from https://git-scm.com/download/win\n\n"
+                "After installation, restart the application or reopen this screen."
+            )
+            overview_view.mount(MarkdownViewer(warning_text, show_table_of_contents=False))
+        else:
+            try:
+                self.query_one("#unstaged-files-list", ListView).focus()
+            except Exception as e:
+                logger.error(f"Could not focus default element on mount: {e}")
 
     def load_config(self) -> None:
         """Load current git config."""
