@@ -132,7 +132,7 @@ def check_existing_keys(app: Any) -> bool:
     return False
 
 
-def _find_provider_by_service(app: Any, service: str) -> Optional[Dict[str, Any]]:
+def _find_provider_by_service(app: Any, service: str) -> Optional[ApiProvider]:
     """
     Find a provider by service name or environment key.
 
@@ -141,7 +141,7 @@ def _find_provider_by_service(app: Any, service: str) -> Optional[Dict[str, Any]
         service: Service name or environment key to search for
 
     Returns:
-        Provider dictionary if found, None otherwise
+        Provider object if found, None otherwise
     """
     for provider in app.state.clients.provider_list():
         if service.lower() == provider.name.lower() or service.upper() == provider.env_key:
@@ -168,7 +168,7 @@ def _can_remove_key(app: Any, key_name_to_remove: str) -> bool:
     # Check if any other key exists in environment or remaining .env keys
     other_key_exists = False
     for provider in app.state.clients.provider_list():
-        pk = provider["env_key"]
+        pk = provider.env_key
         if pk == key_name_to_remove:
             continue  # Skip the one we are trying to remove
         if os.getenv(pk) or (pk in temp_keys_after_removal and temp_keys_after_removal[pk]):
@@ -220,7 +220,7 @@ async def _perform_key_removal(app: Any, key_name_to_remove: str, provider_name:
     return False
 
 
-def _validate_key_removal(app: Any, service: str) -> Tuple[Optional[Dict[str, Any]], Optional[str], bool]:
+def _validate_key_removal(app: Any, service: str) -> Tuple[Optional[ApiProvider], Optional[str], bool]:
     """
     Validate if a key can be removed by checking provider existence and 'at least one key' rule.
 
@@ -229,8 +229,8 @@ def _validate_key_removal(app: Any, service: str) -> Tuple[Optional[Dict[str, An
         service: Service name or environment key to validate for removal
 
     Returns:
-        Tuple of (provider_dict, error_message, can_remove)
-        - provider_dict: The provider dictionary if found, None otherwise
+        Tuple of (provider, error_message, can_remove)
+        - provider: The provider object if found, None otherwise
         - error_message: Error message if validation fails, None if successful
         - can_remove: True if the key can be safely removed, False otherwise
     """
@@ -239,34 +239,34 @@ def _validate_key_removal(app: Any, service: str) -> Tuple[Optional[Dict[str, An
     if not provider_to_remove:
         return None, f"Unknown service: {service}", False
 
-    key_name_to_remove = provider_to_remove["env_key"]
+    key_name_to_remove = provider_to_remove.env_key
 
     # Check if removing this key would violate the 'at least one key' rule
     if not _can_remove_key(app, key_name_to_remove):
         return (
             provider_to_remove,
-            f"Cannot remove {provider_to_remove['name']}: At least one API key must be configured.",
+            f"Cannot remove {provider_to_remove.name}: At least one API key must be configured.",
             False,
         )
 
     return provider_to_remove, None, True
 
 
-async def _execute_key_removal(app: Any, provider: Dict[str, Any]) -> None:
+async def _execute_key_removal(app: Any, provider: ApiProvider) -> None:
     """
     Execute the key removal workflow.
 
     Args:
         app: The application instance
-        provider: The provider dictionary for the key to remove
+        provider: The provider object for the key to remove
 
     Returns:
         Tuple of (success, message)
         - success: True if the key was found and removed, False if not found
         - message: Success or warning message about the removal result
     """
-    key_name_to_remove = provider["env_key"]
-    provider_name = provider["name"]
+    key_name_to_remove = provider.env_key
+    provider_name = provider.name
 
     if await _perform_key_removal(app, key_name_to_remove, provider_name):
         app.ui.print_text(f"{provider_name.title()} API key removed successfully!", PrintType.SUCCESS)
@@ -287,7 +287,7 @@ async def _handle_keys_non_interactive(app: Any, args: list[str]) -> None:
         app.ui.print_text("  /keys help", PrintType.INFO)
         app.ui.print_text("Available services:", PrintType.INFO)
         for provider in app.state.clients.provider_list():
-            app.ui.print_text(f"  {provider['name'].lower()} ({provider['env_key']})", PrintType.INFO)
+            app.ui.print_text(f"  {provider.name.lower()} ({provider.env_key})", PrintType.INFO)
         return
     cmd = args[1].lower()
     if cmd in ("view", "list"):
@@ -354,7 +354,7 @@ async def _view_keys(app: Any, textual_mode: bool = False) -> None:
     keys = _load_current_keys()
     app.ui.print_text("Configured API Keys:", PrintType.INFO)
     for provider in app.state.clients.provider_list():
-        key_name = provider["env_key"]
+        key_name = provider.env_key
         value = keys.get(key_name)
         if value:
             masked = _mask_key(value)
@@ -462,8 +462,8 @@ async def _remove_key_interactive(app: Any) -> None:
     removable_services = {}
     idx = 1
     for provider in app.state.clients.provider_list():
-        if provider["env_key"] in keys and keys[provider["env_key"]]:
-            removable_services[str(idx)] = (provider["env_key"], provider["name"].title(), provider)
+        if provider.env_key in keys and keys[provider.env_key]:
+            removable_services[str(idx)] = (provider.env_key, provider.name.title(), provider)
             idx += 1
     removable_services[str(idx)] = ("", "Cancel/Back", None)
 
@@ -494,7 +494,7 @@ async def _remove_key_interactive(app: Any) -> None:
     _, service_name, provider_to_remove = removable_services[service_choice]
 
     # Validate the removal using the shared validation function
-    _, error_message, can_remove = _validate_key_removal(app, provider_to_remove["name"])
+    _, error_message, can_remove = _validate_key_removal(app, provider_to_remove.name)
     if not can_remove:
         app.ui.print_text(error_message, PrintType.ERROR)
         return
@@ -577,8 +577,8 @@ async def run_first_time_setup(app: Any) -> bool:
         for provider in provider_list:
             # The 'required' flag from provider config is less relevant now for the overall setup,
             # but can be mentioned for user info.
-            req_text = "(provider suggests this key for full functionality)" if provider["required"] else "(optional)"
-            app.ui.print_text(f"- {provider['name'].title()} {req_text}", PrintType.INFO)
+            req_text = "(provider suggests this key for full functionality)" if provider.required else "(optional)"
+            app.ui.print_text(f"- {provider.name.title()} {req_text}", PrintType.INFO)
 
         # Instructions
         app.ui.print_text("Security Information:", PrintType.SUBHEADER)
@@ -595,12 +595,12 @@ async def run_first_time_setup(app: Any) -> bool:
         for provider in provider_list:
             # Pass the provider's 'required' flag to _prompt_key for its prompt text only.
             # The actual enforcement is 'at least one key overall'.
-            key_value = await _prompt_key(f"{provider['name'].title()}", required=provider["required"])
+            key_value = await _prompt_key(f"{provider.name.title()}", required=provider.required)
             if key_value:
-                keys_entered[provider["env_key"]] = key_value
+                keys_entered[provider.env_key] = key_value
                 num_keys_provided += 1
             elif key_value == "":  # Explicitly skipped (empty string)
-                keys_entered[provider["env_key"]] = ""  # Store empty if user explicitly skipped
+                keys_entered[provider.env_key] = ""  # Store empty if user explicitly skipped
 
         if num_keys_provided == 0:
             app.ui.print_text("No API keys were provided. JrDev requires at least one key.", PrintType.ERROR)

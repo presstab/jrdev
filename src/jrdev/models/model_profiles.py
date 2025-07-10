@@ -3,6 +3,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
+from jrdev.core.clients import APIClients
 from jrdev.file_operations.file_utils import (
     JRDEV_DIR,
     JRDEV_PACKAGE_DIR,
@@ -11,6 +12,7 @@ from jrdev.file_operations.file_utils import (
     write_json_file,
 )
 from jrdev.models.api_provider import ApiProvider, DefaultProfiles
+from jrdev.models.model_list import ModelList
 
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
@@ -206,7 +208,7 @@ class ModelProfileManager:
         logger.warning(f"Profile '{profile_type}' not found, using default: {default}")
         return str(self.profiles["profiles"].get(default, "qwen-2.5-coder-32b"))
 
-    def update_profile(self, profile_type: str, model_name: str, model_list: Optional[Any] = None) -> bool:
+    def update_profile(self, profile_type: str, model_name: str, model_list: Optional[ModelList] = None) -> bool:
         """
         Update a profile to use a different model.
 
@@ -220,7 +222,6 @@ class ModelProfileManager:
         """
         # Import ModelList only if needed for validation
         if model_list is None:
-            from jrdev.models.model_list import ModelList
             # Create ModelList to validate the model exists
             model_list = ModelList()
         
@@ -307,6 +308,39 @@ class ModelProfileManager:
             logger.error(f"Error setting default profile: {str(e)}")
             return False
 
+    def get_profiles_with_missing_keys(self, model_list: ModelList, clients: APIClients) -> List[str]:
+        """
+        Identifies profiles that are configured to use models from providers
+        that do not have an API key loaded.
+
+        Args:
+            model_list: The ModelList instance containing all available models.
+            clients: The APIClients instance to check for API keys.
+
+        Returns:
+            A list of profile names that have missing API keys for their assigned models.
+        """
+        profiles_with_missing_keys = []
+        all_profiles = self.list_available_profiles()
+        all_models = model_list.get_model_list()
+
+        # Create a mapping from model name to provider
+        model_to_provider: Dict[str, str] = {
+            model["name"]: model["provider"] for model in all_models if "name" in model and "provider" in model
+        }
+
+        for profile_name, model_name in all_profiles.items():
+            provider_name = model_to_provider.get(model_name)
+            if provider_name:
+                # Check if the client for this provider has been initialized (i.e., has a key)
+                if not clients.has_key(provider_name.lower()):
+                    profiles_with_missing_keys.append(profile_name)
+            else:
+                # This case might happen if a model in profiles is not in the main model list
+                logger.warning(f"Model '{model_name}' for profile '{profile_name}' not found in model list. Cannot check for API key.")
+
+        return profiles_with_missing_keys
+
     def get_profile_description(self, profile_name: str) -> str:
         """
         Get the description for a profile.
@@ -368,16 +402,18 @@ class ModelProfileManager:
         self.active_provider_names: List[str] = active_provider_names if active_provider_names is not None else []
         hardcoded_fallback_config = {
             "profiles": {
-                "advanced_reasoning": "deepseek-r1-671b",
-                "advanced_coding": "deepseek-r1-671b",
-                "intermediate_reasoning": "llama-3.3-70b",
-                "intermediate_coding": "qwen-2.5-coder-32b",
-                "quick_reasoning": "qwen-2.5-coder-32b",
+                "advanced_reasoning": "o4-mini-2025-04-16",
+                "advanced_coding": "o4-mini-2025-04-16",
+                "intermediate_reasoning": "gpt-4.1-2025-04-14",
+                "intermediate_coding": "gpt-4.1-2025-04-14",
+                "quick_reasoning": "gpt-4.1-mini-2025-04-14",
+                "intent_router": "gpt-4.1-2025-04-14",
+                "low_cost_search": "gpt-4.1-2025-04-14"
             },
             "default_profile": "advanced_coding",
         }
         hardcoded_fallback_config["chat_model"] = hardcoded_fallback_config["profiles"].get(
-            hardcoded_fallback_config["default_profile"], "deepseek-r1-671b"
+            hardcoded_fallback_config["default_profile"], "o4-mini-2025-04-16"
         )
         # Only compare the relevant keys
         current = self.profiles
