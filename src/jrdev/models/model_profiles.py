@@ -368,16 +368,18 @@ class ModelProfileManager:
         self.active_provider_names: List[str] = active_provider_names if active_provider_names is not None else []
         hardcoded_fallback_config = {
             "profiles": {
-                "advanced_reasoning": "deepseek-r1-671b",
-                "advanced_coding": "deepseek-r1-671b",
-                "intermediate_reasoning": "llama-3.3-70b",
-                "intermediate_coding": "qwen-2.5-coder-32b",
-                "quick_reasoning": "qwen-2.5-coder-32b",
+                "advanced_reasoning": "o4-mini-2025-04-16",
+                "advanced_coding": "o4-mini-2025-04-16",
+                "intermediate_reasoning": "gpt-4.1-2025-04-14",
+                "intermediate_coding": "gpt-4.1-2025-04-14",
+                "quick_reasoning": "gpt-4.1-mini-2025-04-14",
+                "intent_router": "gpt-4.1-2025-04-14",
+                "low_cost_search": "gpt-4.1-2025-04-14"
             },
             "default_profile": "advanced_coding",
         }
         hardcoded_fallback_config["chat_model"] = hardcoded_fallback_config["profiles"].get(
-            hardcoded_fallback_config["default_profile"], "deepseek-r1-671b"
+            hardcoded_fallback_config["default_profile"], "o4-mini-2025-04-16"
         )
         # Only compare the relevant keys
         current = self.profiles
