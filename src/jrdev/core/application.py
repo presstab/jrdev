@@ -275,6 +275,17 @@ class Application:
         self.router_agent = CommandInterpretationAgent(self)
         self.logger.info("CommandInterpretationAgent initialized.")
 
+        if not self.state.model:
+            # set default chat model
+            try:
+                chat_model = self.profile_manager().get_model("intermediate_reasoning")
+                self.set_model(chat_model)
+                self.logger.info("Setting chat model to %s", chat_model)
+            except Exception as e:
+                err_msg = f"Failed to set default chat model: {e}"
+                self.logger.error(err_msg)
+                self.ui.print_text(err_msg, PrintType.ERROR)
+
         self.logger.info("Application services initialized")
         return True
 
@@ -365,7 +376,7 @@ class Application:
         """
         await self.message_service.send_message(msg_thread, content, writepath, print_stream, worker_id)
 
-    def profile_manager(self):
+    def profile_manager(self) -> ModelProfileManager:
         return self.state.model_profile_manager
 
     def get_models(self) -> List[Dict[str, Any]]:
