@@ -230,6 +230,30 @@ class Application:
                 PrintType.ERROR
             )
 
+    async def check_profile_keys_and_warn(self) -> bool:
+        """
+        Checks if any model profiles are pointing to models from providers
+        for which no API key is loaded. If so, prints a warning to the UI.
+        """
+        if not self.state.model_profile_manager or not self.state.model_list or not self.state.clients:
+            self.logger.warning("Profile manager, model list, or clients not ready for key check.")
+            return False
+
+        misconfigured_profiles = self.state.model_profile_manager.get_profiles_with_missing_keys(
+            self.state.model_list, self.state.clients
+        )
+
+        if misconfigured_profiles:
+            profile_list_str = ", ".join(misconfigured_profiles)
+            warning_message = (
+                f"Warning: The following model profile(s) are misconfigured: {profile_list_str}. "
+                "They are assigned to models from providers for which you have not set an API key. "
+                "These profiles will not work until you add the required keys using /keys."
+            )
+            self.ui.print_text(warning_message, PrintType.ERROR)
+            return False
+        return True
+
     async def initialize_services(self):
         """Initialize API clients and services"""
         self.logger.info("initialize services")
@@ -275,6 +299,11 @@ class Application:
 
         # Logging command
         self.logger.info(f"Command received: {cmd}")
+
+        # Sanity check profiles for commands that use them heavily
+        if cmd in ["/code", "/init", "/projectcontext"]:
+            if not await self.check_profile_keys_and_warn():
+                return
 
         try:
             result = await self.command_handler.execute(cmd, cmd_parts, command.request_id)
