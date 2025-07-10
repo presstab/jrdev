@@ -92,7 +92,7 @@ def _handle_add(app: Any, args: List[str]) -> None:
         "name": name,
         "env_key": env_key,
         "base_url": base_url,
-        "required": True,
+        "required": False,
         "default_profiles": {"profiles": {}, "default_profile": ""},
     }
     app.state.clients.add_provider(provider_data)
