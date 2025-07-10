@@ -499,6 +499,8 @@ class Application:
         if not user_input:
             return
 
+        restricted_commands = ["/init", "/migrate", "/keys"]
+
         if user_input.startswith("/"):
             command = Command(user_input, worker_id)
             result = await self.handle_command(command)
@@ -523,6 +525,12 @@ class Application:
                 command_to_execute = tool_call.formatted_cmd
                 self.ui.print_text(f"Running command: {command_to_execute}\nCommand Purpose: {tool_call.reasoning}\n", print_type=PrintType.PROCESSING)
                 if tool_call.action_type == "command":
+                    if tool_call.command in restricted_commands:
+                        self.ui.print_text(
+                            f"Error: Router Agent is restricted from using the {tool_call.command} command.",
+                            PrintType.ERROR
+                        )
+                        break
                     # commands print directly to console, therefore we have to capture console output for results
                     self.ui.start_capture()
                     command = Command(command_to_execute, worker_id)
