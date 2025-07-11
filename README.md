@@ -73,6 +73,8 @@ JrDev collected some essential context about the project during the `/init` phas
 
 To manually add your own context to a coding task, use the 'Project Files' window and click '+ Code Ctx' on a file or directory to add it to the code context for the next code task. When a code task is launched, it clears any staged code context.
 
+For a detailed overview of the coding agent, see the [code documentation](docs/code.md).
+
 ## 🚨Early Access Software🚨
 
 JrDev is in early development and may undergo rapid changes, including breaking changes and experimental features. This tool can modify your project files, and will prompt for confirmation unless placed in "Accept All" mode. **It is strongly recommended to use version control (e.g., Git) and commit your work before using JrDev.**
