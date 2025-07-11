@@ -162,58 +162,27 @@ class CliEvents(UiWrapper):
                     except Exception as e:
                         self.print_text(f"Error using curses editor: {e}", PrintType.ERROR)
                         # Fall back to standard input method
-                else:
-                    # Curses not available, fall back to standard input method
-                    pass
                 
-                # Standard input method (fallback)
-                self.print_text("\nEnter the edited steps JSON below. Press Alt+S to submit, Alt+Q to cancel, or press Enter twice to finish:", PrintType.INFO)
-                import termios
-                import tty
-                fd = sys.stdin.fileno()
-                old_settings = termios.tcgetattr(fd)
+                # Platform-independent fallback editor
+                self.print_text("\nEnter the edited steps JSON below. Press Enter twice to finish:", PrintType.INFO)
+                self.print_text("Current content:", PrintType.INFO)
+                self.print_text(steps_json_str, PrintType.INFO)
+                
                 edited_lines = []
-                current_line = ""
-                cancel_edit = False
-                try:
-                    tty.setraw(fd)
-                    while True:
-                        ch = sys.stdin.read(1)
-                        if ch == '\x1b':  # ESC (potential Alt sequence)
-                            # Try to read another char to see if it's Alt+S or Alt+Q
-                            next_ch = sys.stdin.read(1)
-                            if next_ch == 's' or next_ch == 'S':  # Alt+S
-                                if current_line:
-                                    edited_lines.append(current_line)
-                                break
-                            elif next_ch == 'q' or next_ch == 'Q':  # Alt+Q
-                                cancel_edit = True
-                                break
-                            # If it was just ESC key, cancel
-                            cancel_edit = True
-                            break
-                        elif ch == '\x11':  # Ctrl+Q
-                            cancel_edit = True
-                            break
-                        elif ch in ('\r', '\n'):
-                            # Enter key
-                            if current_line == "":
-                                # Detect double enter
-                                if edited_lines and edited_lines[-1] == "":
-                                    edited_lines.pop()
-                                    break
-                                edited_lines.append("")
-                            else:
-                                edited_lines.append(current_line)
-                            current_line = ""
-                        else:
-                            current_line += ch
-                finally:
-                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-                if cancel_edit:
-                    self.print_text("Editing cancelled. Returning to menu.", PrintType.WARNING)
-                    continue
+                while True:
+                    try:
+                        line = input()
+                        if line == "" and edited_lines and edited_lines[-1] == "":
+                            break  # Double empty line ends input
+                        edited_lines.append(line)
+                    except EOFError:
+                        break
+                
                 edited_text = "\n".join(edited_lines).strip()
+                if not edited_text:
+                    self.print_text("No changes made. Returning to menu.", PrintType.WARNING)
+                    continue
+                
                 try:
                     edited_steps = json.loads(edited_text)
                     # Validate structure

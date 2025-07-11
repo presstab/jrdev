@@ -5,7 +5,6 @@ A simple curses-based text editor for editing multi-line text.
 Provides basic navigation, editing capabilities, and save/cancel options.
 """
 
-import curses
 from typing import Optional, Tuple
 
 
@@ -26,6 +25,7 @@ class CursesEditor:
     def run(self) -> Tuple[bool, Optional[str]]:
         """Run the editor and return (success, edited_text)."""
         try:
+            import curses
             # Initialize curses
             stdscr = curses.initscr()
             curses.noecho()  # Don't echo keypresses
@@ -264,6 +264,7 @@ class CursesEditor:
 def is_curses_available() -> bool:
     """Check if curses is available on the current platform."""
     try:
+        import curses
         curses.initscr()
         curses.endwin()
         return True
