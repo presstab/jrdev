@@ -47,7 +47,7 @@ JrDev uses different AI models for different tasks to balance performance and co
 
 These profiles are initialized to default values based on the API key you added. To customize them, hit the "Profiles" button, or use natural language in the terminal input field and instruct JrDev what to change.
 
-## 2. Initialization Project:
+## 2. Initialize Project:
 
 If this is the first time running JrDev for this project, you will need to run the initialization process to give JrDev a powerful overview of your project.
 
