@@ -25,6 +25,8 @@ from jrdev.utils.git_utils import (
     unstage_file,
     reset_unstaged_changes,
     perform_commit,
+    get_commit_history,
+    get_commit_diff,
 )
 
 logger = logging.getLogger("jrdev")
@@ -41,6 +43,14 @@ class FileListItem(ListItem):
         self.is_untracked = is_untracked
 
 
+class CommitListItem(ListItem):
+    """A ListItem that holds a commit hash."""
+
+    def __init__(self, commit_hash: str, commit_subject: str) -> None:
+        super().__init__(Label(f"[yellow]{commit_hash}[/] {commit_subject}"))
+        self.commit_hash = commit_hash
+
+
 class GitOverviewWidget(Static):
     """A widget to display git status and file diffs."""
 
@@ -49,15 +59,22 @@ class GitOverviewWidget(Static):
         layout: horizontal;
         height: 2fr;
         padding: 0;
+        margin: 0;
         border: none;
+    }
+    
+    #main-layout {
+        border: none;
+        margin: 0;
+        padding: 0;
+        height: 1fr;
     }
 
     #git-status-lists-layout {
         width: 1fr;
         max-width: 40;
-        height: 100%;
+        height: 1fr;
         padding: 0;
-        overflow-y: auto;
     }
     
     #git-diff-layout {
@@ -65,6 +82,21 @@ class GitOverviewWidget(Static):
         height: 100%;
         padding: 0 1;
         layout: vertical;
+    }
+    
+    #commit-history-layout {
+        border: none;
+        height: 50%;
+        padding: 0 0 0 0;
+        margin: 0;
+    }
+    
+    .staged-layout {
+        border: none;
+        height: 1fr;
+        min-height: 0;
+        padding: 0;
+        margin: 0;
     }
 
     #diff-view {
@@ -117,9 +149,12 @@ class GitOverviewWidget(Static):
         padding: 0;
     }
 
-    #branch-label {
-        height: 2;
-        padding: 1 0 0 1;
+    .top-labels {
+        height: 1;
+        padding: 0 0 0 1;
+        margin: 0;
+        text-style: bold;
+        color: $text;
     }
 
     .status-list-title {
@@ -140,6 +175,15 @@ class GitOverviewWidget(Static):
         margin-bottom: 0;
         height: 1fr;
         overflow-x: auto;
+        overflow-y: scroll;
+    }
+    
+    #commit-history-list {
+        border: round $panel;
+        margin-bottom: 0;
+        height: 1fr;
+        overflow-x: auto;
+        overflow-y: auto;
     }
 
     #diff-log {
@@ -175,7 +219,7 @@ class GitOverviewWidget(Static):
         self.button_stage = Button("Stage", id="stage-button", classes="stage-buttons")
         self.button_reset = Button("Reset", id="reset-button", classes="stage-buttons")
         self.button_unstage = Button("Unstage", id="unstage-button", classes="stage-buttons")
-        self.button_commit = Button("Commit", id="commit-button", classes="stage-buttons")
+        self.button_commit = Button("Commit Stage", id="commit-button", classes="stage-buttons")
 
         # Confirmation widgets for reset
         self.reset_confirmation_label = Label(
@@ -207,25 +251,33 @@ class GitOverviewWidget(Static):
 
     def compose(self) -> ComposeResult:
         """Compose the widget's layout."""
-        with Horizontal():
+        with Horizontal(id="main-layout"):
             with Vertical(id="git-status-lists-layout"):
-                yield Label("Branch: ", id="branch-label", classes="status-list-title")
-                yield Label("Unstaged Files", classes="status-list-title")
-                yield ListView(id="unstaged-files-list")
-                with Horizontal(id="unstage-buttons-layout"):
-                    yield self.button_stage
-                    yield self.button_reset
-                    yield self.reset_confirmation_label
-                    yield self.button_confirm_reset
-                    yield self.button_cancel_reset
-                yield Label("Staged Files", classes="status-list-title")
-                yield ListView(id="staged-files-list")
-                with Horizontal(id="staged-buttons-layout"):
-                    yield self.button_unstage
-                    yield self.button_commit
+                yield Label("Branch: ", id="branch-label", classes="top-labels")
+                with Vertical(id="unstaged-list-layout", classes="staged-layout"):
+
+                    yield Label("Unstaged Files", classes="status-list-title")
+                    yield ListView(id="unstaged-files-list")
+                    with Horizontal(id="unstage-buttons-layout"):
+                        yield self.button_stage
+                        yield self.button_reset
+                        yield self.reset_confirmation_label
+                        yield self.button_confirm_reset
+                        yield self.button_cancel_reset
+
+                with Vertical(id="staged-list-layout", classes="staged-layout"):
+                    yield Label("Staged Files", classes="status-list-title")
+                    yield ListView(id="staged-files-list")
+                    with Horizontal(id="staged-buttons-layout"):
+                        yield self.button_unstage
+                        yield self.button_commit
+
+                with Vertical(id="commit-history-layout"):
+                    yield Label("Commit History", classes="status-list-title")
+                    yield ListView(id="commit-history-list")
             with Vertical(id="git-diff-layout"):
                 with Vertical(id="diff-view"):
-                    yield Label("File Diff", id="file-label", classes="status-list-title")
+                    yield Label("File Diff", id="file-label", classes="top-labels")
                     yield RichLog(id="diff-log", highlight=False, markup=True)
 
                 with Vertical(id="commit-view"):
@@ -259,14 +311,17 @@ class GitOverviewWidget(Static):
 
         staged_list = self.query_one("#staged-files-list", ListView)
         unstaged_list = self.query_one("#unstaged-files-list", ListView)
+        commit_history_list = self.query_one("#commit-history-list", ListView)
         diff_log = self.query_one("#diff-log", RichLog)
 
         staged_list.clear()
         unstaged_list.clear()
+        commit_history_list.clear()
         diff_log.clear()
 
         staged_list.can_focus = False
         unstaged_list.can_focus = False
+        commit_history_list.can_focus = False
 
         # Use git_utils to get staged, unstaged, and untracked files.
         # This is the single source of truth for git status.
@@ -289,9 +344,16 @@ class GitOverviewWidget(Static):
             # Staged files can't be untracked.
             staged_list.append(FileListItem(filepath, staged=True, is_untracked=False))
 
+        # Populate commit history
+        commit_history = get_commit_history()
+        for commit_hash, commit_subject in commit_history:
+            commit_history_list.append(
+                CommitListItem(commit_hash, commit_subject)
+            )
+
     @on(ListView.Selected)
     def show_diff(self, event: ListView.Selected) -> None:
-        """When a file is selected, show its diff."""
+        """When a file or commit is selected, show its diff."""
         # If confirmation is active, cancel it to avoid weird UI states
         if self.button_confirm_reset.display:
             self._toggle_reset_confirmation(False)
@@ -302,60 +364,83 @@ class GitOverviewWidget(Static):
 
         staged_list = self.query_one("#staged-files-list", ListView)
         unstaged_list = self.query_one("#unstaged-files-list", ListView)
+        commit_history_list = self.query_one("#commit-history-list", ListView)
 
-        # Deselect item in the other list to avoid confusion
+        # Deselect items in other lists and manage button states
         if event.list_view.id == "staged-files-list":
-            if unstaged_list.index is not None:
-                unstaged_list.index = None
-
-            # Disable unstaged list buttons
+            if unstaged_list.index is not None: unstaged_list.index = None
+            if commit_history_list.index is not None: commit_history_list.index = None
             self.button_stage.disabled = True
             self.button_reset.disabled = True
-            # Enable staged list buttons
             self.button_unstage.disabled = False
-        else:  # unstaged-files-list
-            if staged_list.index is not None:
-                staged_list.index = None
-
-            # Enable unstaged list buttons
+        elif event.list_view.id == "unstaged-files-list":
+            if staged_list.index is not None: staged_list.index = None
+            if commit_history_list.index is not None: commit_history_list.index = None
             self.button_stage.disabled = False
             self.button_reset.disabled = False
-            # Enable staged list buttons
+            self.button_unstage.disabled = True
+        elif event.list_view.id == "commit-history-list":
+            if staged_list.index is not None: staged_list.index = None
+            if unstaged_list.index is not None: unstaged_list.index = None
+            self.button_stage.disabled = True
+            self.button_reset.disabled = True
             self.button_unstage.disabled = True
 
         item = event.item
-        file_label = self.query_one("#file-label", Label)
-        if not isinstance(item, FileListItem):
-            file_label.update(f"File Diff:")
-            return
-
-        file_label.update(f"File Diff: [green]{item.filepath}[/]")
-
         diff_log = self.query_one("#diff-log", RichLog)
+        file_label = self.query_one("#file-label", Label)
         diff_log.clear()
 
-        diff_content = get_file_diff(
-            item.filepath, staged=item.staged, is_untracked=item.is_untracked
-        )
+        if isinstance(item, FileListItem):
+            file_label.update(f"File Diff: [green]{item.filepath}[/]")
+            diff_content = get_file_diff(
+                item.filepath, staged=item.staged, is_untracked=item.is_untracked
+            )
+            if diff_content is None or not diff_content.strip():
+                diff_log.write(f"No changes to display for [bold]{item.filepath}[/].")
+                return
 
-        diff_log.clear()
-        if diff_content is None or not diff_content.strip():
-            diff_log.write(f"No changes to display for [bold]{item.filepath}[/].")
-            return
+            formatted_lines = []
+            for line in diff_content.splitlines():
+                escaped_line = line.replace("[", "\\[")
+                if line.startswith('+'):
+                    formatted_lines.append(f"[green]{escaped_line}[/green]")
+                elif line.startswith('-'):
+                    formatted_lines.append(f"[red]{escaped_line}[/red]")
+                elif line.startswith('@@'):
+                    formatted_lines.append(f"[cyan]{escaped_line}[/cyan]")
+                else:
+                    formatted_lines.append(escaped_line)
+            diff_log.write("\n".join(formatted_lines))
 
-        # Reuse diff formatting from CodeConfirmationScreen
-        formatted_lines = []
-        for line in diff_content.splitlines():
-            escaped_line = line.replace("[", "\\[")
-            if line.startswith('+'):
-                formatted_lines.append(f"[green]{escaped_line}[/green]")
-            elif line.startswith('-'):
-                formatted_lines.append(f"[red]{escaped_line}[/red]")
-            elif line.startswith('@@'):
-                formatted_lines.append(f"[cyan]{escaped_line}[/cyan]")
-            else:
-                formatted_lines.append(escaped_line)
-        diff_log.write("\n".join(formatted_lines))
+        elif isinstance(item, CommitListItem):
+            file_label.update(f"Commit Diff: [yellow]{item.commit_hash}[/]")
+            commit_diff_content = get_commit_diff(item.commit_hash)
+
+            if commit_diff_content is None or not commit_diff_content.strip():
+                diff_log.write(f"No diff to display for commit [bold]{item.commit_hash}[/].")
+                return
+
+            formatted_lines = []
+            for line in commit_diff_content.splitlines():
+                escaped_line = line.replace("[", "\\[")
+                # Special formatting for git show output
+                if line.startswith('commit '):
+                    formatted_lines.append(f"[yellow]{escaped_line}[/yellow]")
+                elif line.startswith('Author:') or line.startswith('Date:'):
+                    formatted_lines.append(f"[blue]{escaped_line}[/blue]")
+                elif line.startswith('+') and not line.startswith('+++'):
+                    formatted_lines.append(f"[green]{escaped_line}[/green]")
+                elif line.startswith('-') and not line.startswith('---'):
+                    formatted_lines.append(f"[red]{escaped_line}[/red]")
+                elif line.startswith('@@'):
+                    formatted_lines.append(f"[cyan]{escaped_line}[/cyan]")
+                else:
+                    formatted_lines.append(escaped_line)
+            diff_log.write("\n".join(formatted_lines))
+        else:
+            # Some other list item, maybe from a future list. Clear the view.
+            file_label.update("File Diff")
 
     @on(Button.Pressed, "#stage-button")
     def handle_stage_pressed(self):
