@@ -30,7 +30,7 @@ pip install -e .
 pip install git+https://github.com/presstab/jrdev.git
 ```
 
-# Let's Code
+# Code Generation
 
 JrDev works with the context in your current working directory. Navigate to your project and type `jrdev`.
 

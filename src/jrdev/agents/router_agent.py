@@ -77,6 +77,7 @@ class CommandInterpretationAgent:
         if user_msg_needed:
             self.thread.messages.append({"role": "user", "content": f"**User Request**: {user_input}"})
 
+        json_content = ""
         try:
             json_content = cutoff_string(response_text, "```json", "```")
             response_json = json.loads(json_content)
@@ -116,7 +117,7 @@ class CommandInterpretationAgent:
                 self.app.ui.print_text(chat_response, print_type=PrintType.LLM)
                 return None
         except (json.JSONDecodeError, KeyError) as e:
-            self.logger.error(f"Failed to parse router LLM response: {e}\nResponse:\n {response_text}")
+            self.logger.error(f"Failed to parse router LLM response: {e}\nResponse:\n {response_text}\nRaw:\n{json_content}")
             self.app.ui.print_text(
                 "Sorry, I had trouble understanding that. Please try rephrasing or use a direct /command.",
                 print_type=PrintType.ERROR,

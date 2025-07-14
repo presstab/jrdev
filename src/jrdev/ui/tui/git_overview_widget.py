@@ -286,7 +286,7 @@ class GitOverviewWidget(Static):
             with Vertical(id="git-diff-layout"):
                 with Vertical(id="diff-view"):
                     yield Label("File Diff", id="file-label", classes="top-labels")
-                    yield RichLog(id="diff-log", highlight=False, markup=True)
+                    yield RichLog(id="diff-log", highlight=False, markup=True, auto_scroll=False)
 
                 with Vertical(id="commit-view"):
                     yield Label("Commit Message: Enter or Generate Message", classes="status-list-title")
