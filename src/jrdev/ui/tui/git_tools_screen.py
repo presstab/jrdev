@@ -2,7 +2,7 @@ import os
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, Container
 from textual.screen import ModalScreen
-from textual.widgets import Button, Label, Input, Static, MarkdownViewer, LoadingIndicator, ListView
+from textual.widgets import Button, Label, Input, Static, MarkdownViewer, LoadingIndicator, ListView, ListItem
 from textual import on, work # Import work
 from textual.worker import Worker, WorkerState # Import WorkerState
 from typing import Any, Dict, Optional
@@ -169,6 +169,7 @@ class GitToolsScreen(ModalScreen):
 
     /* PR Summary / Review View Specific */
     .pr-view-container {
+        layers: bottom top;
         height: 100%; /* Fill the view container */
         layout: vertical;
     }
@@ -179,6 +180,7 @@ class GitToolsScreen(ModalScreen):
         align-horizontal: left;
     }
     .pr-prompt-input {
+        layer: bottom;
         height: 3;
         margin-bottom: 0;
         border: round $accent;
@@ -189,6 +191,7 @@ class GitToolsScreen(ModalScreen):
     /* Style the TerminalOutputWidget itself */
     #summary-output-widget,
     #review-output-widget {
+        layer: bottom;
         height: 1fr; /* Take remaining space */
         margin: 0;
         padding: 0;
@@ -201,10 +204,17 @@ class GitToolsScreen(ModalScreen):
         border: round $surface-lighten-1;
     }
     .pr-buttons {
+        layer: bottom;
         align-horizontal: left;
         /* Ensure container can hold button or indicator */
         height: 1; /* Match button height */
         align-vertical: middle;
+    }
+    #model-list {
+        layer: top;
+        width: auto;
+        height: 10;
+        offset: 20 4;
     }
     .pr-buttons Button {
         margin-left: 1;
@@ -246,6 +256,18 @@ class GitToolsScreen(ModalScreen):
         self.core_app = core_app
         self.current_config: Dict[str, Any] = {}
         self.active_view: str = "overview" # 'overview', 'configure', 'pr_summary', 'pr_review', 'help'
+        self.pr_summary_vlayout = Vertical(id="pr-summary-view", classes="pr-view-container")
+
+        available_models = self.core_app.get_available_models()
+        model_items = []
+        self.models_text_width = 1
+        for model_name in available_models:
+            model_items.append(ListItem(Label(model_name), name=model_name))
+            if len(model_name) > self.models_text_width:
+                self.models_text_width = len(model_name)
+        self.model_list = ListView(*model_items, id="model-list")
+
+        self.model_list.visible = False
 
     def compose(self) -> ComposeResult:
         with Vertical(id="git-tools-container"):
@@ -282,11 +304,12 @@ class GitToolsScreen(ModalScreen):
                             yield Button("Save", id="save-config-btn", variant="success")
 
                     # PR Summary View (Initially Hidden)
-                    with Vertical(id="pr-summary-view", classes="pr-view-container"):
+                    with self.pr_summary_vlayout:
                         yield Label("Generate PR Summary", classes="pr-view-title")
                         yield Input(id="summary-prompt-input", placeholder="Optional: Add custom instructions...", classes="pr-prompt-input")
                         with Horizontal(classes="pr-buttons", id="summary-buttons"):
                             yield Button("Generate Summary", id="generate-summary-btn", variant="primary")
+                            yield Button(self.core_app.state.model, classes="select-model-btn", variant="primary", tooltip="Model used to generate summary")
                             # LoadingIndicator will be added here dynamically
                         yield TerminalOutputWidget(id="summary-output-widget", output_widget_mode=True)
 
@@ -296,12 +319,20 @@ class GitToolsScreen(ModalScreen):
                         yield Input(id="review-prompt-input", placeholder="Optional: Add custom instructions...", classes="pr-prompt-input")
                         with Horizontal(classes="pr-buttons", id="review-buttons"):
                             yield Button("Generate Review", id="generate-review-btn", variant="primary")
+                            yield Button(
+                                self.core_app.state.model,
+                                classes="select-model-btn",
+                                variant="primary",
+                                tooltip="Model used to generate review"
+                            )
                             # LoadingIndicator will be added here dynamically
                         yield TerminalOutputWidget(id="review-output-widget", output_widget_mode=True)
 
                     # Help View (Initially Hidden)
                     with Vertical(id="help-view"):
                         yield MarkdownViewer(id="help-markdown-viewer", show_table_of_contents=False)
+
+                    yield self.model_list
 
             # Footer (Common Close Button)
             with Horizontal(id="footer"): # Footer docked at the bottom of main container
@@ -452,6 +483,24 @@ class GitToolsScreen(ModalScreen):
         else:
             logger.error("Failed to save Git configuration.")
             self.notify("Failed to save Git configuration.", severity="error")
+
+    @on(Button.Pressed, ".select-model-btn")
+    def handle_model_select(self, event: Button.Pressed) -> None:
+        if self.model_list.visible:
+            self.model_list.visible = False
+        else:
+            self.model_list.visible = True
+            self.model_list.styles.min_width = event.button.content_size.width
+            self.model_list.styles.max_width = self.models_text_width + 2
+
+    @on(ListView.Selected, "#model-list")
+    def handle_model_selection(self, selected: ListView.Selected):
+        model_name = selected.item.name
+        self.core_app.set_model(model_name)
+        self.model_list.visible = False
+        for btn in self.query(".select-model-btn"):
+            btn.label = model_name
+
 
     # --- PR Summary View Handler ---
     @on(Button.Pressed, "#generate-summary-btn")

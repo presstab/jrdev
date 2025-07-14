@@ -382,6 +382,16 @@ class Application:
     def get_models(self) -> List[Dict[str, Any]]:
         return self.state.model_list.get_model_list()
 
+    def get_available_models(self) -> List[str]:
+        all_models = self.get_models()
+        providers_with_keys = {
+            provider.name for provider in self.provider_list() if self.state.clients.has_key(provider.name)
+        }
+        available_models = [
+            model["name"] for model in all_models if model["provider"] in providers_with_keys
+        ]
+        return available_models
+
     def get_model_names(self) -> List[str]:
         current_models = self.get_models()
         return [model["name"] for model in current_models]

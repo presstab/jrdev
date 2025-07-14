@@ -40,10 +40,6 @@ class ModelSelectionWidget(RadioSet):
         # Reorder to put 'venice' first
         ordered_providers = OrderedDict()
 
-        # Add 'venice' group first if it exists
-        if "venice" in models_by_provider:
-            ordered_providers["venice"] = models_by_provider.pop("venice")
-
         # Add remaining providers in sorted order
         for provider in sorted(models_by_provider):
             ordered_providers[provider] = models_by_provider[provider]
