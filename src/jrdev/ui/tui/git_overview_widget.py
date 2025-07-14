@@ -31,7 +31,6 @@ from jrdev.utils.git_utils import (
 
 logger = logging.getLogger("jrdev")
 
-
 class FileListItem(ListItem):
     """A ListItem that holds file path and git status."""
 
@@ -42,14 +41,12 @@ class FileListItem(ListItem):
         self.staged = staged
         self.is_untracked = is_untracked
 
-
 class CommitListItem(ListItem):
     """A ListItem that holds a commit hash."""
 
     def __init__(self, commit_hash: str, commit_subject: str) -> None:
         super().__init__(Label(f"[yellow]{commit_hash}[/] {commit_subject}"))
         self.commit_hash = commit_hash
-
 
 class GitOverviewWidget(Static):
     """A widget to display git status and file diffs."""
@@ -214,6 +211,19 @@ class GitOverviewWidget(Static):
         max-width: 25;
         color: $accent;
     }
+    #commit-model-list {
+        layer: top;
+        width: auto;
+        height: 10;
+        offset: 20 3;
+    }
+    .commit-select-model-btn {
+        margin-left: 1;
+        border: none;
+        height: 100%;
+        min-width: 10;
+        max-width: 32;
+    }
     """
 
     def __init__(self, core_app: Any):
@@ -252,10 +262,34 @@ class GitOverviewWidget(Static):
         )
         self.button_cancel_commit = Button("Cancel", id="cancel-commit-button")
 
+        # Model selection for commit view
+        self.commit_model_list = None
+        self.commit_model_btn = None
+        self._init_commit_model_selection()
+
         self.unstage_list_layout = Vertical(id="unstaged-list-layout")
         self.unstaged_list_title = Label("Unstaged Files", classes="status-list-title")
         self.unstaged_list = ListView(id="unstaged-files-list")
         self.unstaged_buttons_layout = Horizontal(id="unstage-buttons-layout")
+
+    def _init_commit_model_selection(self):
+        # Build the model list and button for commit view
+        available_models = self.core_app.get_available_models()
+        model_items = []
+        self.commit_models_text_width = 1
+        for model_name in available_models:
+            model_items.append(ListItem(Label(model_name), name=model_name))
+            if len(model_name) > self.commit_models_text_width:
+                self.commit_models_text_width = len(model_name)
+
+        self.commit_model_list = ListView(*model_items, id="commit-model-list")
+        self.commit_model_list.visible = False
+        self.commit_model_btn = Button(
+            self.core_app.state.model,
+            classes="commit-select-model-btn",
+            variant="primary",
+            tooltip="Model used to generate commit message"
+        )
 
     def compose(self) -> ComposeResult:
         """Compose the widget's layout."""
@@ -292,6 +326,8 @@ class GitOverviewWidget(Static):
                     yield Label("Commit Message: Enter or Generate Message", classes="status-list-title")
                     with Horizontal(id="generate-button-layout"):
                         yield self.button_generate_commit_msg
+                        yield self.commit_model_btn
+                    yield self.commit_model_list
                     yield self.commit_message_textarea
                     with Horizontal(id="commit-buttons-layout"):
                         yield self.button_perform_commit
@@ -373,6 +409,9 @@ class GitOverviewWidget(Static):
     @on(ListView.Selected)
     def show_diff(self, event: ListView.Selected) -> None:
         """When a file or commit is selected, show its diff."""
+        if event.list_view.id == "commit-model-list":
+            return
+
         # If confirmation is active, cancel it to avoid weird UI states
         if self.button_confirm_reset.display:
             self._toggle_reset_confirmation(False)
@@ -529,6 +568,10 @@ class GitOverviewWidget(Static):
         self.query_one("#diff-view").styles.display = "none" if show else "block"
         if show:
             self.commit_message_textarea.focus()
+            # Update model button label to current model
+            self.commit_model_btn.label = self.core_app.state.model
+            # Hide model list popup if open
+            self.commit_model_list.visible = False
         else:
             try:
                 self.query_one("#staged-files-list", ListView).focus()
@@ -619,3 +662,20 @@ class GitOverviewWidget(Static):
             self.notify(
                 f"Error generating message: {error}", severity="error", timeout=10
             )
+
+    # --- Model selection popup for commit view ---
+    @on(Button.Pressed, ".commit-select-model-btn")
+    def handle_commit_model_select(self, event: Button.Pressed) -> None:
+        if self.commit_model_list.visible:
+            self.commit_model_list.visible = False
+        else:
+            self.commit_model_list.visible = True
+            self.commit_model_list.styles.min_width = event.button.content_size.width
+            self.commit_model_list.styles.max_width = self.commit_models_text_width + 2
+
+    @on(ListView.Selected, "#commit-model-list")
+    def handle_commit_model_selection(self, selected: ListView.Selected):
+        model_name = selected.item.name
+        self.core_app.set_model(model_name)
+        self.commit_model_list.visible = False
+        self.commit_model_btn.label = model_name
