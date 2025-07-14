@@ -31,6 +31,7 @@ class GitToolsScreen(ModalScreen):
         background: $surface;
         border: round $accent;
         padding: 0;
+        margin: 0;
         layout: vertical; /* Main layout is vertical */
     }
 
@@ -50,15 +51,16 @@ class GitToolsScreen(ModalScreen):
 
     /* Container for sidebar and content */
     #main-content-horizontal {
-        height: 1fr;
+        height: 100%;
         layout: horizontal;
+        padding: 0;
     }
 
     #sidebar {
         width: 20;
         height: 100%;
         border-right: solid $panel;
-        padding: 1 0;
+        padding: 0 0;
         transition: width 0.2s out_expo;
     }
 
@@ -68,12 +70,13 @@ class GitToolsScreen(ModalScreen):
     }
 
     #sidebar-title {
-        height: 3;
-        padding: 0 1; /* Match ModelProfileScreen */
+        height: 2;
+        width: 1fr;
+        padding: 0 1;
         content-align: center middle;
         text-style: bold;
         color: $text;
-        border-bottom: solid $panel; /* Match ModelProfileScreen */
+        border-bottom: solid $panel;
     }
 
     .sidebar-button {
@@ -113,6 +116,7 @@ class GitToolsScreen(ModalScreen):
         width: 1fr;
         height: 100%;
         layout: vertical;
+        padding: 0;
     }
 
     /* View Containers */
@@ -121,9 +125,10 @@ class GitToolsScreen(ModalScreen):
     #pr-summary-view,
     #pr-review-view,
     #help-view { /* Added help-view */
-        height: 1fr; /* Take available space */
+        height: 100%; /* Take available space */
         display: block; /* Initially visible, will be controlled */
         padding: 0;
+        margin: 0;
         overflow-y: auto; /* Allow scrolling within view */
         overflow-x: hidden;
     }
@@ -185,7 +190,8 @@ class GitToolsScreen(ModalScreen):
     #summary-output-widget,
     #review-output-widget {
         height: 1fr; /* Take remaining space */
-        margin-bottom: 0;
+        margin: 0;
+        padding: 0;
         border: round $accent;
     }
     /* Style the inner TerminalTextArea */

@@ -325,3 +325,69 @@ def is_git_installed() -> bool:
     except Exception as e:
         logger.error(f"Unexpected error checking git installation: {e}")
         return False
+
+def get_commit_history() -> List[Tuple[str, str]]:
+    """
+    Retrieves the last 20 commits from the git log.
+
+    Returns:
+        A list of tuples, where each tuple contains (commit_hash, commit_subject).
+        Returns an empty list if an error occurs.
+    """
+    try:
+        # --pretty=format:'%h|%s' -> %h: abbreviated commit hash, %s: subject
+        # -n 20 -> limit to 20 commits
+        log_output = subprocess.check_output(
+            ["git", "log", "--pretty=format:%h|%s", "-n", "100"],
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=10
+        ).strip()
+
+        if not log_output:
+            return []
+
+        commits = []
+        for line in log_output.splitlines():
+            parts = line.split('|', 1)
+            if len(parts) == 2:
+                commits.append((parts[0], parts[1]))
+        return commits
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to get git commit history. Error: {e.output.strip()}")
+        return []
+    except FileNotFoundError:
+        logger.error("Git command not found. Is git installed and in your PATH?")
+        return []
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while getting git commit history: {e}")
+        return []
+
+def get_commit_diff(commit_hash: str) -> Optional[str]:
+    """
+    Gets the diff and metadata for a specific commit hash.
+
+    Args:
+        commit_hash: The hash of the commit to show.
+
+    Returns:
+        The output of 'git show' as a string, or None if an error occurs.
+    """
+    command = ["git", "show", commit_hash]
+    try:
+        diff_output = subprocess.check_output(
+            command,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=15
+        )
+        return diff_output
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to get git show for '{commit_hash}' (exit code {e.returncode}): {e.output.strip()}")
+        return f"Error getting diff for {commit_hash}:\n{e.output.strip()}"
+    except FileNotFoundError:
+        logger.error("Git command not found. Is git installed and in your PATH?")
+        return "Error: Git command not found. Is git installed and in your PATH?"
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while getting git show for '{commit_hash}': {e}")
+        return f"An unexpected error occurred while getting diff for {commit_hash}:\n{e}"
