@@ -3,7 +3,7 @@ from textual import on
 from textual.app import App
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, RadioSet
-from textual.worker import Worker
+from textual.worker import Worker, WorkerState
 from textual.color import Color
 from jrdev.core.application import Application
 from jrdev import __version__
@@ -26,7 +26,7 @@ from jrdev.ui.tui.bordered_switcher import BorderedSwitcher
 from jrdev.ui.tui.file_deletion_screen import FileDeletionScreen
 from jrdev.ui.tui.settings_screen import SettingsScreen
 
-from typing import Any, Generator, Set
+from typing import Any, Generator, Set, List
 import logging
 logger = logging.getLogger("jrdev")
 
@@ -37,6 +37,7 @@ class JrDevUI(App[None]):
         super().__init__()
         self.settings_screen = None
         self.chat_tasks: Set[str] = set()
+        self.launched_workers: List[Worker] = []
 
     def compose(self) -> Generator[Any, None, None]:
         self.jrdev = Application()
@@ -162,6 +163,7 @@ class JrDevUI(App[None]):
 
         # pass input to jrdev core
         worker = self.run_worker(self.jrdev.process_input(text, task_id))
+        self.launched_workers.append(worker)
         if task_id:
             worker.name = task_id
             self.task_monitor.add_task(task_id, text, "")
@@ -183,6 +185,7 @@ class JrDevUI(App[None]):
         # The process_input method now handles adding the user message to the thread
         # and initiating the streaming response.
         worker = self.run_worker(self.jrdev.process_chat_input(text, task_id))
+        self.launched_workers.append(worker)
         if task_id:
             self.chat_tasks.add(task_id)
             worker.name = task_id
@@ -195,6 +198,7 @@ class JrDevUI(App[None]):
     async def run_command(self, event: CommandRequest) -> None:
         """Pass a command to the core app through a worker"""
         worker = self.run_worker(self.jrdev.process_input(event.command))
+        self.launched_workers.append(worker)
 
     def get_new_task_id(self) -> str:
         id = self.task_count
@@ -205,6 +209,11 @@ class JrDevUI(App[None]):
         worker = event.worker
         state = event.state
         self.task_monitor.worker_updated(worker, state)
+
+        # Clean up finished workers
+        if state in (WorkerState.SUCCESS, WorkerState.ERROR, WorkerState.CANCELLED):
+            if worker in self.launched_workers:
+                self.launched_workers.remove(worker)
 
     @on(TextualEvents.PrintMessage)
     def handle_print_message(self, event: TextualEvents.PrintMessage) -> None:
@@ -266,7 +275,9 @@ class JrDevUI(App[None]):
 
     @on(Button.Pressed, "#stop-button")
     def handle_stop_button(self) -> None:
-        self.workers.cancel_all()
+        for worker in self.launched_workers:
+            if worker:
+                worker.cancel()
 
     @on(Button.Pressed, "#button_profiles")
     def handle_profiles_pressed(self) -> None:
