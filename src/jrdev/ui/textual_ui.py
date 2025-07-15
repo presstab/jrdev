@@ -13,7 +13,6 @@ from jrdev.ui.tui.steps_screen import StepsScreen
 from jrdev.ui.tui.code_edit_screen import CodeEditScreen
 from jrdev.ui.tui.filtered_directory_tree import DirectoryWidget
 from jrdev.ui.tui.api_key_entry import ApiKeyEntry
-from jrdev.ui.tui.model_selection_widget import ModelSelectionWidget
 from jrdev.ui.tui.task_monitor import TaskMonitor
 from jrdev.ui.tui.terminal_output_widget import TerminalOutputWidget
 from jrdev.ui.tui.input_widget import CommandTextArea
@@ -47,10 +46,9 @@ class JrDevUI(App[None]):
         self.vlayout_terminal = Vertical()
         self.vlayout_right = Vertical()
         self.vlayout_left = Vertical()
-        self.terminal_output_widget = TerminalOutputWidget(id="terminal_output_container")
+        self.terminal_output_widget = TerminalOutputWidget(id="terminal_output_container", core_app=self.jrdev)
         self.task_monitor = TaskMonitor(self.jrdev)
         self.directory_widget = DirectoryWidget(core_app=self.jrdev, id="directory_widget")
-        self.model_list = ModelSelectionWidget(id="model_list")
         self.task_count = 0
         self.button_container = ButtonContainer(id="button_container")
         self.chat_list = ChatList(self.jrdev, id="chat_list")
@@ -70,7 +68,6 @@ class JrDevUI(App[None]):
                     yield self.chat_view
             with self.vlayout_right:
                 yield self.directory_widget
-                yield self.model_list
 
     async def on_mount(self) -> None:
         # init state of project context for chat widget
@@ -116,26 +113,18 @@ class JrDevUI(App[None]):
 
     async def _setup_models(self) -> None:
         """Initialize the models in the core app"""
-        models = self.jrdev.get_models()
-
-        # Set up the model list widget with the models
-        await self.model_list.setup_models(models)
-
-        # Set the current model as selected if available
-        if self.jrdev.state.model:
-            self.model_list.set_model_selected(self.jrdev.state.model)
-
-        self.model_list.styles.height = "50%"  # Relative to parent vlayout_right
+        self.chat_view.update_models()
+        self.terminal_output_widget.update_models()
 
     def _setup_styles(self) -> None:
         # directory widget styling
         self.directory_widget.border_title = "Project Files"
         self.directory_widget.styles.border = ("round", Color.parse("#5e5e5e"))
         self.directory_widget.styles.border_title_color = "#fabd2f"
-        self.directory_widget.styles.height = "50%"
+        self.directory_widget.styles.height = "100%"
         self.directory_widget.update_highlights()
 
-        self.button_container.border_title = "Settings"
+        self.button_container.border_title = "Go To"
         self.button_container.styles.border = ("round", Color.parse("#5e5e5e"))
         self.button_container.styles.border_title_color = "#fabd2f"
         self.chat_list.border_title = "Chats"
@@ -286,7 +275,7 @@ class JrDevUI(App[None]):
 
     @on(TextualEvents.ModelChanged)
     def handle_model_change(self, message: TextualEvents.ModelChanged) -> None:
-        self.model_list.set_model_selected(message.text)
+        self.chat_view.update_models()
 
     @on(RadioSet.Changed, "#model_list")
     def handle_model_selected(self, event: RadioSet.Changed) -> None:
@@ -294,8 +283,8 @@ class JrDevUI(App[None]):
 
     @on(TextualEvents.ModelListUpdated)
     async def handle_model_list_updated(self) -> None:
-        models = self.jrdev.get_models()
-        await self.model_list.update_models(models)
+        self.chat_view.update_models()
+        self.terminal_output_widget.update_models()
 
     @on(TextualEvents.ChatThreadUpdate)
     async def handle_chat_update(self, message: TextualEvents.ChatThreadUpdate) -> None:
@@ -364,6 +353,7 @@ class JrDevUI(App[None]):
             await self.settings_screen.models_widget.handle_models_updated()
 
     @on(ChatViewWidget.ShowTerminal)
+    @on(Button.Pressed, "#button_terminal")
     def handle_show_terminal(self) -> None:
         """Switch to terminal view"""
         self.content_switcher.current = "terminal_output_container"

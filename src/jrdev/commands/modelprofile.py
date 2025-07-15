@@ -99,6 +99,7 @@ def _handle_set(app: Any, args: List[str], manager: Any) -> None:
         app.ui.print_text(f"Failed to update profile '{profile}'", PrintType.ERROR)
     else:
         app.ui.print_text(f"Updated {profile} to use model: {model}")
+        app.ui.model_list_updated()
 
 
 async def _handle_subcommand(app: Any, subcommand: str, args: List[str], manager: Any) -> None:

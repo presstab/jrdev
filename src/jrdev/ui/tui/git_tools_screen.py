@@ -1,19 +1,22 @@
 import os
+
+from jrdev.ui.tui.command_request import CommandRequest
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, Container
 from textual.screen import ModalScreen
-from textual.widgets import Button, Label, Input, Static, MarkdownViewer, LoadingIndicator, ListView, ListItem
-from textual import on, work # Import work
-from textual.worker import Worker, WorkerState # Import WorkerState
+from textual.widgets import Button, Label, Input, Static, MarkdownViewer, LoadingIndicator, ListView
+from textual import on, work
+from textual.worker import Worker, WorkerState
 from typing import Any, Dict, Optional
 import logging
 
 from jrdev.commands.git_config import get_git_config, save_git_config, DEFAULT_GIT_CONFIG
 from jrdev.services.git_pr_service import generate_pr_analysis, GitPRServiceError
-from jrdev.file_operations.file_utils import JRDEV_ROOT_DIR # Import JRDEV_ROOT_DIR
-from jrdev.ui.tui.terminal_output_widget import TerminalOutputWidget # Import the new widget
-from jrdev.ui.tui.git_overview_widget import GitOverviewWidget # Import the new widget
+from jrdev.file_operations.file_utils import JRDEV_ROOT_DIR
+from jrdev.ui.tui.git_overview_widget import GitOverviewWidget
 from jrdev.utils.git_utils import is_git_installed
+from jrdev.ui.tui.model_listview import ModelListView
+from jrdev.ui.tui.terminal_output_widget import TerminalOutputWidget
 
 logger = logging.getLogger("jrdev")
 
@@ -210,11 +213,11 @@ class GitToolsScreen(ModalScreen):
         height: 1; /* Match button height */
         align-vertical: middle;
     }
-    #model-list {
+    #model-list-summary, #model-list-review {
         layer: top;
         width: auto;
         height: 10;
-        offset: 20 4;
+        border: round $accent;
     }
     .pr-buttons Button {
         margin-left: 1;
@@ -258,16 +261,15 @@ class GitToolsScreen(ModalScreen):
         self.active_view: str = "overview" # 'overview', 'configure', 'pr_summary', 'pr_review', 'help'
         self.pr_summary_vlayout = Vertical(id="pr-summary-view", classes="pr-view-container")
 
-        available_models = self.core_app.get_available_models()
-        model_items = []
-        self.models_text_width = 1
-        for model_name in available_models:
-            model_items.append(ListItem(Label(model_name), name=model_name))
-            if len(model_name) > self.models_text_width:
-                self.models_text_width = len(model_name)
-        self.model_list = ListView(*model_items, id="model-list")
-
-        self.model_list.visible = False
+        # Not ideal, but we have to manage two model_list popups for this class
+        self.model_btn_summary = Button(self.core_app.state.model, classes="select-model-btn", variant="primary", tooltip="Model used to generate summary")
+        self.model_list_summary = ModelListView(id="model-list-summary", core_app=self.core_app, model_button=self.model_btn_summary, above_button=False)
+        self.model_list_summary.visible = False
+        self.model_btn_review = Button(self.core_app.state.model, classes="select-model-btn", variant="primary",
+                                        tooltip="Model used to generate review")
+        self.model_list_review = ModelListView(id="model-list-review", core_app=self.core_app,
+                                                model_button=self.model_btn_review, above_button=False)
+        self.model_list_review.visible = False
 
     def compose(self) -> ComposeResult:
         with Vertical(id="git-tools-container"):
@@ -307,9 +309,10 @@ class GitToolsScreen(ModalScreen):
                     with self.pr_summary_vlayout:
                         yield Label("Generate PR Summary", classes="pr-view-title")
                         yield Input(id="summary-prompt-input", placeholder="Optional: Add custom instructions...", classes="pr-prompt-input")
+                        yield self.model_list_summary
                         with Horizontal(classes="pr-buttons", id="summary-buttons"):
                             yield Button("Generate Summary", id="generate-summary-btn", variant="primary")
-                            yield Button(self.core_app.state.model, classes="select-model-btn", variant="primary", tooltip="Model used to generate summary")
+                            yield self.model_btn_summary
                             # LoadingIndicator will be added here dynamically
                         yield TerminalOutputWidget(id="summary-output-widget", output_widget_mode=True)
 
@@ -317,22 +320,16 @@ class GitToolsScreen(ModalScreen):
                     with Vertical(id="pr-review-view", classes="pr-view-container"):
                         yield Label("Generate PR Review", classes="pr-view-title")
                         yield Input(id="review-prompt-input", placeholder="Optional: Add custom instructions...", classes="pr-prompt-input")
+                        yield self.model_list_review
                         with Horizontal(classes="pr-buttons", id="review-buttons"):
                             yield Button("Generate Review", id="generate-review-btn", variant="primary")
-                            yield Button(
-                                self.core_app.state.model,
-                                classes="select-model-btn",
-                                variant="primary",
-                                tooltip="Model used to generate review"
-                            )
+                            yield self.model_btn_review
                             # LoadingIndicator will be added here dynamically
                         yield TerminalOutputWidget(id="review-output-widget", output_widget_mode=True)
 
                     # Help View (Initially Hidden)
                     with Vertical(id="help-view"):
                         yield MarkdownViewer(id="help-markdown-viewer", show_table_of_contents=False)
-
-                    yield self.model_list
 
             # Footer (Common Close Button)
             with Horizontal(id="footer"): # Footer docked at the bottom of main container
@@ -444,9 +441,11 @@ class GitToolsScreen(ModalScreen):
         elif button_id == "btn-pr-summary":
             self.active_view = "pr_summary"
             self.query_one("#summary-prompt-input", Input).focus()
+            self.update_model_buttons(self.core_app.state.model)
         elif button_id == "btn-pr-review":
             self.active_view = "pr_review"
             self.query_one("#review-prompt-input", Input).focus()
+            self.update_model_buttons(self.core_app.state.model)
         elif button_id == "btn-help": # Handle help button
             self.active_view = "help"
             # No specific focus needed for help view
@@ -486,21 +485,28 @@ class GitToolsScreen(ModalScreen):
 
     @on(Button.Pressed, ".select-model-btn")
     def handle_model_select(self, event: Button.Pressed) -> None:
-        if self.model_list.visible:
-            self.model_list.visible = False
+        # popup the correct list
+        if event.button == self.model_btn_summary:
+            self.model_list_summary.set_visible(not self.model_list_summary.visible)
         else:
-            self.model_list.visible = True
-            self.model_list.styles.min_width = event.button.content_size.width
-            self.model_list.styles.max_width = self.models_text_width + 2
+            self.model_list_review.set_visible(not self.model_list_review.visible)
 
-    @on(ListView.Selected, "#model-list")
+    @on(ListView.Selected, "#model-list-summary, #model-list-review")
     def handle_model_selection(self, selected: ListView.Selected):
+        # send model update request to core app
         model_name = selected.item.name
-        self.core_app.set_model(model_name)
-        self.model_list.visible = False
+        self.post_message(CommandRequest(f"/model set {model_name}"))
+
+        # hide any visible selection lists
+        self.model_list_summary.set_visible(False)
+        self.model_list_review.set_visible(False)
+
+        # update model button labels
+        self.update_model_buttons(model_name)
+
+    def update_model_buttons(self, model_name: str) -> None:
         for btn in self.query(".select-model-btn"):
             btn.label = model_name
-
 
     # --- PR Summary View Handler ---
     @on(Button.Pressed, "#generate-summary-btn")
