@@ -71,7 +71,9 @@ class TerminalOutputWidget(Widget):
         self.output_widget_mode = output_widget_mode
         self.terminal_output = TerminalTextArea(_id="terminal_output")
         self.copy_button = Button(label="Copy Selection", id="copy_btn_term")
-        if not self.output_widget_mode:
+        if self.output_widget_mode:
+            self.copy_button.styles.layer = "bottom"
+        else:
             self.model_button = Button(label="Model", id="model_btn_term")
             if not core_app:
                 raise Exception("core app reference missing from terminal output widget")

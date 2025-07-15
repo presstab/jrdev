@@ -217,6 +217,7 @@ class GitToolsScreen(ModalScreen):
         layer: top;
         width: auto;
         height: 10;
+        border: round $accent;
     }
     .pr-buttons Button {
         margin-left: 1;
