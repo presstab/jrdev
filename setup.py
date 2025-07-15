@@ -45,7 +45,7 @@ setup(
     entry_points={
         "console_scripts": [
             "jrdev=jrdev.ui.textual_ui:run_textual_ui",
-            "jrdev-cli=jrdev.__main__:run_cli",
+            "jrdev-cli=jrdev.cli:run_cli",
         ],
     },
     classifiers=[
