@@ -1,22 +1,17 @@
-import argparse
-import asyncio
-from jrdev.ui.cli.cli_app import CliApp
-from .ui.ui import terminal_print, PrintType
+"""
+Main entry point for the jrdev package.
 
-def run_cli():
-    """Entry point for console script"""
-    parser = argparse.ArgumentParser(description="JrDev Terminal - LLM model interface")
-    parser.add_argument("--version", action="store_true", help="Show version information")
-    args = parser.parse_args()
+This script launches the Textual User Interface (TUI) by default when
+the package is executed as a module using `python -m jrdev`.
+"""
 
-    if args.version:
-        terminal_print("JrDev Terminal v0.1.0", PrintType.INFO)
-        return
+from .ui.textual_ui import run_textual_ui
 
-    try:
-        asyncio.run(CliApp().run())
-    except KeyboardInterrupt:
-        terminal_print("\nExiting JrDev terminal...", PrintType.INFO)
+
+def main():
+    """Launches the JrDev Textual UI."""
+    run_textual_ui()
+
 
 if __name__ == "__main__":
-    run_cli()
+    main()
