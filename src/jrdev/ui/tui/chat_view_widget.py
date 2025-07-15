@@ -4,7 +4,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.message import Message
 from textual.widget import Widget
-from textual.widgets import Button, Label, Input, Switch
+from textual.widgets import Button, Label, Input, Switch, ListView, ListItem
 from textual.color import Color
 from typing import Optional
 import logging
@@ -14,6 +14,7 @@ from jrdev.ui.textual_events import TextualEvents
 from jrdev.ui.tui.chat_input_widget import ChatInputWidget
 from jrdev.messages.thread import MessageThread, USER_INPUT_PREFIX
 from jrdev.ui.tui.message_bubble import MessageBubble
+from jrdev.ui.tui.model_listview import ModelListView
 
 logger = logging.getLogger("jrdev")
 
@@ -24,6 +25,7 @@ class ChatViewWidget(Widget):
 
     DEFAULT_CSS = """
     ChatViewWidget {
+        layers: bottom top;
         layout: vertical;
         height: 100%;
         min-height: 0;
@@ -60,9 +62,16 @@ class ChatViewWidget(Widget):
         color: #9b65ff; /* Match purplish color from filtered directory tree */
         text-style: italic;
     }
-    #terminal_button, #change_name_button, #delete_button {
+    #terminal_button {
         height: 1;
         width: auto;
+        max-width: 15;
+        margin-left: 1;
+    }
+    #change_name_button, #delete_button {
+        height: 1;
+        width: auto;
+        max-width: 10;
         margin-left: 1;
     }
     #context_switch {
@@ -77,6 +86,19 @@ class ChatViewWidget(Widget):
     #context_label:disabled {
         color: #365b2d;
     }
+    #chat-model-list {
+        border: round #63f554;
+        layer: top;
+        width: auto;
+        height: 10;
+    }
+    .chat-model-btn {
+        margin-left: 1;
+        border: none;
+        height: 100%;
+        min-width: 10;
+        max-width: 32;
+    }
     """
 
     def __init__(self, core_app, id: Optional[str] = None) -> None:
@@ -89,7 +111,11 @@ class ChatViewWidget(Widget):
         #controls and input
         self.layout_output = Vertical(id="chat_output_layout")
         self.layout_chat_controls = Horizontal(id="chat_controls_container")
-        self.terminal_button = Button(label="⇤ Terminal", id="terminal_button")
+        self.terminal_button = Button(label="⇤", id="terminal_button")
+        self.model_button = Button(label=core_app.state.model, id="model-button", variant="primary", classes="chat-model-btn", tooltip="Model used for chat responses")
+        self.models_text_width = 1
+        self.model_listview = ModelListView(id="chat-model-list", core_app=core_app, model_button=self.model_button, above_button=True)
+        self.model_listview.visible = False
         self.change_name_button = Button(label="Rename", id="change_name_button")
         self.delete_button = Button(label="Delete", id="delete_button")
         self.context_switch = Switch(value=False, id="context_switch", tooltip="When enabled, summarized information about the project is added as context to the chat, this includes select file summaries, file tree, and a project overview")
@@ -114,10 +140,12 @@ class ChatViewWidget(Widget):
             yield self.message_scroller
             with self.layout_chat_controls:
                 yield self.terminal_button
+                yield self.model_button
                 yield self.change_name_button
                 yield self.delete_button
                 yield self.context_switch
                 yield self.context_label
+            yield self.model_listview
             with Horizontal(id="chat_context_display_container"):
                 yield self.chat_context_title_label
                 yield self.chat_context_files_label
@@ -272,6 +300,16 @@ class ChatViewWidget(Widget):
         else:
             self.send_commands = True # Reset for next user interaction
 
+    @on(Button.Pressed, "#model-button")
+    def handle_model_pressed(self) -> None:
+        self.model_listview.set_visible(not self.model_listview.visible)
+
+    @on(ListView.Selected, "#chat-model-list")
+    def handle_model_selection(self, selected: ListView.Selected):
+        model_name = selected.item.name
+        self.post_message(CommandRequest(f"/model set {model_name}"))
+        self.model_listview.set_visible(False)
+
     @on(Button.Pressed, "#terminal_button")
     async def handle_show_terminal(self):
         if self.name_edit_mode:
@@ -298,23 +336,32 @@ class ChatViewWidget(Widget):
         if is_delete_mode:
             # prompt with are you sure you want to delete this thread?
             self.terminal_button.label = "Yes"
+            self.terminal_button.styles.width = "auto"
+            self.terminal_button.styles.max_width = 5
             self.change_name_button.label = "Cancel"
             self.delete_button.visible = False
             self.context_label.visible = False
             self.context_switch.visible = False
+            self.model_button.visible = False
+            self.model_button.styles.max_width = 0
 
             # detemine thread name
             self.label_delete_prompt = Label(f"Delete chat thread \"{self.current_thread_id}?\"")
             await self.layout_chat_controls.mount(self.label_delete_prompt, before=0)
         else:
             # return widgets to their normal state
-            self.terminal_button.label = "⇤ Terminal"
+            self.terminal_button.label = "⇤"
+            self.terminal_button.width = 5
             self.change_name_button.label = "Rename"
             self.delete_button.visible = True
             self.context_switch.visible = True
             self.context_label.visible = True
+            self.model_button.visible = True
+            self.model_button.styles.max_width = 15
             await self.label_delete_prompt.remove()
             self.label_delete_prompt = None
+
+        self.layout_chat_controls.refresh()
 
 
     @on(Button.Pressed, "#change_name_button")
@@ -338,7 +385,7 @@ class ChatViewWidget(Widget):
         self.name_edit_mode = is_edit_mode
         if is_edit_mode:
             self.input_name = Input(placeholder="Enter Name", id="input_name")
-            await self.layout_chat_controls.mount(self.input_name, after=1)
+            await self.layout_chat_controls.mount(self.input_name, after=2)
             self.input_name.styles.height = 1
             self.input_name.styles.margin = (0, 0, 1, 1)
             self.input_name.styles.padding = 0
@@ -348,26 +395,40 @@ class ChatViewWidget(Widget):
 
             # repurpose buttons
             self.terminal_button.label = "Cancel"
+            self.terminal_button.styles.width = "auto"
+            self.terminal_button.styles.max_width = 8
             self.change_name_button.label = "Save Name"
 
             # hide other elements
             self.delete_button.visible = False
             self.context_switch.visible = False
             self.context_label.visible = False
+
+            # have to set width to 0 to get alignment right
+            self.model_button.visible = False
+            self.model_button.styles.max_width = 0
         else:
             # return widgets to their normal state
-            self.terminal_button.label = "⇤ Terminal"
+            self.terminal_button.label = "⇤"
+            self.terminal_button.max_width = 5
             self.change_name_button.label = "Rename"
             self.delete_button.visible = True
             self.context_switch.visible = True
             self.context_label.visible = True
+            self.model_button.visible = True
+            self.model_button.styles.max_width = 15
             await self.input_name.remove()
             self.input_name = None
+
+        self.layout_chat_controls.refresh()
 
 
     async def on_thread_switched(self) -> None:
         """Called when the core application signals a thread switch."""
         await self._load_current_thread()
+
+    def update_models(self) -> None:
+        self.model_button.label = self.core_app.state.model
 
     def handle_external_update(self, is_enabled: bool) -> None:
         """Handles external updates to the project context state (e.g., from core app)."""

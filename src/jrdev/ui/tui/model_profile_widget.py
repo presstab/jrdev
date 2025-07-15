@@ -1,3 +1,4 @@
+from jrdev.ui.tui.command_request import CommandRequest
 from textual.widgets import Button, Label, RichLog
 from textual.containers import Vertical, Horizontal
 from textual.screen import ModalScreen
@@ -348,33 +349,20 @@ class ModelProfileScreen(ModalScreen):
         
         # Show the model selection modal
         models = self.core_app.get_models()
-        modal = ModelSelectionModal(self.selected_profile, current_model, models)
+        #modal = ModelSelectionModal(self.selected_profile, current_model, models)
 
         def save_profile_model(selected_model):
             if selected_model:
-                success = self.manager.update_profile(
-                    str(self.selected_profile),
-                    str(selected_model),
-                    self.core_app.state.model_list
+                self.post_message(
+                    CommandRequest(f"/modelprofile set {str(self.selected_profile)} {str(selected_model)}")
                 )
 
-                if success:
-                    # Update the profiles dictionary
-                    self.profiles[self.selected_profile] = selected_model
+                # Update the profiles dictionary
+                self.profiles[self.selected_profile] = selected_model
 
-                    # Update the content area
-                    self.update_content_area(self.selected_profile)
+                # Update the content area
+                self.update_content_area(self.selected_profile)
 
-                    # Show success message
-                    terminal_print(
-                        f"Updated profile '{self.selected_profile}' to use model '{selected_model}'",
-                        PrintType.SUCCESS
-                    )
-                else:
-                    terminal_print(
-                        f"Failed to update profile '{self.selected_profile}'",
-                        PrintType.ERROR
-                    )
 
         # push model screen with callback to save profile
         self.app.push_screen(ModelSelectionModal(self.selected_profile, current_model, models), save_profile_model)

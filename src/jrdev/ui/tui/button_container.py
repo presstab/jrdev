@@ -12,6 +12,7 @@ logger = logging.getLogger("jrdev")
 
 class ButtonContainer(Widget):
     BUTTONS = [
+        {"label": "Terminal", "id": "button_terminal"},
         {"label": "Profiles", "id": "button_profiles"},
         {"label": "Git Tools", "id": "git"},
         {"label": "Settings", "id": "button_settings"},

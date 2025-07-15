@@ -1,6 +1,7 @@
 import logging
 from typing import Any
 
+from jrdev.ui.tui.model_listview import ModelListView
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.widgets import (
@@ -215,7 +216,6 @@ class GitOverviewWidget(Static):
         layer: top;
         width: auto;
         height: 10;
-        offset: 20 3;
     }
     .commit-select-model-btn {
         margin-left: 1;
@@ -274,22 +274,19 @@ class GitOverviewWidget(Static):
 
     def _init_commit_model_selection(self):
         # Build the model list and button for commit view
-        available_models = self.core_app.get_available_models()
-        model_items = []
-        self.commit_models_text_width = 1
-        for model_name in available_models:
-            model_items.append(ListItem(Label(model_name), name=model_name))
-            if len(model_name) > self.commit_models_text_width:
-                self.commit_models_text_width = len(model_name)
-
-        self.commit_model_list = ListView(*model_items, id="commit-model-list")
-        self.commit_model_list.visible = False
         self.commit_model_btn = Button(
             self.core_app.state.model,
             classes="commit-select-model-btn",
             variant="primary",
             tooltip="Model used to generate commit message"
         )
+        self.commit_model_list = ModelListView(
+            id="commit-model-list",
+            core_app=self.core_app,
+            model_button=self.commit_model_btn,
+            above_button=False
+        )
+        self.commit_model_list.visible = False
 
     def compose(self) -> ComposeResult:
         """Compose the widget's layout."""
@@ -405,6 +402,8 @@ class GitOverviewWidget(Static):
         else:
             unstaged_list.styles.height = "1fr"
 
+        # also update current model
+        self.commit_model_btn.label = self.core_app.state.model
 
     @on(ListView.Selected)
     def show_diff(self, event: ListView.Selected) -> None:
@@ -665,13 +664,8 @@ class GitOverviewWidget(Static):
 
     # --- Model selection popup for commit view ---
     @on(Button.Pressed, ".commit-select-model-btn")
-    def handle_commit_model_select(self, event: Button.Pressed) -> None:
-        if self.commit_model_list.visible:
-            self.commit_model_list.visible = False
-        else:
-            self.commit_model_list.visible = True
-            self.commit_model_list.styles.min_width = event.button.content_size.width
-            self.commit_model_list.styles.max_width = self.commit_models_text_width + 2
+    def handle_commit_model_select(self) -> None:
+        self.commit_model_list.set_visible(not self.commit_model_list.visible)
 
     @on(ListView.Selected, "#commit-model-list")
     def handle_commit_model_selection(self, selected: ListView.Selected):
