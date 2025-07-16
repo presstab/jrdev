@@ -34,7 +34,11 @@ async def write_file_with_confirmation(app, filepath: str, content: str):
             display_diff(app, diff)
 
             while True:
-                response, message = await app.ui.prompt_for_confirmation("Apply these changes?", diff_lines=diff, error_msg=error_msg)
+                # Check if accept_all_mode is enabled, if so skip the prompt
+                if app.state.accept_all_mode:
+                    response, message = 'accept_all', None
+                else:
+                    response, message = await app.ui.prompt_for_confirmation("Apply these changes?", diff_lines=diff, error_msg=error_msg)
                 error_msg = None
 
                 if response in ['yes', 'accept_all']:
