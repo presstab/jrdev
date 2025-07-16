@@ -107,8 +107,12 @@ class CommandInterpretationAgent:
                 self.app.ui.print_text(f"Clarification needed: {question}", print_type=PrintType.LLM)
                 return None  # Halts execution, waits for next user input
             if decision == "summary":
-                summary = response_json.get("response", "")
-                self.app.ui.print_text(summary, print_type=PrintType.LLM)
+                try:
+                    summary = response_json.get("response", "")
+                    self.app.ui.print_text(summary, print_type=PrintType.LLM)
+                except Exception:
+                    #parsing failed, just dump raw
+                    self.app.ui.print_text(response_json, print_type=PrintType.LLM)
                 return None
             if decision == "chat":
                 # The LLM decided this is just a chat message, not a command.

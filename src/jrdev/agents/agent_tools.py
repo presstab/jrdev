@@ -1,4 +1,5 @@
 import os
+import subprocess
 from typing import Dict, List
 
 from jrdev.file_operations.confirmation import write_file_with_confirmation
@@ -11,6 +12,7 @@ tools_list: Dict[str, str] = {
     "src/model/data.py]",
     "get_file_tree": "Description: directory tree from the root of the project. Args: none",
     "write_file": "Description: write content to a file. Args: filename, content",
+    "terminal": "bash terminal. Args will be directly inputted into the Args: [any] Example Args: [\"git\", \"checkout\", \"-b\", \"new_feat\"]"
 }
 
 
@@ -27,3 +29,12 @@ def get_file_tree() -> str:
 async def write_file(app, filename: str, content: str) -> str:
     result, _ = await write_file_with_confirmation(app, filename, content)
     return f"File write operation completed with status: {result}"
+
+
+def terminal(args: List[str]) -> str:
+    return subprocess.check_output(
+        args,
+        stderr=subprocess.STDOUT,
+        text=True,
+        timeout=5
+    )

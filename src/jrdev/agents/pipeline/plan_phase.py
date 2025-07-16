@@ -40,6 +40,10 @@ class PlanPhase(Stage):
 
         # Send requested files and request STEPS to be created
         file_response = await self.request_step_plan(files_to_send, user_task)
+        if not file_response:
+            # empty response - happens sometimes.. try again
+            file_response = await self.request_step_plan(files_to_send, user_task)
+
         steps = None
         try:
             steps = await self.parse_steps(file_response, files_to_send)

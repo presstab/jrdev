@@ -106,6 +106,13 @@ class TextualEvents(UiWrapper):
             self.filepath = filepath
             self.future = future
 
+    class CommandConfirmationRequest(Message):
+        """Request confirmation for a terminal command"""
+        def __init__(self, command: str, future: asyncio.Future):
+            super().__init__()
+            self.command = command
+            self.future = future
+
     class ProvidersUpdate(Message):
         """List of providers has changed (edit/add/delete)"""
         pass
@@ -238,4 +245,19 @@ class TextualEvents(UiWrapper):
         deletion_future = asyncio.Future()
         self.app.post_message(self.DeletionRequest(filepath, deletion_future))
         result = await deletion_future
+        return result
+
+    async def prompt_for_command_confirmation(self, command: str) -> bool:
+        """
+        Prompt the user for confirmation before running a terminal command.
+
+        Args:
+            command: The command to be executed.
+
+        Returns:
+            bool: True if the user confirms execution, False otherwise.
+        """
+        confirmation_future = asyncio.Future()
+        self.app.post_message(self.CommandConfirmationRequest(command, confirmation_future))
+        result = await confirmation_future
         return result

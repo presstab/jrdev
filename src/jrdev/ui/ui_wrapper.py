@@ -135,3 +135,15 @@ class UiWrapper:
             bool: True if the user confirms deletion, False otherwise
         """
         raise NotImplementedError("Subclasses must implement prompt_for_deletion")
+
+    async def prompt_for_command_confirmation(self, command: str) -> bool:
+        """
+        Prompt the user for confirmation before running a terminal command.
+
+        Args:
+            command: The command to be executed.
+
+        Returns:
+            bool: True if the user confirms execution, False otherwise.
+        """
+        raise NotImplementedError("Subclasses must implement prompt_for_command_confirmation()")

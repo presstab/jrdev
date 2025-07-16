@@ -154,6 +154,8 @@ When multiple decisions could apply, use this priority:
 - **Be specific in reasoning** - explain what information you need and why
 - **Ask targeted questions** in clarify responses rather than open-ended ones
 - **Consider the user's expertise level** when providing explanations
+- **Split large tasks** into multiple structured rounds of /code, when one round is finished, assess the result, determine if it is complete, and launch the next /code command.
+- **Test results with the shell using the terminal tool** when necessary.
 
 ---
 

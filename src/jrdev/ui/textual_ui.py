@@ -20,6 +20,7 @@ from jrdev.ui.tui.button_container import ButtonContainer
 from jrdev.ui.tui.chat_list import ChatList
 from jrdev.ui.tui.model_profile_widget import ModelProfileScreen
 from jrdev.ui.tui.command_request import CommandRequest
+from jrdev.ui.tui.command_confirmation_screen import CommandConfirmationScreen
 from jrdev.ui.tui.chat_view_widget import ChatViewWidget
 from jrdev.ui.tui.bordered_switcher import BorderedSwitcher
 from jrdev.ui.tui.file_deletion_screen import FileDeletionScreen
@@ -248,6 +249,13 @@ class JrDevUI(App[None]):
     def handle_deletion_request(self, message: TextualEvents.DeletionRequest) -> None:
         """Handle a request for file deletion confirmation"""
         screen = FileDeletionScreen(message.filepath)
+        screen.future = message.future
+        self.push_screen(screen)
+
+    @on(TextualEvents.CommandConfirmationRequest)
+    def handle_command_confirmation_request(self, message: TextualEvents.CommandConfirmationRequest) -> None:
+        """Handle a request for command confirmation from the backend"""
+        screen = CommandConfirmationScreen(message.command)
         screen.future = message.future
         self.push_screen(screen)
 
