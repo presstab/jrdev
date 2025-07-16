@@ -54,8 +54,10 @@ When multiple decisions could apply, use this priority:
 3. **Copy User's Exact Language When Running `/code` Command** - the user expects you to give an unaltered `/code` command using their own language. A small tweak or interpretation of the user language may cause undesired results.
 
 ## Response Schema
+1. Responses must be wrapped in ```json``` markers. Parsing of your response will fail if this is not adhered to.
+2. No text, comments, or other characters should be in between the "```"json marker and the beggining of the json object. Likewise, no text, comments, or other characters should be between the end of the json object and the ending "```" 
 
-```typescript
+```json
 {
   decision: "execute_action" | "clarify" | "chat" | "summary",
   reasoning: string,  // Always required - explain your decision
@@ -79,8 +81,8 @@ When multiple decisions could apply, use this priority:
 ## Example Workflows
 
 ### Scenario 1: "Add error handling to the main function"
-```json
 // Step 1: Gather information
+```json
 {
   "decision": "execute_action",
   "reasoning": "I need to see the main function before I can add error handling to it.",
@@ -91,8 +93,10 @@ When multiple decisions could apply, use this priority:
   },
   "final_action": false
 }
+```
 
 // Step 2: Execute action (after seeing file contents)
+```json
 {
   "decision": "execute_action", 
   "reasoning": "Now I can see the main function and add appropriate error handling.",
