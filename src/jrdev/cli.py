@@ -41,12 +41,8 @@ def run_cli():
         terminal_print(f"JrDev Terminal v{__version__}", PrintType.INFO)
         return
 
-    if args.accept_all:
-        original_init = CodeAgent.__init__
-        def new_init(self, *init_args, **init_kwargs):
-            original_init(self, *init_args, **init_kwargs)
-            self.accept_all_active = True
-        CodeAgent.__init__ = new_init
+    # Store the accept_all flag to set on the app state later
+    accept_all_mode = args.accept_all
 
     # --- Main Logic: Decide between one-shot or REPL mode ---
     if args.instruction:
@@ -60,6 +56,10 @@ def run_cli():
             app = Application(ui_mode="cli")  # Use the CLI UI for simple stdout
             app.ui = CliEvents(app)
             app.setup()
+
+            # Set accept_all_mode if flag was provided
+            if accept_all_mode:
+                app.state.accept_all_mode = True
 
             # Initialize services like API clients
             if not await app.initialize_services():
