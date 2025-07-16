@@ -15,21 +15,23 @@ echo "--- Installing Python build tools ---"
 # Use python3's pip module to install the `build` package.
 python3 -m pip install --upgrade pip build
 
+pip install terminal-bench
+
 # The harness places the agent source code (your jrdev project) in the
 # working directory. We assume the current directory is the project root.
 echo "--- Building jrdev wheel from source ---"
 # Build the wheel using the standard build tool, which reads pyproject.toml.
-python3 -m build
+git clone --branch termbench --single-branch https://github.com/presstab/jrdev
+cd jrdev
+pip install -e .
 
 echo "--- Installing jrdev and its dependencies from the built wheel ---"
 # Use pip to install the generated wheel. The wildcard '*' handles the
 # dynamic version number in the filename (e.g., jrdev-0.1.7a0-py3-none-any.whl).
 # This command also automatically installs all dependencies listed in setup.py.
-pip install dist/jrdev-*.whl
+#pip install dist/jrdev-*.whl
 
 echo "--- jrdev installation complete ---"
-
-pip install terminal-bench
 
 # The abstract agent's `perform_task` method requires this exact string
 # in the output to confirm a successful installation.
