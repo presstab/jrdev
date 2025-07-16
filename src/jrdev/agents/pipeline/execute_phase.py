@@ -1,4 +1,5 @@
 import json
+import os
 from asyncio import CancelledError
 from typing import Any, Dict, List, Set, Tuple
 
@@ -83,14 +84,32 @@ class ExecutePhase(Stage):
             return []
 
         try:
-            # Use delete_with_confirmation function
-            response, _ = await delete_with_confirmation(self.app, filename)
-            if response == "yes":
-                return [filename]  # File was successfully deleted
+            if self.agent.accept_all_active:
+                self.app.ui.print_text(f"Deleting file (auto-accepted): {filename}", PrintType.INFO)
+                if not os.path.exists(filename):
+                    self.app.ui.print_text(f"File not found: {filename}", PrintType.WARNING)
+                    self.app.logger.warning(f"Attempted to delete non-existent file: {filename}")
+                    return []
 
-            # User cancelled deletion - track this separately and return special marker
-            self.agent.user_cancelled_deletions.append(filename)
-            return ["__STEP_CANCELLED_BY_USER__"]  # Signals success but no files changed
+                try:
+                    os.remove(filename)
+                    self.app.ui.print_text(f"File deleted: {filename}", PrintType.SUCCESS)
+                    self.app.logger.info(f"File successfully deleted (auto-accepted): {filename}")
+                    return [filename]
+                except OSError as e:
+                    error_msg = f"Failed to delete file {filename}: {e}"
+                    self.app.ui.print_text(error_msg, PrintType.ERROR)
+                    self.app.logger.error(f"Error deleting file {filename}: {e}", exc_info=True)
+                    return []
+            else:
+                # Use delete_with_confirmation function
+                response, _ = await delete_with_confirmation(self.app, filename)
+                if response == "yes":
+                    return [filename]  # File was successfully deleted
+
+                # User cancelled deletion - track this separately and return special marker
+                self.agent.user_cancelled_deletions.append(filename)
+                return ["__STEP_CANCELLED_BY_USER__"]  # Signals success but no files changed
         except Exception as e:
             self.app.ui.print_text(f"Failed to delete file {filename}: {str(e)}", PrintType.ERROR)
             return []

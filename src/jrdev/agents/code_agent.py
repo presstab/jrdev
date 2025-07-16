@@ -22,7 +22,7 @@ class CodeAgent:
         self.profile_manager = app.profile_manager()
         self.worker_id = worker_id
         self.sub_task_count = 0
-        self.accept_all_active = False  # Track if 'Accept All' is active for this instance
+        self.accept_all_active = app.state.accept_all_mode  # Track if 'Accept All' is active for this instance
         self.files_validated = False
         self.files_original: Dict[str, str] = {}  # Stores original file content: {filepath: content}
         self.user_cancelled_deletions: List[str] = []  # Stores filenames that user chose not to delete
