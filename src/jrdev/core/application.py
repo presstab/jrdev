@@ -520,8 +520,6 @@ class Application:
         if not user_input:
             return
 
-        restricted_commands = ["/init", "/migrate", "/keys"]
-
         if user_input.startswith("/"):
             command = Command(user_input, worker_id)
             result = await self.handle_command(command)
@@ -532,6 +530,7 @@ class Application:
         else:
             # Invoke the CommandInterpretationAgent
             self.ui.print_text("Interpreting your request...\n", print_type=PrintType.PROCESSING)
+            restricted_commands = ["/init", "/migrate", "/keys"]
             calls_made = []
             max_iter = self.user_settings.max_router_iterations
             i = 0
@@ -574,6 +573,18 @@ class Application:
                             filename = tool_call.args[0]
                             content = " ".join(tool_call.args[1:])
                             tool_call.result = await agent_tools.write_file(self, filename, content)
+                        elif tool_call.command == "get_project_summary":
+                            tool_call.result = agent_tools.get_project_summary(self)
+                        elif tool_call.command == "get_indexed_files_context":
+                            tool_call.result = agent_tools.get_indexed_files_context(self, tool_call.args)
+                        elif tool_call.command == "terminal":
+                            command_str = " ".join(tool_call.args)
+                            confirmed = await self.ui.prompt_for_command_confirmation(command_str)
+                            if confirmed:
+                                tool_call.result = agent_tools.terminal(tool_call.args)
+                            else:
+                                tool_call.result = "Terminal command execution cancelled by user."
+                                self.ui.print_text("Command execution cancelled.", PrintType.INFO)
                     except Exception as e:
                         error_message = f"Error executing tool '{tool_call.command}': {str(e)}"
                         self.logger.error(f"Tool execution failed: {error_message}", exc_info=True)

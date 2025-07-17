@@ -28,6 +28,7 @@ async def handle_routeragent(app: Any, args: List[str], _worker_id: str):
         app.ui.print_text(
             "Manages settings for the router agent.\n"
             "Usage:\n"
+            "  /routeragent clear - Clear router agent's conversation thread and context.",
             "  /routeragent set-max-iter <number> - Set max iterations for the agent.",
             print_type=PrintType.INFO,
         )

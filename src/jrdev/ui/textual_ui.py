@@ -251,6 +251,12 @@ class JrDevUI(App[None]):
         screen.future = message.future
         self.push_screen(screen)
 
+    @on(TextualEvents.CommandConfirmationRequest)
+    async def handle_command_confirmation_request(self, message: TextualEvents.CommandConfirmationRequest) -> None:
+        """Handle a request for command confirmation from the backend"""
+        self.content_switcher.current = "terminal_output_container"
+        await self.terminal_output_widget.show_confirmation(message.command, message.future)
+
     @on(TextualEvents.EnterApiKeys)
     def handle_enter_api_keys(self, message: TextualEvents.EnterApiKeys) -> None:
         def check_keys(keys: dict):
