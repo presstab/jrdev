@@ -520,8 +520,6 @@ class Application:
         if not user_input:
             return
 
-        restricted_commands = ["/init", "/migrate", "/keys"]
-
         if user_input.startswith("/"):
             command = Command(user_input, worker_id)
             result = await self.handle_command(command)
@@ -532,6 +530,7 @@ class Application:
         else:
             # Invoke the CommandInterpretationAgent
             self.ui.print_text("Interpreting your request...\n", print_type=PrintType.PROCESSING)
+            restricted_commands = ["/init", "/migrate", "/keys"]
             calls_made = []
             max_iter = self.user_settings.max_router_iterations
             i = 0

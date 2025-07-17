@@ -1,8 +1,10 @@
+import math
+
 from textual.message import Message
 from textual.widget import Widget
-from textual.widgets import Label, Button, RichLog
-from textual.containers import Vertical, Horizontal, VerticalScroll
-from typing import Any, Generator, Optional
+from textual.widgets import Button, RichLog
+from textual.containers import Horizontal, VerticalScroll
+from typing import Optional
 import asyncio
 
 class CommandConfirmationWidget(Widget):
@@ -39,9 +41,9 @@ class CommandConfirmationWidget(Widget):
 
     #richlog-confirmation {
         border: none;
-        height: 3;
         margin: 0;
         padding: 0;
+        overflow-y: auto;
     }
     """
 
@@ -49,7 +51,7 @@ class CommandConfirmationWidget(Widget):
         super().__init__()
         self.command = command
         self.future: Optional[asyncio.Future] = None
-        self.richlog = RichLog(id="richlog-confirmation", markup=True)
+        self.richlog = RichLog(id="richlog-confirmation", markup=True, wrap=True)
 
     def compose(self):
         with VerticalScroll(id="vlayout_main"):
@@ -60,9 +62,17 @@ class CommandConfirmationWidget(Widget):
 
     def on_mount(self) -> None:
         self.query_one("#yes-button").focus()
-        self.richlog.write("[bold]JrDev is requesting to run the following shell command:[/bold]")
-        self.richlog.write(f"[bold yellow]{self.command}[/bold yellow]")
-        self.richlog.write("Do you want to allow this?")
+        line_width = max(1, self.parent.parent.virtual_size.width - 3)
+        self.richlog.write("[bold]JrDev is requesting to run the following shell command:[/bold]", line_width)
+        self.richlog.write(f"[bold yellow]{self.command}[/bold yellow]", line_width)
+        self.richlog.write("Do you want to allow this?", line_width)
+
+        # manually set max heights based on line wrapping
+        chars = len(self.command)
+        wrapped_lines = math.ceil(float(chars) / float(line_width))
+        rl_height = wrapped_lines + 2
+        self.richlog.styles.max_height = rl_height
+        self.parent.styles.max_height = rl_height + 4
 
     class Result(Message):
         """Send User Click Result"""
