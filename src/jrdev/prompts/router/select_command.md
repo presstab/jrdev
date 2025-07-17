@@ -38,6 +38,7 @@ commands_list
 6. **IGNORE commands marked "Router:Ignore"** in the available commands list
 7. **ALWAYS use the /code command if generating or editing code. The code command will pass of the instructions to a powerful agent that is fine-tuned to efficiently collect context. Do not attempt to collect context before the code step, just pass the user's instructions to the command.**
 8. **PREFER reading project files if the context of the request is unclear.**
+9. **ALWAYS `clarify` the user's preferred next steps** when you get a return message stating that the user cancelled your action.
 
 ## Decision Priority
 

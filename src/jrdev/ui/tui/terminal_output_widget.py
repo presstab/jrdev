@@ -1,15 +1,17 @@
+from jrdev.ui.tui.command_confirmation_widget import CommandConfirmationWidget
 from jrdev.ui.tui.command_request import CommandRequest
 from jrdev.ui.tui.model_listview import ModelListView
 from textual import events, on
 from textual.app import ComposeResult
 from textual.color import Color
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, Container
 from textual.geometry import Offset
 from textual.widget import Widget
 from textual.widgets import Button
-from typing import Optional
+from typing import Optional, Callable
 import logging
 import pyperclip
+import asyncio
 
 from jrdev.ui.tui.input_widget import CommandTextArea
 from jrdev.ui.tui.terminal_text_area import TerminalTextArea
@@ -63,6 +65,19 @@ class TerminalOutputWidget(Widget):
     #terminal_output, #cmd_input {
         layer: bottom;
     }
+    #confirmation-container {
+        layer: bottom;
+        border: round red;
+        height: 1fr;
+        max-height: 7;
+        width: 100%;
+        overflow-y: auto;
+    }
+    CommandConfirmationWidget {
+        layer: bottom;
+        height: auto;
+        width: auto;
+    }
     """
 
     def __init__(self, id: Optional[str] = None, output_widget_mode=False, core_app=None) -> None:
@@ -87,6 +102,9 @@ class TerminalOutputWidget(Widget):
             self.model_listview.set_visible(False)
             self.terminal_input = CommandTextArea(placeholder="Enter Command", id="cmd_input")
         self.layout_output = Vertical(id="vlayout_output")
+        self.confirmation_container = Container(id="confirmation-container")
+        self.confirmation_container.display = False
+        self.command_confirmation_future = None
 
     def compose(self) -> ComposeResult:
         with self.layout_output:
@@ -98,6 +116,9 @@ class TerminalOutputWidget(Widget):
                 with Horizontal(id="button-layout"):
                     yield self.copy_button
                     yield self.model_button
+        
+        yield self.confirmation_container
+
         if not self.output_widget_mode:
             yield self.terminal_input
 
@@ -168,3 +189,27 @@ class TerminalOutputWidget(Widget):
 
     def clear_input(self):
         self.terminal_input.value = ""
+
+    async def show_confirmation(self, command: str, future: asyncio.Future) -> None:
+        """Shows a command confirmation widget in the terminal."""
+        await self.confirmation_container.remove_children()
+        self.command_confirmation_future = future
+
+        widget = CommandConfirmationWidget(command=command)
+        self.confirmation_container.display = True
+        await self.confirmation_container.mount(widget)
+        widget.focus()
+
+    @on(CommandConfirmationWidget.Result)
+    async def confirmation_callback(self, result: CommandConfirmationWidget.Result) -> None:
+        """Callback to handle the user's choice."""
+        if self.command_confirmation_future:
+            if not self.command_confirmation_future.done():
+                self.command_confirmation_future.set_result(result.allow)
+
+        # cleanup
+        await self.confirmation_container.remove_children()
+        self.confirmation_container.display = False
+        if not self.output_widget_mode:
+            self.terminal_input.focus()
+        self.command_confirmation_future = None

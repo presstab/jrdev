@@ -12,7 +12,11 @@ tools_list: Dict[str, str] = {
     "src/model/data.py]",
     "get_file_tree": "Description: directory tree from the root of the project. Args: none",
     "write_file": "Description: write content to a file. Args: filename, content",
-    "terminal": "bash terminal. Args will be directly inputted into the Args: [any] Example Args: [\"git\", \"checkout\", \"-b\", \"new_feat\"]"
+    "terminal": """
+        Description: Bash terminal. Args are directly inputted into the shell.
+        Args: [any] Example Args: [\"git\", \"checkout\", \"-b\", \"new_feat\"]
+        Results: Result can either be 1) the string output of the shell, or 2) if the user cancels the tool, a cancellation message. 
+    """
 }
 
 

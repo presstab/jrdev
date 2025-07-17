@@ -1,6 +1,4 @@
-Screen {
-    background: #1e1e1e;
-}
+
 ToastRack {
     dock: top;
 }
@@ -94,7 +92,7 @@ RadioSet {
 }
 
 /* Apply consistent scrollbar styling */
-TaskMonitor, ModelSelectionWidget, #diff-display, TerminalTextArea, #cmd_input, DirectoryTree, VerticalScroll, ChatInputWidget, FilteredDirectoryTree, DirectoryWidget, ListView, RichLog {
+TaskMonitor, ModelSelectionWidget, #diff-display, TerminalTextArea, #cmd_input, DirectoryTree, VerticalScroll, ChatInputWidget, FilteredDirectoryTree, DirectoryWidget, ListView, RichLog, Container {
     scrollbar-background: #1e1e1e;
     scrollbar-background-hover: #1e1e1e;
     scrollbar-background-active: #1e1e1e;
