@@ -20,24 +20,16 @@ tools_list: Dict[str, str] = {
             1. Verify Directory - Use ls (or similar low compute command) to identify directory and files if your task requires file or directory operations.
             2. Quote file paths that contain spaces. Example: src/main writeup.txt should be \"src/main writeup.txt\"
     """,
-    "get_project_summary": "Description: Returns the project's high-level overview and coding conventions. Args: none",
-    "get_indexed_files_context": "Description: Returns summaries for files indexed by the project. Args: (optional) file_paths: list[str]. If omitted, returns all indexed file summaries.",
+    "get_indexed_files_context": """
+        Description: This project has key files summarized in a compact, token-efficient format. When needing to understand large scopes of the project, begin with these summaries.
+        Args: (optional) file_paths: list[str]. If omitted, returns all indexed file summaries.
+        Results: Summaries for files indexed by the project.
+    """,
 }
 
 
 def read_files(files: List[str]) -> str:
     return get_file_contents(files)
-
-
-def get_project_summary(app: Any) -> str:
-    """
-    Gets the project summary, including overview and conventions.
-    """
-    if not hasattr(app, "state") or not hasattr(app.state, "project_files"):
-        return "Error: Project files not configured in application state."
-
-    project_files = app.state.project_files.values()
-    return get_file_contents(list(project_files))
 
 
 def get_indexed_files_context(app: Any, files: Optional[List[str]] = None) -> str:
