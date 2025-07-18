@@ -28,17 +28,22 @@ def stream_request(app, model, messages, task_id=None, print_stream=True, json_o
         )
 
 
-@retry_stream(max_attempts=2)
 async def generate_llm_response(app, model, messages, task_id=None, print_stream=True, json_output=False, max_output_tokens=None) -> str:
     """
     Streams the LLM response, applies retry logic and <think> tag filtering,
     and returns the complete response as a string.
     """
-    llm_response_stream = stream_request(app, model, messages, task_id, print_stream, json_output, max_output_tokens)
-    filtered_stream = filter_think_tags(llm_response_stream)
+    
+    @retry_stream(max_attempts=2)
+    async def _stream_with_retry():
+        llm_response_stream = stream_request(app, model, messages, task_id, print_stream, json_output, max_output_tokens)
+        filtered_stream = filter_think_tags(llm_response_stream)
 
+        async for chunk in filtered_stream:
+            yield chunk
+    
     response_accumulator = ""
-    async for chunk in filtered_stream:
+    async for chunk in _stream_with_retry():
         response_accumulator += chunk
 
     return response_accumulator
