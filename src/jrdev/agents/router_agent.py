@@ -84,12 +84,30 @@ class CommandInterpretationAgent:
             response_json = json.loads(json_content)
         except (json.JSONDecodeError, KeyError) as e:
             self.logger.error(
-                f"Failed to parse router LLM response: {e}\nResponse:\n {response_text}\nRaw:\n{json_content}")
+                f"Failed to parse router LLM response - running salvage: {e}\nResponse:\n {response_text}\nRaw:\n{json_content}")
             self.app.ui.print_text(
-                "Sorry, I had trouble understanding that. Please try rephrasing or use a direct /command.",
+                "Rephrasing response...",
                 print_type=PrintType.ERROR,
             )
-            return None
+
+            # run a salvage
+            salvage_builder = MessageBuilder(self.app)
+            salvage_prompt = PromptManager().load("router/salvage_response")
+            salvage_builder.add_system_message(salvage_prompt)
+            salvage_builder.add_user_message(response_text)
+
+            salvage_model = self.app.profile_manager().get_model("quick_reasoning")
+            response_text = await generate_llm_response(self.app, salvage_model, salvage_builder.build(), task_id=worker_id)
+
+            try:
+                json_content = cutoff_string(response_text, "```json", "```")
+                response_json = json.loads(json_content)
+            except (json.JSONDecodeError, KeyError) as e2:
+                self.logger.error(f"Failed to parse router JSON response{e2}\nResponse:\n {response_text}\n")
+                msg = "Sorry, I had issues parsing my response. Do you want to try again?"
+                self.thread.messages.append({"role": "assistant", "content": msg})
+                self.app.ui.print_text(msg, print_type=PrintType.ERROR)
+                return None
 
         # Add the structured assistant response to history *after* successful parsing.
         # The content is the JSON string of the decision.
