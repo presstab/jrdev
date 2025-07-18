@@ -42,7 +42,9 @@ setup(
         "tiktoken",
         "pyperclip",
         "anthropic",
-        "ddgs"
+        "ddgs",
+        "markdownify",
+        "httpx"
     ],
     entry_points={
         "console_scripts": [

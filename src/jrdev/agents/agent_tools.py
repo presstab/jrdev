@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 from jrdev.file_operations.confirmation import write_file_with_confirmation
 from jrdev.file_operations.file_utils import get_file_contents
 from jrdev.prompts.prompt_utils import PromptManager
+from jrdev.services.web_scrape_service import WebScrapeService
 from jrdev.services.web_search_service import WebSearchService
 from jrdev.utils.treechart import generate_compact_tree
 
@@ -17,6 +18,11 @@ tools_list: Dict[str, str] = {
         Description: searches the web for a query
         Args: list[str] | The first element of the list packs the entire search query string. All other elements ignored.
         Results: List of url's and a summary of their match.
+    """,
+    "web_scrape_url": """
+        Description: attempts to download the content from the provided url and clean it up into a readable format. This can fail if the website has measures taken against machine readability.
+        Args: list[str] | The first element of the list is the full url. All other elements ignored.
+        Results: Website content converted to markdown format.
     """,
     "terminal": """
         Description: Bash terminal access using python subprocess.check_output(args[0], shell=True).
@@ -75,8 +81,16 @@ def terminal(args: List[str]) -> str:
         shell=True
     )
 
+
 def web_search(args: List[str]) -> str:
     if not args:
         return ""
     service = WebSearchService()
     return str(service.search(args[0]))
+
+
+async def web_scrape_url(args: List[str]) -> str:
+    if not args:
+        return ""
+
+    return await WebScrapeService().fetch_and_convert(args[0])
