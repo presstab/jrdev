@@ -26,6 +26,7 @@ setup(
         "jrdev.prompts.conversation": ["*.md"],
         "jrdev.prompts.files": ["*.md"],
         "jrdev.prompts.git": ["*.md"],
+        "jrdev.prompts.router": ["*.md"],
         "jrdev.ui": ["*.tcss"],
         "jrdev.ui.tui": ["*.tcss"],
         "jrdev.config": ["*.json"],
@@ -40,7 +41,8 @@ setup(
         "textual[syntax]>=0.40.0",
         "tiktoken",
         "pyperclip",
-        "anthropic"
+        "anthropic",
+        "ddgs"
     ],
     entry_points={
         "console_scripts": [
@@ -56,6 +58,8 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
     python_requires=">=3.7",
     license='MIT'
