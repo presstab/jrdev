@@ -80,6 +80,15 @@ class MessageBuilder:
                 for aliases in self.app.state.context_manager.get_index_paths():
                     self.add_index_file(aliases[0], aliases[1])
 
+    def add_project_summary(self):
+        """Add the project summary"""
+        if self.app and hasattr(self.app.state, "project_files"):
+            if "overview" in self.app.state.project_files:
+                file_path = self.app.state.project_files["overview"]
+                if os.path.exists(file_path) and os.path.isfile(file_path):
+                    self.project_files.add(file_path)
+
+
     def add_tree(self):
         self.include_tree = True
 

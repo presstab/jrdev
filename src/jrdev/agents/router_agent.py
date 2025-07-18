@@ -51,6 +51,7 @@ class CommandInterpretationAgent:
         select_action_prompt = select_action_prompt.replace("tools_list", self._get_formatted_tools())
         select_action_prompt = select_action_prompt.replace("commands_list", self._get_formatted_commands())
         builder.add_system_message(select_action_prompt)
+        builder.add_project_summary()
 
         # Add the actual user request
         builder.append_to_user_section(user_input)
@@ -81,51 +82,52 @@ class CommandInterpretationAgent:
         try:
             json_content = cutoff_string(response_text, "```json", "```")
             response_json = json.loads(json_content)
-
-            # Add the structured assistant response to history *after* successful parsing.
-            # The content is the JSON string of the decision.
-            self.thread.messages.append(
-                {"role": "assistant", "content": json.dumps(response_json, indent=2)}
-            )
-
-            decision = response_json.get("decision")
-
-            if decision == "execute_action":
-                action = response_json.get("action")
-                action_type = action.get("type")
-                final_command = bool(response_json.get("final_command", False))
-                reasoning = response_json.get("reasoning", "")
-                return ToolCall(
-                    action_type=action_type,
-                    command=action["name"],
-                    args=action["args"],
-                    reasoning=reasoning,
-                    has_next=not final_command,
-                )
-            if decision == "clarify":
-                question = response_json.get("question")
-                self.app.ui.print_text(f"Clarification needed: {question}", print_type=PrintType.LLM)
-                return None  # Halts execution, waits for next user input
-            if decision == "summary":
-                try:
-                    summary = response_json.get("response", "")
-                    self.app.ui.print_text(summary, print_type=PrintType.LLM)
-                except Exception:
-                    #parsing failed, just dump raw
-                    self.app.ui.print_text(response_json, print_type=PrintType.LLM)
-                return None
-            if decision == "chat":
-                # The LLM decided this is just a chat message, not a command.
-                # We can optionally have it return the chat response directly.
-                chat_response = response_json.get("response")
-                self.app.ui.print_text(chat_response, print_type=PrintType.LLM)
-                return None
         except (json.JSONDecodeError, KeyError) as e:
-            self.logger.error(f"Failed to parse router LLM response: {e}\nResponse:\n {response_text}\nRaw:\n{json_content}")
+            self.logger.error(
+                f"Failed to parse router LLM response: {e}\nResponse:\n {response_text}\nRaw:\n{json_content}")
             self.app.ui.print_text(
                 "Sorry, I had trouble understanding that. Please try rephrasing or use a direct /command.",
                 print_type=PrintType.ERROR,
             )
+            return None
+
+        # Add the structured assistant response to history *after* successful parsing.
+        # The content is the JSON string of the decision.
+        self.thread.messages.append(
+            {"role": "assistant", "content": json.dumps(response_json, indent=2)}
+        )
+
+        decision = response_json.get("decision")
+
+        if decision == "execute_action":
+            action = response_json.get("action")
+            action_type = action.get("type")
+            final_command = bool(response_json.get("final_command", False))
+            reasoning = response_json.get("reasoning", "")
+            return ToolCall(
+                action_type=action_type,
+                command=action["name"],
+                args=action["args"],
+                reasoning=reasoning,
+                has_next=not final_command,
+            )
+        if decision == "clarify":
+            question = response_json.get("question")
+            self.app.ui.print_text(f"Clarification needed: {question}", print_type=PrintType.LLM)
+            return None  # Halts execution, waits for next user input
+        if decision == "summary":
+            try:
+                summary = response_json.get("response", "")
+                self.app.ui.print_text(summary, print_type=PrintType.LLM)
+            except Exception:
+                #parsing failed, just dump raw
+                self.app.ui.print_text(response_json, print_type=PrintType.LLM)
+            return None
+        if decision == "chat":
+            # The LLM decided this is just a chat message, not a command.
+            # We can optionally have it return the chat response directly.
+            chat_response = response_json.get("response")
+            self.app.ui.print_text(chat_response, print_type=PrintType.LLM)
             return None
 
         return None
