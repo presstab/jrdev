@@ -573,8 +573,8 @@ class Application:
                             filename = tool_call.args[0]
                             content = " ".join(tool_call.args[1:])
                             tool_call.result = await agent_tools.write_file(self, filename, content)
-                        elif tool_call.command == "get_project_summary":
-                            tool_call.result = agent_tools.get_project_summary(self)
+                        elif tool_call.command == "web_search":
+                            tool_call.result = agent_tools.web_search(tool_call.args)
                         elif tool_call.command == "get_indexed_files_context":
                             tool_call.result = agent_tools.get_indexed_files_context(self, tool_call.args)
                         elif tool_call.command == "terminal":

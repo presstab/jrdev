@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 from jrdev.file_operations.confirmation import write_file_with_confirmation
 from jrdev.file_operations.file_utils import get_file_contents
 from jrdev.prompts.prompt_utils import PromptManager
+from jrdev.services.web_search_service import WebSearchService
 from jrdev.utils.treechart import generate_compact_tree
 
 tools_list: Dict[str, str] = {
@@ -12,6 +13,11 @@ tools_list: Dict[str, str] = {
     "src/model/data.py]",
     "get_file_tree": "Description: directory tree from the root of the project. Args: none",
     "write_file": "Description: write content to a file. Args: filename, content",
+    "web_search": """
+        Description: searches the web for a query
+        Args: list[str] | The first element of the list packs the entire search query string. All other elements ignored.
+        Results: List of url's and a summary of their match.
+    """,
     "terminal": """
         Description: Bash terminal access using python subprocess.check_output(args[0], shell=True).
         Args: list[str] | The first element of the list packs the entire command and args. All other elements ignored. Example Args: [\"git checkout -b new_feat\"]
@@ -68,3 +74,9 @@ def terminal(args: List[str]) -> str:
         timeout=30,
         shell=True
     )
+
+def web_search(args: List[str]) -> str:
+    if not args:
+        return ""
+    service = WebSearchService()
+    return str(service.search(args[0]))
