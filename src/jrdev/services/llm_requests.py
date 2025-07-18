@@ -4,6 +4,7 @@ from typing import AsyncIterator
 from jrdev.services import provider_factory
 from jrdev.services.streaming.anthropic_streamer import AnthropicStreamer
 from jrdev.services.streaming.openai_streamer import OpenAIStreamer
+from jrdev.services.request_wrapper import retry_stream, filter_think_tags
 
 
 def stream_request(app, model, messages, task_id=None, print_stream=True, json_output=False, max_output_tokens=None) -> AsyncIterator[str]:
@@ -27,44 +28,17 @@ def stream_request(app, model, messages, task_id=None, print_stream=True, json_o
         )
 
 
-async def generate_llm_response(app, model, messages, task_id=None, print_stream=True, json_output=False, max_output_tokens=None, attempts=0):
-    # Stream response from LLM and return the full response string
-    try:
-        llm_response_stream = stream_request(app, model, messages, task_id, print_stream, json_output, max_output_tokens)
+@retry_stream(max_attempts=2)
+async def generate_llm_response(app, model, messages, task_id=None, print_stream=True, json_output=False, max_output_tokens=None) -> str:
+    """
+    Streams the LLM response, applies retry logic and <think> tag filtering,
+    and returns the complete response as a string.
+    """
+    llm_response_stream = stream_request(app, model, messages, task_id, print_stream, json_output, max_output_tokens)
+    filtered_stream = filter_think_tags(llm_response_stream)
 
-        response_accumulator = ""
-        first_chunk = True
-        in_think = False
-        thinking_finish = False
-        async for chunk in llm_response_stream:
-            # filter out thinking
-            if first_chunk:
-                first_chunk = False
-                if chunk == "<think>":
-                    in_think = True
-                else:
-                    response_accumulator += chunk
-            elif in_think:
-                if chunk == "</think>":
-                    in_think = False
-                    thinking_finish = True
-            else:
-                if thinking_finish:
-                    # often the first chunks after thinking will be new lines
-                    while chunk.startswith("\n"):
-                        chunk = chunk.removeprefix("\n")
-                    thinking_finish = False
+    response_accumulator = ""
+    async for chunk in filtered_stream:
+        response_accumulator += chunk
 
-                response_accumulator += chunk
-
-        return response_accumulator
-    except CancelledError:
-        # worker.cancel() should kill everything
-        raise
-    except Exception as e:
-        app.logger.error(f"generate_llm_response: {e}")
-        if attempts < 1:
-            # try again
-            app.logger.info("Attempting LLM stream again")
-            attempts += 1
-            return await generate_llm_response(app, model, messages, task_id, print_stream, json_output, max_output_tokens, attempts)
+    return response_accumulator
