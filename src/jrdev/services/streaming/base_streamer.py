@@ -4,15 +4,16 @@ from typing import Any, AsyncIterator, Dict, List
 
 import tiktoken
 
-from jrdev.core.usage import get_instance
+from jrdev.core.usage import get_token_tracker_instance
 
 
 class BaseStreamer(ABC):
     """Abstract base class for LLM provider streamers."""
 
-    def __init__(self, app: Any):
-        self.app = app
-        self.logger = app.logger
+    def __init__(self, logger: Any, ui: Any, usageTracker: Any):
+        self.logger = logger
+        self.ui = ui
+        self.usageTracker = usageTracker
         self.token_encoder = tiktoken.get_encoding("cl100k_base")
         self.log_interval = 100
         self.ui_update_interval = 10
@@ -37,7 +38,7 @@ class BaseStreamer(ABC):
             return
         try:
             input_token_estimate = self._estimate_input_tokens(messages, system_message)
-            self.app.ui.update_task_info(task_id, update={"input_token_estimate": input_token_estimate, "model": model})
+            self.ui.update_task_info(task_id, update={"input_token_estimate": input_token_estimate, "model": model})
         except Exception as e:
             self.logger.error(f"Error estimating input tokens: {e}")
 
@@ -58,7 +59,7 @@ class BaseStreamer(ABC):
             if chunk_count > 0 and chunk_count % self.ui_update_interval == 0:
                 elapsed = time.time() - stream_start_time
                 tps = (output_tokens_estimate / elapsed) if elapsed > 0 else 0
-                self.app.ui.update_task_info(
+                self.ui.update_task_info(
                     worker_id=task_id,
                     update={"output_token_estimate": output_tokens_estimate, "tokens_per_second": tps}
                 )
@@ -101,11 +102,11 @@ class BaseStreamer(ABC):
         )
 
         if output_tokens > 0:
-            await get_instance().add_use(model, input_tokens, output_tokens)
+            await self.usageTracker.add_use(model, input_tokens, output_tokens)
 
         if task_id:
             tps = round(final_output_tokens / stream_elapsed, 2) if stream_elapsed > 0 else 0
-            self.app.ui.update_task_info(
+            self.ui.update_task_info(
                 worker_id=task_id,
                 update={
                     "input_tokens": input_tokens,

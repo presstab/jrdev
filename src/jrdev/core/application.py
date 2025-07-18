@@ -13,6 +13,7 @@ from jrdev.core.clients import APIClients
 from jrdev.core.commands import Command, CommandHandler
 from jrdev.core.state import AppState
 from jrdev.core.tool_call import ToolCall
+from jrdev.core.usage import get_token_tracker_instance
 from jrdev.core.user_settings import UserSettings
 from jrdev.file_operations.file_utils import (JRDEV_DIR, JRDEV_PACKAGE_DIR,
                                               add_to_gitignore, get_env_path,
@@ -26,6 +27,7 @@ from jrdev.models.api_provider import ApiProvider
 from jrdev.models.model_list import ModelList
 from jrdev.models.model_profiles import ModelProfileManager
 from jrdev.models.model_utils import load_models, save_models
+from jrdev.services import provider_factory
 from jrdev.services.contextmanager import ContextManager
 from jrdev.services.message_service import MessageService
 from jrdev.ui.ui import PrintType
@@ -36,6 +38,7 @@ from jrdev.ui.tui.terminal_text_styles import TerminalTextStyles
 
 class Application:
     def __init__(self, ui_mode="textual"):
+        provider_factory.initialize_provider_factory(self)
         # Initialize core components
         self.logger = setup_logger(JRDEV_DIR)
 
@@ -54,6 +57,7 @@ class Application:
         self._load_user_settings()
 
         self.terminal_text_styles = TerminalTextStyles()
+        self.usageTracker = get_token_tracker_instance(os.path.join(JRDEV_DIR, "usage.json"))
 
     def _load_user_settings(self) -> None:
         """Load user settings from disk"""
@@ -383,9 +387,10 @@ class Application:
         return self.state.model_list.get_model_list()
 
     def get_available_models(self) -> List[str]:
+        from jrdev.services import provider_factory
         all_models = self.get_models()
         providers_with_keys = {
-            provider.name for provider in self.provider_list() if self.state.clients.has_key(provider.name)
+            provider.name for provider in provider_factory.list_providers() if provider_factory.get_client(provider.name)
         }
         available_models = [
             model["name"] for model in all_models if model["provider"] in providers_with_keys
@@ -604,7 +609,7 @@ class Application:
         # 1) get the active thread
         msg_thread = self.state.get_current_thread()
         thread_id = msg_thread.thread_id
-        # 2) tell UI “I’m starting a new chat” (e.g. highlight the thread)
+        # 2) tell UI "I'm starting a new chat" (e.g. highlight the thread)
         self.ui.chat_thread_update(thread_id)
         # 3) stream the LLM response
         content = f"{USER_INPUT_PREFIX}{user_input}"

@@ -1,5 +1,6 @@
 from typing import Any, List
 
+from jrdev.services import provider_factory
 from jrdev.ui.ui import PrintType
 from jrdev.utils.string_utils import is_valid_env_key, is_valid_name, is_valid_url
 
@@ -56,7 +57,7 @@ async def handle_provider(app: Any, args: List[str], _worker_id: str) -> None:
 
 
 def _handle_list(app: Any) -> None:
-    providers = app.state.clients.list_providers()
+    providers = provider_factory.list_providers()
     app.ui.print_text("API Providers:", PrintType.INFO)
     for p in providers:
         app.ui.print_text(f"  {p.name} (env_key: {p.env_key}, base_url: {p.base_url})", PrintType.INFO)
@@ -95,7 +96,7 @@ def _handle_add(app: Any, args: List[str]) -> None:
         "required": False,
         "default_profiles": {"profiles": {}, "default_profile": ""},
     }
-    app.state.clients.add_provider(provider_data)
+    provider_factory.add_provider(provider_data)
     app.ui.print_text(f"Provider '{name}' added successfully.", PrintType.SUCCESS)
     app.ui.providers_updated()
     app.refresh_model_list()
@@ -120,7 +121,7 @@ def _handle_edit(app: Any, args: List[str]) -> None:
         app.ui.print_text(f"Invalid base_url '{new_base_url}'. Must be a valid http(s) URL.", PrintType.ERROR)
         return
     updated_fields = {"env_key": new_env_key, "base_url": new_base_url}
-    app.state.clients.edit_provider(name, updated_fields)
+    provider_factory.edit_provider(name, updated_fields)
     app.ui.print_text(f"Provider '{name}' edited successfully.", PrintType.SUCCESS)
     app.ui.providers_updated()
 
@@ -130,7 +131,7 @@ def _handle_remove(app: Any, args: List[str]) -> None:
         app.ui.print_text("Usage: /provider remove <name>", PrintType.ERROR)
         return
     name = args[2]
-    app.state.clients.remove_provider(name)
+    provider_factory.remove_provider(name)
     app.ui.print_text(f"Provider '{name}' removed successfully.", PrintType.SUCCESS)
     app.ui.providers_updated()
     app.refresh_model_list()

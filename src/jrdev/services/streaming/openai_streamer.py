@@ -1,11 +1,15 @@
 import time
 from typing import Any, AsyncIterator, Dict, List
 
+from jrdev.services import provider_factory
 from jrdev.services.streaming.base_streamer import BaseStreamer
 
 
 class OpenAIStreamer(BaseStreamer):
     """Streamer for OpenAI-compatible API providers."""
+
+    def __init__(self, logger: Any, ui: Any, usageTracker: Any):
+        super().__init__(logger, ui, usageTracker)
 
     async def stream(
         self,
@@ -33,17 +37,14 @@ class OpenAIStreamer(BaseStreamer):
 
         self.logger.info(f"Sending request to {model} with {len(messages)} messages")
 
-        # Get the appropriate client
-        model_provider = None
-        available_models = self.app.get_models()
-        for entry in available_models:
-            if entry["name"] == model:
-                model_provider = entry["provider"]
-                break
+        # Get the appropriate client using the provider factory
+        model_provider = provider_factory.get_provider_for_model(model)
+        if not model_provider:
+            raise ValueError(f"Could not find a provider for model '{model}'")
 
-        if model_provider not in self.app.state.clients.get_all_clients():
-            raise ValueError(f"No client for {model_provider}")
-        client = self.app.state.clients.get_client(model_provider)
+        client = provider_factory.get_client(model_provider)
+        if not client:
+            raise ValueError(f"No initialized client found for provider '{model_provider}'")
 
         # Create a streaming completion
         request_kwargs = {

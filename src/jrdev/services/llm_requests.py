@@ -1,6 +1,7 @@
 from asyncio import CancelledError
 from typing import AsyncIterator
 
+from jrdev.services import provider_factory
 from jrdev.services.streaming.anthropic_streamer import AnthropicStreamer
 from jrdev.services.streaming.openai_streamer import OpenAIStreamer
 
@@ -9,18 +10,14 @@ def stream_request(app, model, messages, task_id=None, print_stream=True, json_o
     """
     Dispatches the streaming request to the appropriate provider streamer.
     """
-    model_provider = None
-    for entry in app.get_models():
-        if entry["name"] == model:
-            model_provider = entry["provider"]
-            break
+    model_provider = provider_factory.get_provider_for_model(model)
 
     if model_provider == "anthropic":
-        streamer = AnthropicStreamer(app)
+        streamer = AnthropicStreamer(app.logger, app.ui, app.usageTracker)
         # Anthropic streamer doesn't use json_output or max_output_tokens in its signature
         return streamer.stream(model, messages, task_id)
     else:
-        streamer = OpenAIStreamer(app)
+        streamer = OpenAIStreamer(app.logger, app.ui, app.usageTracker)
         return streamer.stream(
             model,
             messages,

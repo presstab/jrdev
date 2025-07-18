@@ -1,11 +1,15 @@
 import time
 from typing import Any, AsyncIterator, Dict, List
 
+from jrdev.services import provider_factory
 from jrdev.services.streaming.base_streamer import BaseStreamer
 
 
 class AnthropicStreamer(BaseStreamer):
     """Streamer for Anthropic API."""
+
+    def __init__(self, logger: Any, ui: Any, usageTracker: Any):
+        super().__init__(logger, ui, usageTracker)
 
     async def stream(
         self,
@@ -44,7 +48,7 @@ class AnthropicStreamer(BaseStreamer):
         self.logger.info(log_msg)
 
         # Provider-specific client setup
-        client = self.app.state.clients.anthropic
+        client = provider_factory.get_client("anthropic")
         if not client:
             raise ValueError(f"Anthropic API key not configured but model {model} requires it")
 

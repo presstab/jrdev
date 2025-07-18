@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple, cast
 
-from jrdev.core.usage import get_instance
+from jrdev.core.usage import get_token_tracker_instance
 from jrdev.models.model_utils import get_model_cost
 from jrdev.ui.ui import PrintType
 
@@ -122,7 +122,7 @@ async def handle_cost(app: Any, _cmd_parts: List[str], _worker_id: str) -> None:
     Usage:
       /cost
     """
-    usage_data = await get_instance().get_usage()
+    usage_data = await get_token_tracker_instance().get_usage()
     if not usage_data:
         app.ui.print_text("No usage data available. Try running some queries first.", PrintType.INFO)
         return

@@ -118,7 +118,7 @@ class Usage:
 _instance: Optional[Usage] = None
 
 
-def get_instance(save_path: Optional[str] = None) -> Usage:
+def get_token_tracker_instance(save_path: Optional[str] = None) -> Usage:
     """Get the global Usage instance.
 
     Args:
