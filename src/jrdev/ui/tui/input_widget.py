@@ -2,13 +2,14 @@ from textual.color import Color
 from textual.message import Message
 from textual.binding import Binding
 from textual.widgets import TextArea
-from textual import events
+from textual import events, on
 from dataclasses import dataclass
 from typing import ClassVar
 import json
 import logging
 import os
 from jrdev.file_operations.file_utils import get_persistent_storage_path
+from jrdev.ui.tui.autocomplete_popup import AutocompletePopup
 
 
 class CommandTextArea(TextArea):
@@ -77,6 +78,8 @@ class CommandTextArea(TextArea):
         self.styles.border = ("round", Color.parse("#63f554"))
         self.styles.height = height
         self._placeholder = placeholder
+        self.autocomplete_popup = None
+        self._command_list = []
 
         # Disable features we don't need
         self.show_line_numbers = False
@@ -129,6 +132,9 @@ class CommandTextArea(TextArea):
         if not self.text:
             # don't submit anything if empty
             return
+        if self.autocomplete_popup and self.autocomplete_popup.display:
+            self.action_autocomplete()
+            return
         self.post_message(self.Submitted(self, self.text))
         self.submit_history.append(self.text)
         self.history_index = len(self.submit_history)
@@ -148,6 +154,9 @@ class CommandTextArea(TextArea):
 
     def action_history_previous(self) -> None:
         """Handle moving to previous history entry."""
+        if self.autocomplete_popup and self.autocomplete_popup.display:
+            self.autocomplete_popup.select_previous()
+            return
         if not self.submit_history:
             return
         if self.history_index == len(self.submit_history):
@@ -158,6 +167,9 @@ class CommandTextArea(TextArea):
 
     def action_history_next(self) -> None:
         """Handle moving to next history entry."""
+        if self.autocomplete_popup and self.autocomplete_popup.display:
+            self.autocomplete_popup.select_next()
+            return
         if not self.submit_history:
             return
         if self.history_index < len(self.submit_history):
@@ -166,6 +178,35 @@ class CommandTextArea(TextArea):
                 self.text = self._draft
             else:
                 self.text = self.submit_history[self.history_index]
+
+    @on(TextArea.Changed)
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """Called when the text in the TextArea changes."""
+        if self.text.startswith("/"):
+            if not self.autocomplete_popup:
+                self._command_list = self.app.jrdev.get_command_names()
+                self.autocomplete_popup = self.app.query_one(AutocompletePopup)
+
+            command_text = self.text[1:]
+            if command_text:
+                suggestions = [cmd for cmd in self._command_list if cmd.startswith(f"/{command_text}")]
+            else:
+                suggestions = self._command_list
+            self.autocomplete_popup.update_suggestions(suggestions)
+        else:
+            if self.autocomplete_popup:
+                self.autocomplete_popup.display = False
+
+    def action_autocomplete(self) -> None:
+        """Handle autocomplete selection."""
+        if not self.autocomplete_popup:
+            return
+
+        selected_command = self.autocomplete_popup.get_selected_command()
+        if selected_command:
+            self.text = selected_command
+            self.cursor_position = (0, len(self.text))
+        self.autocomplete_popup.display = False
 
     async def _on_key(self, event: events.Key) -> None:
         """Intercept the key events to handle enter key for submission."""

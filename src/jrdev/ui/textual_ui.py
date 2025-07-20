@@ -8,6 +8,7 @@ from textual.color import Color
 from jrdev.core.application import Application
 from jrdev import __version__
 from jrdev.ui.textual_events import TextualEvents
+from jrdev.ui.tui.autocomplete_popup import AutocompletePopup
 from jrdev.ui.tui.code_confirmation_screen import CodeConfirmationScreen
 from jrdev.ui.tui.steps_screen import StepsScreen
 from jrdev.ui.tui.code_edit_screen import CodeEditScreen
@@ -66,6 +67,7 @@ class JrDevUI(App[None]):
                 with self.content_switcher:
                     yield self.terminal_output_widget
                     yield self.chat_view
+                yield AutocompletePopup(commands=self.jrdev.get_command_names())
             with self.vlayout_right:
                 yield self.directory_widget
 

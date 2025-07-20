@@ -396,6 +396,10 @@ class Application:
         current_models = self.get_models()
         return [model["name"] for model in current_models]
 
+    def get_command_names(self) -> List[str]:
+        """Get a list of all command names."""
+        return self.command_handler.get_commands()
+
     def set_model(self, model, send_to_ui=True):
         model_names = self.get_model_names()
         if model in model_names:

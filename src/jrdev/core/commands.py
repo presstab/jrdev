@@ -113,6 +113,6 @@ class CommandHandler:
         if cmd in self.commands:
             del self.commands[cmd]
 
-    def get_commands(self) -> Dict[str, Callable]:
-        """Get all registered commands"""
-        return self.commands.copy()
+    def get_commands(self) -> List[str]:
+        """Get all registered command names"""
+        return list(self.commands.keys())
