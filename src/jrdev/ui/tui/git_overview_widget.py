@@ -216,6 +216,7 @@ class GitOverviewWidget(Static):
         layer: top;
         width: auto;
         height: 10;
+        border: round $accent;
     }
     .commit-select-model-btn {
         margin-left: 1;
