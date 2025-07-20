@@ -7,7 +7,7 @@ from textual.color import Color
 from textual.containers import Horizontal, Vertical, Container
 from textual.geometry import Offset
 from textual.widget import Widget
-from textual.widgets import Button
+from textual.widgets import Button, ListView
 from typing import Optional, Callable
 import logging
 import pyperclip
@@ -150,9 +150,9 @@ class TerminalOutputWidget(Widget):
     def handle_model_pressed(self):
         self.model_listview.set_visible(not self.model_listview.visible)
 
-    @on(ModelListView.Selected, "#model-listview-term")
-    def handle_model_selection(self, selected: ModelListView.Selected):
-        model_name = selected.item.name
+    @on(ModelListView.ModelSelected, "#model-listview-term")
+    def handle_model_selection(self, event: ModelListView.ModelSelected):
+        model_name = event.model
         # terminal interacts with intent_router
         self.post_message(CommandRequest(f"/modelprofile set intent_router {model_name}"))
         self.model_listview.set_visible(False)

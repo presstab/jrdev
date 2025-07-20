@@ -304,9 +304,9 @@ class ChatViewWidget(Widget):
     def handle_model_pressed(self) -> None:
         self.model_listview.set_visible(not self.model_listview.visible)
 
-    @on(ListView.Selected, "#chat-model-list")
-    def handle_model_selection(self, selected: ListView.Selected):
-        model_name = selected.item.name
+    @on(ModelListView.ModelSelected, "#chat-model-list")
+    def handle_model_selection(self, selected: ModelListView.ModelSelected):
+        model_name = selected.model
         self.post_message(CommandRequest(f"/model set {model_name}"))
         self.model_listview.set_visible(False)
 

@@ -491,10 +491,10 @@ class GitToolsScreen(ModalScreen):
         else:
             self.model_list_review.set_visible(not self.model_list_review.visible)
 
-    @on(ListView.Selected, "#model-list-summary, #model-list-review")
-    def handle_model_selection(self, selected: ListView.Selected):
+    @on(ModelListView.ModelSelected, "#model-list-summary, #model-list-review")
+    def handle_model_selection(self, selected: ModelListView.ModelSelected):
         # send model update request to core app
-        model_name = selected.item.name
+        model_name = selected.model
         self.post_message(CommandRequest(f"/model set {model_name}"))
 
         # hide any visible selection lists

@@ -405,7 +405,9 @@ class GitOverviewWidget(Static):
         # also update current model
         self.commit_model_btn.label = self.core_app.state.model
 
-    @on(ListView.Selected)
+    @on(ListView.Selected, "#unstaged-files-list")
+    @on(ListView.Selected, "#staged-files-list")
+    @on(ListView.Selected, "#commit-history-list")
     def show_diff(self, event: ListView.Selected) -> None:
         """When a file or commit is selected, show its diff."""
         if event.list_view.id == "commit-model-list":
@@ -667,9 +669,9 @@ class GitOverviewWidget(Static):
     def handle_commit_model_select(self) -> None:
         self.commit_model_list.set_visible(not self.commit_model_list.visible)
 
-    @on(ListView.Selected, "#commit-model-list")
-    def handle_commit_model_selection(self, selected: ListView.Selected):
-        model_name = selected.item.name
+    @on(ModelListView.ModelSelected, "#commit-model-list")
+    def handle_commit_model_selection(self, selected: ModelListView.ModelSelected):
+        model_name = selected.model
         self.core_app.set_model(model_name)
         self.commit_model_list.visible = False
         self.commit_model_btn.label = model_name
