@@ -81,6 +81,10 @@ class PlanPhase(Stage):
                 raise TypeError("prompt_steps")
         ctx["steps"] = steps
 
+        # If a specific list of context was included, then set that as our file list
+        if "use_context" in steps:
+            ctx["files"] = steps["use_context"]
+
     async def request_step_plan(self, files_to_send: List[str], user_task: str) -> str:
         """
         When the initial request detects file changes,
