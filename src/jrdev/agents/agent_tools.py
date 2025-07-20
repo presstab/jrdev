@@ -1,3 +1,4 @@
+import logging
 import os
 import subprocess
 from typing import Any, Dict, List, Optional
@@ -8,6 +9,8 @@ from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.services.web_scrape_service import WebScrapeService
 from jrdev.services.web_search_service import WebSearchService
 from jrdev.utils.treechart import generate_compact_tree
+
+logger = logging.getLogger("jrdev")
 
 tools_list: Dict[str, str] = {
     "read_files": "Description: read a list of files. Args: list of file paths to read. Example: [src/main.py, "
@@ -21,7 +24,9 @@ tools_list: Dict[str, str] = {
     """,
     "web_scrape_url": """
         Description: attempts to download the content from the provided url and clean it up into a readable format. This can fail if the website has measures taken against machine readability.
-        Args: list[str] | The first element of the list is the full url. All other elements ignored.
+        Args: list[str]
+         args[0]: Full url to scrap.
+         args[1]: (optional) Save file path. Only save file if specifically instructed to. Must include .md file extension. Example: "test_file.md".
         Results: Website content converted to markdown format.
     """,
     "terminal": """
@@ -73,13 +78,7 @@ def terminal(args: List[str]) -> str:
     if not args:
         return ""
 
-    return subprocess.check_output(
-        args[0],
-        stderr=subprocess.STDOUT,
-        text=True,
-        timeout=30,
-        shell=True
-    )
+    return subprocess.check_output(args[0], stderr=subprocess.STDOUT, text=True, timeout=30, shell=True)
 
 
 def web_search(args: List[str]) -> str:
@@ -90,7 +89,24 @@ def web_search(args: List[str]) -> str:
 
 
 async def web_scrape_url(args: List[str]) -> str:
+    """
+
+    Args:
+        args[0]: URL
+        args[1]: (optional) save to path
+
+    Returns:
+
+    """
     if not args:
+        logger.info("web_scrap_url: empty args")
         return ""
 
-    return await WebScrapeService().fetch_and_convert(args[0])
+    logger.info("web_scrape_url: scraping %s", args[0])
+    doc = await WebScrapeService().fetch_and_convert(args[0])
+    if len(args) > 1:
+        file_path = args[1]
+        with open(file_path, "w", encoding="utf-8") as file:
+            logger.info("web_scrape_url: writing results to %s", file_path)
+            file.write(doc)
+    return doc

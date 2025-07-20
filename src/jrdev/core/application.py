@@ -575,6 +575,8 @@ class Application:
                             tool_call.result = await agent_tools.write_file(self, filename, content)
                         elif tool_call.command == "web_search":
                             tool_call.result = agent_tools.web_search(tool_call.args)
+                        elif tool_call.command == "web_scrape_url":
+                            tool_call.result = await agent_tools.web_scrape_url(tool_call.args)
                         elif tool_call.command == "get_indexed_files_context":
                             tool_call.result = agent_tools.get_indexed_files_context(self, tool_call.args)
                         elif tool_call.command == "terminal":
@@ -583,7 +585,7 @@ class Application:
                             if confirmed:
                                 tool_call.result = agent_tools.terminal(tool_call.args)
                             else:
-                                tool_call.result = "Terminal command execution cancelled by user."
+                                tool_call.result = "Terminal command request REJECTED by user."
                                 self.ui.print_text("Command execution cancelled.", PrintType.INFO)
                     except Exception as e:
                         error_message = f"Error executing tool '{tool_call.command}': {str(e)}"

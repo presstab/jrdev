@@ -86,7 +86,7 @@ class MessageBuilder:
             if "overview" in self.app.state.project_files:
                 file_path = self.app.state.project_files["overview"]
                 if os.path.exists(file_path) and os.path.isfile(file_path):
-                    self.project_files.add(file_path)
+                    self.files.add(file_path)
 
 
     def add_tree(self):
