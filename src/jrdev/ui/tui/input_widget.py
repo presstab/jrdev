@@ -9,6 +9,8 @@ import json
 import logging
 import os
 from jrdev.file_operations.file_utils import get_persistent_storage_path
+import logging
+logger = logging.getLogger("jrdev")
 
 
 class CommandTextArea(TextArea):
@@ -40,6 +42,7 @@ class CommandTextArea(TextArea):
         Binding("enter", "submit", "Submit", show=False),
         Binding("up", "history_previous", "History Previous", show=False),
         Binding("down", "history_next", "History Next", show=False),
+        Binding("shift+pagedown", "insert_newline", "Insert newline", show=False),
     ]
 
     @dataclass
@@ -166,6 +169,9 @@ class CommandTextArea(TextArea):
                 self.text = self._draft
             else:
                 self.text = self.submit_history[self.history_index]
+
+    def action_insert_newline(self):
+        self.insert("\n")
 
     async def _on_key(self, event: events.Key) -> None:
         """Intercept the key events to handle enter key for submission."""
