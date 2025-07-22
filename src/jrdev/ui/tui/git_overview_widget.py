@@ -215,7 +215,6 @@ class GitOverviewWidget(Static):
     #commit-model-list {
         layer: top;
         width: auto;
-        height: 10;
         border: round $accent;
     }
     .commit-select-model-btn {

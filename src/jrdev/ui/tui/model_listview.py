@@ -4,7 +4,6 @@ from typing import Any
 from textual import on
 from textual.geometry import Offset
 from textual.message import Message
-from textual.selection import Selection
 from textual.widget import Widget
 from textual.widgets import Button, Label, ListItem, ListView, Input
 
@@ -62,18 +61,32 @@ class ModelListView(Widget):
         self.visible = is_visible
         if is_visible:
             self.update_models()
-            self.compute_offset()
-            self.styles.min_width = self.model_button.content_size.width
-            self.styles.max_width = self.models_text_width + 2
+            self.set_dimensions()
+
             self.search_input.focus()
 
     @typing.no_type_check
-    def compute_offset(self):
+    def set_dimensions(self):
         offset_x = self.model_button.content_region.x - self.parent.content_region.x
         offset_y = self.model_button.content_region.y - self.parent.content_region.y + 1
+
         if self.above_button:
-            offset_y -= self.height + 1
+            self.styles.max_height = offset_y - 1
+            self.styles.height = offset_y - 1
+            offset_y -= offset_y
+        else:
+            # Set height based on container bottom
+            bottom_margin = 5
+            self.styles.max_height = self.parent.container_size.height - bottom_margin
+            self.styles.height = self.parent.container_size.height - bottom_margin
+
         self.styles.offset = Offset(x=offset_x, y=offset_y)
+
+        # Set width - don't overrun container boundaries
+        self.styles.min_width = self.model_button.content_size.width
+        max_width = self.models_text_width + 2
+        container_available_width = self.parent.content_region.width - offset_x
+        self.styles.max_width = min(max_width, container_available_width)
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id != "model-search-input":
