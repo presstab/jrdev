@@ -34,15 +34,15 @@ class TerminalOutputWidget(Widget):
         border: none; /* Confirm no border */
     }
     #copy_btn_term {
-        height: 1; /* Fixed height */
+        height: 1;
         margin-left: 1;
         width: 10;
     } 
     
     #model_btn_term {
-        height: 1; /* Fixed height */
+        height: 1;
         margin-left: 1;
-        width: 10;
+        width: auto;
     }
     #model-listview-term {
         border: round #63f554;
@@ -156,6 +156,7 @@ class TerminalOutputWidget(Widget):
         # terminal interacts with intent_router
         self.post_message(CommandRequest(f"/modelprofile set intent_router {model_name}"))
         self.model_listview.set_visible(False)
+        self.model_button.styles.max_width = len(model_name) + 2
 
     def update_models(self):
         model = self.core_app.profile_manager().get_model("intent_router")

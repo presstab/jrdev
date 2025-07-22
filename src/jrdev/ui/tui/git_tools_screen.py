@@ -507,6 +507,7 @@ class GitToolsScreen(ModalScreen):
     def update_model_buttons(self, model_name: str) -> None:
         for btn in self.query(".select-model-btn"):
             btn.label = model_name
+            btn.styles.max_width = len(model_name) + 2
 
     # --- PR Summary View Handler ---
     @on(Button.Pressed, "#generate-summary-btn")

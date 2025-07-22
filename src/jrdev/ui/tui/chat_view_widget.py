@@ -96,8 +96,8 @@ class ChatViewWidget(Widget):
         margin-left: 1;
         border: none;
         height: 100%;
+        width: auto;
         min-width: 10;
-        max-width: 32;
     }
     """
 
@@ -309,6 +309,7 @@ class ChatViewWidget(Widget):
         model_name = selected.model
         self.post_message(CommandRequest(f"/model set {model_name}"))
         self.model_listview.set_visible(False)
+        self.model_button.styles.max_width = len(model_name) + 2
 
     @on(Button.Pressed, "#terminal_button")
     async def handle_show_terminal(self):
