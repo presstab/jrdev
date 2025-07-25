@@ -1,5 +1,6 @@
+from jrdev.ui.tui.model_listview import ModelListView
 from jrdev.ui.ui import printtype_to_string
-from textual import on
+from textual import on, events
 from textual.app import App
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, RadioSet
@@ -398,6 +399,13 @@ class JrDevUI(App[None]):
             self.chat_view.layout_output.border_title = "Chat"
             self.task_monitor.styles.height = 6 # min size to display a row
 
+    #globally watch for modellistview focus loss
+    @on(events.DescendantBlur, "#model-search-input")
+    def handle_modellistview_blur(self, event: events.DescendantBlur):
+        # Only close if focus is truly leaving the entire model list view
+        model_listview: ModelListView = event.widget.parent
+        if not model_listview.has_focus:
+            model_listview.set_visible(False)
 
 def run_textual_ui() -> None:
     """Entry point for textual UI console script"""

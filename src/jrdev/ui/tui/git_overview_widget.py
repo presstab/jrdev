@@ -215,7 +215,6 @@ class GitOverviewWidget(Static):
     #commit-model-list {
         layer: top;
         width: auto;
-        height: 10;
         border: round $accent;
     }
     .commit-select-model-btn {
@@ -223,7 +222,7 @@ class GitOverviewWidget(Static):
         border: none;
         height: 100%;
         min-width: 10;
-        max-width: 32;
+        width: auto;
     }
     """
 
@@ -676,3 +675,4 @@ class GitOverviewWidget(Static):
         self.core_app.set_model(model_name)
         self.commit_model_list.visible = False
         self.commit_model_btn.label = model_name
+        self.commit_model_btn.styles.max_width = len(model_name) + 2
