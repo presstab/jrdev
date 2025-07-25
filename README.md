@@ -62,6 +62,8 @@ To manually add your own context to a coding task, use the 'Project Files' windo
 
 For a detailed overview of the coding agent, see the [code documentation](docs/code.md).
 
+For a detailed overview of the project context system, see the [project context documentation](docs/project_context.md).
+
 ## 3. (optional) Configure Smart Model Switching Profiles
 
 JrDev uses different AI models for different tasks to balance performance and cost. It reserves powerful, expensive models for complex work while using faster, cheaper models for routine tasks.
