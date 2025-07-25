@@ -105,6 +105,7 @@ class TerminalOutputWidget(Widget):
         self.confirmation_container = Container(id="confirmation-container")
         self.confirmation_container.display = False
         self.command_confirmation_future = None
+        self._model_list_was_visible = False
 
     def compose(self) -> ComposeResult:
         with self.layout_output:
@@ -146,9 +147,17 @@ class TerminalOutputWidget(Widget):
     def handle_copy(self):
         self.copy_to_clipboard()
 
+    def on_mouse_down(self, event: events.MouseDown) -> None:
+        """
+        Capture the visibility state of the model list view before other events are processed.
+        This helps prevent a race condition between the button press and blur events.
+        """
+        if not self.output_widget_mode:
+            self._model_list_was_visible = self.model_listview.visible
+
     @on(Button.Pressed, "#model_btn_term")
     def handle_model_pressed(self):
-        self.model_listview.set_visible(not self.model_listview.visible)
+        self.model_listview.set_visible(not self._model_list_was_visible)
 
     @on(ModelListView.ModelSelected, "#model-listview-term")
     def handle_model_selection(self, event: ModelListView.ModelSelected):

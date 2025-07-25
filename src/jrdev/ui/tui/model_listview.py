@@ -1,12 +1,23 @@
 import typing
 from typing import Any
 
-from textual import on
+from textual import on, events
 from textual.geometry import Offset
 from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Button, Label, ListItem, ListView, Input
+from textual.events import Key
 
+import logging
+logger = logging.getLogger("jrdev")
+
+class SearchInput(Input):
+    # Change tab key to a submit signal
+    async def _on_key(self, event: events.Key) -> None:
+        if event.key == "tab":
+            self.post_message(self.Submitted(self, self.value))
+        else:
+            await super()._on_key(event)
 
 class ModelListView(Widget):
     DEFAULT_CSS = """
@@ -41,8 +52,9 @@ class ModelListView(Widget):
         self.models_text_width = 1
         self.height = 10
         self.models = []
-        self.search_input = Input(placeholder="Search models...", id="model-search-input")
+        self.search_input = SearchInput(placeholder="Search models...", id="model-search-input")
         self.list_view = ListView(id="_listview")
+        self.input_query = None
 
     def compose(self):
         yield self.search_input
@@ -60,9 +72,10 @@ class ModelListView(Widget):
     def set_visible(self, is_visible: bool) -> None:
         self.visible = is_visible
         if is_visible:
+            self.search_input.clear()
+            self.input_query = None
             self.update_models()
             self.set_dimensions()
-
             self.search_input.focus()
 
     @typing.no_type_check
@@ -88,14 +101,66 @@ class ModelListView(Widget):
         container_available_width = self.parent.content_region.width - offset_x
         self.styles.max_width = min(max_width, container_available_width)
 
+    def _set_list_view_index(self, index: int) -> None:
+        """Helper method to set the list view index."""
+        self.list_view.index = index
+
     def on_input_changed(self, event: Input.Changed) -> None:
+        """Search filter changed"""
         if event.input.id != "model-search-input":
             return
+        
         query = event.value.lower()
-        self.list_view.clear()
-        for model_name in self.models:
-            if query in model_name.lower():
-                self.list_view.append(ListItem(Label(model_name), name=model_name))
+        if self.input_query:
+            # previous query exists,
+            if len(self.input_query) > len(query):
+                # new query is shorter, that means backspace - have to add back models removed
+                self.list_view.clear()
+                self.update_models()
+
+        # filter out models that do not match query
+        self.input_query = query
+        for list_item in self.list_view.children:
+            if str(query) not in str(list_item.name):
+                list_item.remove()
+
+        # apply highlight and selection
+        if len(self.list_view.children):
+            self.list_view.children[0].highlighted = True
+            self.list_view.index = 0
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Enter pressed on search input -> results in highlighted item being selected"""
+        list_item = self.list_view.highlighted_child
+        if not list_item:
+            return
+        self.list_view.action_select_cursor()
+
+    def on_key(self, event: Key) -> None:
+        if not self.visible:
+            return
+            
+        if event.key == "up":
+            if self.list_view.index is not None:
+                new_index = max(0, self.list_view.index - 1)
+                self.list_view.index = new_index
+            else:
+                if len(self.list_view.children) > 0:
+                    self.list_view.index = 0
+            event.stop()
+        elif event.key == "down":
+            if self.list_view.index is not None:
+                new_index = min(len(self.list_view.children) - 1, self.list_view.index + 1)
+                self.list_view.index = new_index
+            else:
+                if len(self.list_view.children) > 0:
+                    self.list_view.index = 0
+            event.stop()
+        elif event.key == "enter":
+            if self.list_view.index is not None and self.list_view.index < len(self.list_view.children):
+                selected_item = self.list_view.children[self.list_view.index]
+                self.post_message(self.ModelSelected(self, selected_item.name))
+                event.stop()
 
     @on(ListView.Selected, "#_listview")
     def selection_updated(self, selected: ListView.Selected) -> None:
