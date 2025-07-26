@@ -2,6 +2,7 @@ import typing
 from typing import Any
 
 from textual import on, events
+from textual.color import Color
 from textual.geometry import Offset
 from textual.message import Message
 from textual.widget import Widget
@@ -60,8 +61,7 @@ class ModelListView(Widget):
         yield self.search_input
         yield self.list_view
 
-    def update_models(self) -> None:
-        # available_models = self.core_app.get_available_models()
+    def update_models(self, query_filter: str = "") -> None:
         models_list = self.core_app.get_models()
         sorted_models = sorted(models_list, key=lambda model: (model["provider"], model["name"]))
 
@@ -69,15 +69,25 @@ class ModelListView(Widget):
         self.models = sorted_models
         self.list_view.clear()
 
+        # Group models into provider sections with provider headers
         grouped_models = {}
         for model in sorted_models:
             provider = model["provider"]
             if provider not in grouped_models:
                 grouped_models[provider] = []
-            grouped_models[provider].append(model)
+            if query_filter:
+                if query_filter in model["name"].lower():
+                    grouped_models[provider].append(model)
+            else:
+                grouped_models[provider].append(model)
+
+        # Colorize provider headers
+        star_color: Color = Color.parse("white")
+        if len(self.styles.border) > 1:
+            star_color = self.styles.border.top[1]
 
         for provider, provider_models in grouped_models.items():
-            provider_item = ListItem(Label(f"--- {provider} ---"), name=provider, disabled=True)
+            provider_item = ListItem(Label(f"[{star_color.rich_color.name}][bold white]✨{provider}✨[/bold white][/{star_color.rich_color.name}]", markup=True), name=provider, disabled=True)
             self.list_view.append(provider_item)
             for model in provider_models:
                 model_name = model["name"]
@@ -124,33 +134,17 @@ class ModelListView(Widget):
         """Search filter changed"""
         if event.input.id != "model-search-input":
             return
-        
+
+        # Update models with filter
         query = event.value.lower()
-        self.list_view.clear()
-
-        grouped_models = {}
-        for model in self.models:
-            provider = model["provider"]
-            if provider not in grouped_models:
-                grouped_models[provider] = []
-            if query in model["name"].lower():
-                grouped_models[provider].append(model)
-
-        for provider, provider_models in grouped_models.items():
-            if not provider_models:
-                continue
-            provider_item = ListItem(Label(f"--- {provider} ---"), name=provider, disabled=True)
-            self.list_view.append(provider_item)
-            for model in provider_models:
-                model_name = model["name"]
-                self.list_view.append(ListItem(Label(model_name), name=model_name))
+        self.update_models(query_filter=query)
 
         if len(self.list_view.children):
             for i, item in enumerate(self.list_view.children):
                 if not item.disabled:
                     self.list_view.index = i
+                    self.list_view.children[i].highlighted = True
                     break
-        self.list_view.refresh()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Enter pressed on search input -> results in highlighted item being selected"""
