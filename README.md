@@ -1,4 +1,4 @@
-# JrDev - Built for developers who code.
+# JrDev Terminal - An agentic coding toolkit for developers.
 ![code-fast](https://github.com/user-attachments/assets/5efa7671-c2bd-4343-8338-bb2d482cb02f)
 
 ## Key Features
@@ -32,11 +32,11 @@ pip install git+https://github.com/presstab/jrdev.git
 
 # Code Generation
 
-JrDev works with the context in your current working directory. Navigate to your project and type `jrdev`.
+JrDev operates within the context of your current working directory. Navigate to your project directory and enter `jrdev`.
 
 ## 1. Initialize Project:
 
-If this is the first time running JrDev for this project, you will need to run the initialization process to give JrDev a powerful overview of your project.
+If this is your first time using JrDev with this project, initiate the setup process to provide JrDev with a comprehensive overview of your project.
 
 ```
 > /init
@@ -44,19 +44,19 @@ If this is the first time running JrDev for this project, you will need to run t
 
 ## 2. Launch Code Agent
 
-For the most precise results it is recommended to use the `/code` command directly:
+For optimal precision, it is recommended to utilize the `/code` command directly:
 ```
 > /code update the "Save" button in the Settings Dialog to change to disabled if there are no changes to save
 ```
 
-Or try out the JrDev intent agent which will process attempt to understand your natural language and launch the code agent task.
+Or try out the JrDev intent agent, which will process and attempt to understand your natural language input and initiate the appropriate code agent task.
 ```
 > update the "Save" button in the Settings Dialog to change to disabled if there are no changes to save
 ```
 
 ### What About Context?
 
-JrDev collected some essential context about the project during the `/init` phase. This is passed on to the coding agent. The coding agent goes through up to 3 rounds of searching to find the right files and context to include.
+During the `/init` phase, JrDev gathers essential project context, which is subsequently provided to the coding agent. The agent performs up to three rounds of searching to identify relevant files and additional context.
 
 To manually add your own context to a coding task, use the 'Project Files' window and click '+ Code Ctx' on a file or directory to add it to the code context for the next code task. When a code task is launched, it clears any staged code context.
 
@@ -66,7 +66,7 @@ For a detailed overview of the project context system, see the [project context 
 
 ## 3. (optional) Configure Smart Model Switching Profiles
 
-JrDev uses different AI models for different tasks to balance performance and cost. It reserves powerful, expensive models for complex work while using faster, cheaper models for routine tasks.
+JrDev employs different AI models for various tasks to balance performance and cost. It reserves powerful, expensive models for complex work while utilizing faster, cheaper models for routine tasks.
 
 *   **`advanced_reasoning`**: Uses a top-tier model for critical planning and review to ensure the highest quality output. (Try Sonnet, Opus, Gemini 2.5 Pro, DeepSeek R1)
 *   **`advanced_coding`**: Employs a powerful, specialized model for generating accurate and high-quality code. (Try Sonnet, Opus, Gemini 2.5 Pro, DeepSeek R1/V3, GPT 4.1)
@@ -75,7 +75,7 @@ JrDev uses different AI models for different tasks to balance performance and co
 *   **`intent_router`**: A highly efficient model that interprets natural language commands to quickly route them to the correct tool. (Try Gemini 2.5 Flash, DeepSeek V3, o4-mini, GPT 4.1)
 *   **`low_cost_search`**: An inexpensive model for broad searches, like finding additional context files, to minimize costs. (Try Gemini 2.5 Flash, Devstral, DeepSeek V3)
 
-These profiles are initialized to default values based on the API key you added. To customize them, hit the "Profiles" button, or use natural language in the terminal input field and instruct JrDev what to change.
+These profiles are set to default values according to the provided API key. To customize them, access the "Profiles" button, or input natural language instructions in the terminal field to direct changes.
 
 ## 🚨Early Access Software🚨
 
