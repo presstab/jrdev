@@ -79,13 +79,13 @@
       "required": false,
       "default_profiles": {
         "profiles": {
-          "advanced_reasoning": "google/gemini-2.5-pro",
-          "advanced_coding": "google/gemini-2.5-pro",
-          "intermediate_reasoning": "google/gemini-2.5-flash",
-          "intermediate_coding": "google/gemini-2.5-flash",
-          "quick_reasoning": "google/gemini-2.5-flash",
-          "intent_router": "google/gemini-2.5-flash",
-          "low_cost_search": "google/gemini-2.5-flash"
+          "advanced_reasoning": "qwen/qwen3-coder:free",
+          "advanced_coding": "qwen/qwen3-coder:free",
+          "intermediate_reasoning": "qwen/qwen3-coder:free",
+          "intermediate_coding": "qwen/qwen3-coder:free",
+          "quick_reasoning": "qwen/qwen3-235b-a22b-2507:free",
+          "intent_router": "qwen/qwen3-coder:free",
+          "low_cost_search": "qwen/qwen3-235b-a22b-2507:free"
         },
         "default_profile": "advanced_coding"
       }
