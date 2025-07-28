@@ -7,7 +7,7 @@ from textual.color import Color
 from textual.containers import Horizontal, Vertical, Container
 from textual.geometry import Offset
 from textual.widget import Widget
-from textual.widgets import Button, ListView
+from textual.widgets import Button, ListView, ProgressBar
 from typing import Optional, Callable
 import logging
 import pyperclip
@@ -22,6 +22,13 @@ class TerminalOutputWidget(Widget):
     # Default compose stacks vertically, which is fine.
     # Using Vertical explicitly offers more control if needed later.
     DEFAULT_CSS = """
+    #token_progress_bar {
+        height: 1;
+        width: 1fr;
+        margin-left: 1;
+        background: $panel-darken-1;
+        color: $success;
+    }
     TerminalOutputWidget {
         /* Layout for children: Text Area grows, Button stays at bottom */
         layout: vertical;
@@ -90,6 +97,7 @@ class TerminalOutputWidget(Widget):
             self.copy_button.styles.layer = "bottom"
         else:
             self.model_button = Button(label="Model", id="model_btn_term")
+            self.progress_bar = ProgressBar(total=100, show_eta=False, show_percentage=True, id="token_progress_bar")
             if not core_app:
                 raise Exception("core app reference missing from terminal output widget")
             self.core_app = core_app
@@ -117,6 +125,7 @@ class TerminalOutputWidget(Widget):
                 with Horizontal(id="button-layout"):
                     yield self.copy_button
                     yield self.model_button
+                    yield self.progress_bar
         
         yield self.confirmation_container
 
@@ -160,16 +169,49 @@ class TerminalOutputWidget(Widget):
         self.model_listview.set_visible(not self._model_list_was_visible)
 
     @on(ModelListView.ModelSelected, "#model-listview-term")
-    def handle_model_selection(self, event: ModelListView.ModelSelected):
+    async def handle_model_selection(self, event: ModelListView.ModelSelected):
         model_name = event.model
         # terminal interacts with intent_router
         self.post_message(CommandRequest(f"/modelprofile set intent_router {model_name}"))
         self.model_listview.set_visible(False)
         self.model_button.styles.max_width = len(model_name) + 2
+        await self.update_token_progress()
 
     def update_models(self):
         model = self.core_app.profile_manager().get_model("intent_router")
         self.model_button.label = model
+
+    async def _get_current_token_usage(self):
+        if not self.core_app:
+            return 0, 100  # Default values if core_app is not available
+
+        model_name = self.core_app.state.model
+        if not model_name:
+            return 0, 100
+
+        # Get the context window for the model
+        models = self.core_app.get_models()
+        context_window = 100  # Default
+        for model in models:
+            if model["name"] == model_name:
+                context_window = model.get("context_window", 100)
+                break
+
+        # Get current token usage from the thread
+        thread = self.core_app.get_thread(self.core_app.state.router_thread_id)
+        if not thread:
+            return 0, context_window
+
+        # This is a simplified estimation. For a more accurate count,
+        # we would need to tokenize the messages similarly to how it's done in llm_requests.py
+        input_tokens = sum(len(message.get("content", "")) for message in thread.get_messages())
+
+        return input_tokens, context_window
+
+    async def update_token_progress(self):
+        input_tokens, context_window = await self._get_current_token_usage()
+        self.progress_bar.total = context_window
+        self.progress_bar.progress = input_tokens
 
     def copy_to_clipboard(self) -> None:
         # Logic to copy the selected text of the TextArea to the clipboard
@@ -196,6 +238,8 @@ class TerminalOutputWidget(Widget):
             text: The text to append to the terminal output.
         """
         self.terminal_output.append_text(text)
+        if not self.output_widget_mode:
+            self.call_later(self.update_token_progress)
 
     def clear_input(self):
         self.terminal_input.value = ""
