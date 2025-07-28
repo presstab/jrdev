@@ -204,7 +204,7 @@ class TerminalOutputWidget(Widget):
 
         # This is a simplified estimation. For a more accurate count,
         # we would need to tokenize the messages similarly to how it's done in llm_requests.py
-        input_tokens = sum(len(message.get("content", "")) for message in thread.get_messages())
+        input_tokens = sum(len(message.get("content", "")) for message in thread.messages)
 
         return input_tokens, context_window
 
