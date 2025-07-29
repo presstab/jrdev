@@ -391,3 +391,49 @@ def get_commit_diff(commit_hash: str) -> Optional[str]:
     except Exception as e:
         logger.error(f"An unexpected error occurred while getting git show for '{commit_hash}': {e}")
         return f"An unexpected error occurred while getting diff for {commit_hash}:\n{e}"
+
+def get_all_branches() -> List[str]:
+    """
+    Retrieves all local and remote branches from the git repository.
+
+    Returns:
+        A sorted list of unique branch names.
+        Returns an empty list if an error occurs.
+    """
+    try:
+        # Get all branches, both local and remote
+        branches_output = subprocess.check_output(
+            ["git", "branch", "-a"],
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=10
+        ).strip()
+
+        if not branches_output:
+            return []
+
+        branches = set()
+        for line in branches_output.splitlines():
+            # Clean up the branch name
+            # Remote branches are listed as 'remotes/origin/branch-name'
+            # The current branch is marked with a '*'
+            branch_name = line.strip()
+            if branch_name.startswith('* '):
+                branch_name = branch_name[2:]
+
+            # Skip the HEAD pointer
+            if '->' in branch_name:
+                continue
+
+            branches.add(branch_name)
+
+        return sorted(list(branches))
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to get git branches. Error: {e.output.strip()}")
+        return []
+    except FileNotFoundError:
+        logger.error("Git command not found. Is git installed and in your PATH?")
+        return []
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while getting git branches: {e}")
+        return []

@@ -4,7 +4,7 @@ from jrdev.ui.tui.command_request import CommandRequest
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, Container
 from textual.screen import ModalScreen
-from textual.widgets import Button, Label, Input, Static, MarkdownViewer, LoadingIndicator, ListView
+from textual.widgets import Button, Label, Input, Static, MarkdownViewer, LoadingIndicator, ListView, Select
 from textual import on, work
 from textual.worker import Worker, WorkerState
 from typing import Any, Dict, Optional
@@ -14,7 +14,7 @@ from jrdev.commands.git_config import get_git_config, save_git_config, DEFAULT_G
 from jrdev.services.git_pr_service import generate_pr_analysis, GitPRServiceError
 from jrdev.file_operations.file_utils import JRDEV_ROOT_DIR
 from jrdev.ui.tui.git_overview_widget import GitOverviewWidget
-from jrdev.utils.git_utils import is_git_installed
+from jrdev.utils.git_utils import is_git_installed, get_all_branches
 from jrdev.ui.tui.model_listview import ModelListView
 from jrdev.ui.tui.terminal_output_widget import TerminalOutputWidget
 
@@ -299,8 +299,8 @@ class GitToolsScreen(ModalScreen):
                     with Vertical(id="configure-view"):
                         yield Label("Git Configuration", classes="pr-view-title")
                         with Container(id="git-config-grid"):
-                            yield Label("Base Branch:", id="base-branch-label") # Added ID here
-                            yield Input(id="base-branch-input", placeholder="e.g., origin/main")
+                            yield Label("Base Branch:", id="base-branch-label")
+                            yield Select(options=[], id="base-branch-select", allow_blank=False)
                         yield Static("Upstream branch used for 'git diff' in PR commands (default: 'origin/main')", classes="text-muted")
                         with Horizontal(id="config-buttons"):
                             yield Button("Save", id="save-config-btn", variant="success")
@@ -361,6 +361,7 @@ class GitToolsScreen(ModalScreen):
             )
             overview_view.mount(MarkdownViewer(warning_text, show_table_of_contents=False))
         else:
+            self.load_branches_worker()
             try:
                 self.query_one("#unstaged-files-list", ListView).focus()
             except Exception as e:
@@ -370,8 +371,11 @@ class GitToolsScreen(ModalScreen):
         """Load current git config."""
         self.current_config = get_git_config(self.core_app)
         base_branch = self.current_config.get("base_branch", DEFAULT_GIT_CONFIG["base_branch"])
-        input_widget = self.query_one("#base-branch-input", Input)
-        input_widget.value = base_branch
+        select_widget = self.query_one("#base-branch-select", Select)
+
+        # We might be called before the select options are populated
+        # so we store the value and it will be set when the options are loaded
+        select_widget.value = base_branch
 
     def load_help_content(self) -> None:
         """Load the markdown content into the help viewer."""
@@ -466,8 +470,8 @@ class GitToolsScreen(ModalScreen):
     @on(Button.Pressed, "#save-config-btn")
     def handle_save_config(self) -> None:
         """Save the updated git configuration."""
-        input_widget = self.query_one("#base-branch-input", Input)
-        new_base_branch = input_widget.value.strip()
+        select_widget = self.query_one("#base-branch-select", Select)
+        new_base_branch = select_widget.value
 
         if not new_base_branch:
             self.notify("Base branch cannot be empty.", severity="error")
@@ -482,6 +486,31 @@ class GitToolsScreen(ModalScreen):
         else:
             logger.error("Failed to save Git configuration.")
             self.notify("Failed to save Git configuration.", severity="error")
+
+    @work(group="git_tools", exclusive=True, name="load_branches")
+    def load_branches_worker(self) -> None:
+        """Worker to load git branches into the Select widget."""
+        branches = get_all_branches()
+        if branches:
+            self.call_later(self.update_branch_options, branches)
+
+    def update_branch_options(self, branches: list[str]) -> None:
+        """Update the options of the branch select widget."""
+        select_widget = self.query_one("#base-branch-select", Select)
+
+        # Store current value if it's valid, otherwise get from config
+        current_value = select_widget.value
+        if current_value is None:
+            current_value = self.current_config.get("base_branch", DEFAULT_GIT_CONFIG["base_branch"])
+
+        select_widget.set_options([(branch, branch) for branch in branches])
+
+        # Restore the selection if it exists in the new options
+        if current_value in branches:
+            select_widget.value = current_value
+        elif branches:
+            # Fallback to the first available branch if the saved one is not found
+            select_widget.value = branches[0]
 
     @on(Button.Pressed, ".select-model-btn")
     def handle_model_select(self, event: Button.Pressed) -> None:
