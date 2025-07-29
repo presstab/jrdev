@@ -11,6 +11,7 @@ from typing import Optional, Callable
 import logging
 import pyperclip
 import asyncio
+import tiktoken
 
 from jrdev.ui.tui.input_widget import CommandTextArea
 from jrdev.ui.tui.terminal_text_area import TerminalTextArea
@@ -218,9 +219,17 @@ class TerminalOutputWidget(Widget):
         if not thread:
             return 0, context_window
 
-        # This is a simplified estimation. For a more accurate count,
-        # we would need to tokenize the messages similarly to how it's done in llm_requests.py
-        input_tokens = sum(len(message.get("content", "")) for message in thread.messages)
+        # Use tiktoken's cl100k_base encoding for accurate token counting
+        token_encoder = tiktoken.get_encoding("cl100k_base")
+        input_tokens = 0
+        for message in thread.messages:
+            content = message.get("content", "")
+            if isinstance(content, str):
+                input_tokens += len(token_encoder.encode(content))
+            elif isinstance(content, list):
+                for item in content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        input_tokens += len(token_encoder.encode(item.get("text", "")))
 
         return input_tokens, context_window
 
