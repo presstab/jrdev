@@ -296,6 +296,11 @@ class JrDevUI(App[None]):
     @on(TextualEvents.ChatThreadUpdate)
     async def handle_chat_update(self, message: TextualEvents.ChatThreadUpdate) -> None:
         """a chat thread has been updated, notify the directory widget to check for context changes"""
+        if message.thread_id == self.jrdev.get_router_thread().thread_id:
+            # update terminal output widget
+            await self.terminal_output_widget.update_token_progress()
+            return
+
         self.directory_widget.reload_highlights()
         # get the thread
         msg_thread = self.jrdev.get_current_thread()

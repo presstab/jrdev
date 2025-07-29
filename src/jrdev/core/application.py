@@ -332,6 +332,10 @@ class Application:
         """Get the currently active thread"""
         return self.state.get_current_thread()
 
+    def get_router_thread(self):
+        """Get the thread being used by the router agent"""
+        return self.state.get_thread(self.state.router_thread_id)
+
     def get_thread(self, thread_id):
         """Get MessageThread instance"""
         return self.state.get_thread(thread_id)
