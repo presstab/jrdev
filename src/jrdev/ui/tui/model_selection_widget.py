@@ -42,7 +42,9 @@ class ModelSelectionWidget(RadioSet):
 
         # Add remaining providers in sorted order
         for provider in sorted(models_by_provider):
-            ordered_providers[provider] = models_by_provider[provider]
+            # Sort models by name
+            sorted_models = sorted(models_by_provider[provider], key=lambda m: m['name'])
+            ordered_providers[provider] = sorted_models
 
         # Mount grouped UI
         for provider, model_group in ordered_providers.items():
