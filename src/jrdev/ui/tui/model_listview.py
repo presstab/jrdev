@@ -2,6 +2,7 @@ import typing
 from typing import Any
 
 from textual import on, events
+from textual.color import Color
 from textual.geometry import Offset
 from textual.message import Message
 from textual.widget import Widget
@@ -60,14 +61,38 @@ class ModelListView(Widget):
         yield self.search_input
         yield self.list_view
 
-    def update_models(self) -> None:
-        available_models = self.core_app.get_available_models()
+    def update_models(self, query_filter: str = "") -> None:
+        models_list = self.core_app.get_models()
+        sorted_models = sorted(models_list, key=lambda model: (model["provider"], model["name"]))
+
         self.models_text_width = 1
-        self.models = available_models
+        self.models = sorted_models
         self.list_view.clear()
-        for model_name in available_models:
-            self.models_text_width = max(self.models_text_width, len(model_name))
-            self.list_view.append(ListItem(Label(model_name), name=model_name))
+
+        # Group models into provider sections with provider headers
+        grouped_models = {}
+        for model in sorted_models:
+            provider = model["provider"]
+            if provider not in grouped_models:
+                grouped_models[provider] = []
+            if query_filter:
+                if query_filter in model["name"].lower():
+                    grouped_models[provider].append(model)
+            else:
+                grouped_models[provider].append(model)
+
+        # Colorize provider headers
+        star_color: Color = Color.parse("white")
+        if len(self.styles.border) > 1:
+            star_color = self.styles.border.top[1]
+
+        for provider, provider_models in grouped_models.items():
+            provider_item = ListItem(Label(f"[{star_color.rich_color.name}][bold white]✨{provider}✨[/bold white][/{star_color.rich_color.name}]", markup=True), name=provider, disabled=True)
+            self.list_view.append(provider_item)
+            for model in provider_models:
+                model_name = model["name"]
+                self.models_text_width = max(self.models_text_width, len(model_name))
+                self.list_view.append(ListItem(Label(model_name), name=model_name))
 
     def set_visible(self, is_visible: bool) -> None:
         self.visible = is_visible
@@ -76,7 +101,6 @@ class ModelListView(Widget):
             self.input_query = None
             self.update_models()
             self.set_dimensions()
-            self.search_input.focus()
 
     @typing.no_type_check
     def set_dimensions(self):
@@ -109,32 +133,25 @@ class ModelListView(Widget):
         """Search filter changed"""
         if event.input.id != "model-search-input":
             return
-        
+
+        # Update models with filter
         query = event.value.lower()
-        if self.input_query:
-            # previous query exists,
-            if len(self.input_query) > len(query):
-                # new query is shorter, that means backspace - have to add back models removed
-                self.list_view.clear()
-                self.update_models()
+        self.update_models(query_filter=query)
 
-        # filter out models that do not match query
-        self.input_query = query
-        for list_item in self.list_view.children:
-            if str(query) not in str(list_item.name):
-                list_item.remove()
-
-        # apply highlight and selection
         if len(self.list_view.children):
-            self.list_view.children[0].highlighted = True
-            self.list_view.index = 0
+            for i, item in enumerate(self.list_view.children):
+                if not item.disabled:
+                    self.list_view.index = i
+                    self.list_view.children[i].highlighted = True
+                    break
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Enter pressed on search input -> results in highlighted item being selected"""
-        list_item = self.list_view.highlighted_child
-        if not list_item:
-            return
-        self.list_view.action_select_cursor()
+        if self.list_view.index is not None:
+            selected_item = self.list_view.children[self.list_view.index]
+            if not selected_item.disabled:
+                self.post_message(self.ModelSelected(self, selected_item.name))
+        event.stop()
 
     def on_key(self, event: Key) -> None:
         if not self.visible:
@@ -142,26 +159,28 @@ class ModelListView(Widget):
             
         if event.key == "up":
             if self.list_view.index is not None:
-                new_index = max(0, self.list_view.index - 1)
-                self.list_view.index = new_index
-            else:
-                if len(self.list_view.children) > 0:
-                    self.list_view.index = 0
+                new_index = self.list_view.index - 1
+                while new_index >= 0 and self.list_view.children[new_index].disabled:
+                    new_index -= 1
+                if new_index >= 0:
+                    self.list_view.index = new_index
             event.stop()
         elif event.key == "down":
             if self.list_view.index is not None:
-                new_index = min(len(self.list_view.children) - 1, self.list_view.index + 1)
-                self.list_view.index = new_index
-            else:
-                if len(self.list_view.children) > 0:
-                    self.list_view.index = 0
+                new_index = self.list_view.index + 1
+                while new_index < len(self.list_view.children) and self.list_view.children[new_index].disabled:
+                    new_index += 1
+                if new_index < len(self.list_view.children):
+                    self.list_view.index = new_index
             event.stop()
         elif event.key == "enter":
-            if self.list_view.index is not None and self.list_view.index < len(self.list_view.children):
+            if self.list_view.index is not None:
                 selected_item = self.list_view.children[self.list_view.index]
-                self.post_message(self.ModelSelected(self, selected_item.name))
-                event.stop()
+                if not selected_item.disabled:
+                    self.post_message(self.ModelSelected(self, selected_item.name))
+            event.stop()
 
     @on(ListView.Selected, "#_listview")
     def selection_updated(self, selected: ListView.Selected) -> None:
-        self.post_message(self.ModelSelected(self, selected.item.name))
+        if not selected.item.disabled:
+            self.post_message(self.ModelSelected(self, selected.item.name))
