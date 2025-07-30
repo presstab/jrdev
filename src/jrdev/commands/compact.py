@@ -95,11 +95,11 @@ async def handle_compact(app: Any, args: List[str], worker_id: str) -> None:
     )
 
     # thread to be compacted
-    chat_thread = app.get_current_thread()
+    router_thread = app.get_router_thread()
 
     # Use MessageBuilder to construct messages
     builder = MessageBuilder(app)
-    builder.messages = chat_thread.messages
+    builder.messages = router_thread.messages
     builder.start_user_section()
     builder.load_user_prompt("conversation/compact")
     messages = builder.build()
@@ -111,7 +111,8 @@ async def handle_compact(app: Any, args: List[str], worker_id: str) -> None:
             PrintType.PROCESSING,
         )
 
-        response = await generate_llm_response(app, app.state.model, messages, worker_id, print_stream=True)
+        model = app.profile_manager().get_model("intent_router")
+        response = await generate_llm_response(app, model, messages, worker_id, print_stream=True)
 
         if response is not None:
             # Parse the JSON response
@@ -130,11 +131,11 @@ async def handle_compact(app: Any, args: List[str], worker_id: str) -> None:
                 ]
 
                 # Replace the thread's messages with just these two
-                chat_thread.set_compacted(new_messages)
+                router_thread.set_compacted(new_messages)
                 app.ui.print_text("Conversation successfully compacted to two messages.", PrintType.SUCCESS)
 
                 # notify ui of thread change
-                app.ui.chat_thread_update(chat_thread.thread_id)
+                app.ui.chat_thread_update(router_thread.thread_id)
 
             except json.JSONDecodeError:
                 app.ui.print_text(

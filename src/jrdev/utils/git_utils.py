@@ -391,3 +391,116 @@ def get_commit_diff(commit_hash: str) -> Optional[str]:
     except Exception as e:
         logger.error(f"An unexpected error occurred while getting git show for '{commit_hash}': {e}")
         return f"An unexpected error occurred while getting diff for {commit_hash}:\n{e}"
+
+def get_all_branches() -> List[str]:
+    """
+    Retrieves all local and remote branches from the git repository.
+
+    Returns:
+        A sorted list of unique branch names.
+        Returns an empty list if an error occurs.
+    """
+    try:
+        # Get all branches, both local and remote
+        branches_output = subprocess.check_output(
+            ["git", "branch", "-a"],
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=10
+        ).strip()
+
+        if not branches_output:
+            return []
+
+        branches = set()
+        for line in branches_output.splitlines():
+            # Clean up the branch name
+            # Remote branches are listed as 'remotes/origin/branch-name'
+            # The current branch is marked with a '*'
+            branch_name = line.strip()
+            if branch_name.startswith('* '):
+                branch_name = branch_name[2:]
+            
+            # Skip the HEAD pointer
+            if '->' in branch_name:
+                continue
+
+            # Strip 'remotes/' prefix from remote branch names
+            if branch_name.startswith('remotes/'):
+                branch_name = branch_name[8:]
+
+            branches.add(branch_name)
+        
+        return sorted(list(branches))
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to get git branches. Error: {e.output.strip()}")
+        return []
+    except FileNotFoundError:
+        logger.error("Git command not found. Is git installed and in your PATH?")
+        return []
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while getting git branches: {e}")
+        return []
+
+def get_all_branches_and_tags() -> List[str]:
+    """
+    Retrieves all local branches, remote branches, and tags from the git repository.
+
+    Returns:
+        A sorted list of unique branch and tag names.
+        Tags are returned as-is without any prefix modification.
+        Returns an empty list if an error occurs.
+    """
+    try:
+        # Get all branches, both local and remote
+        branches_output = subprocess.check_output(
+            ["git", "branch", "-a"],
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=10
+        ).strip()
+
+        # Get all tags
+        tags_output = subprocess.check_output(
+            ["git", "tag"],
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=10
+        ).strip()
+
+        items = set()
+
+        # Process branches
+        if branches_output:
+            for line in branches_output.splitlines():
+                branch_name = line.strip()
+                if branch_name.startswith('* '):
+                    branch_name = branch_name[2:]
+                
+                # Skip the HEAD pointer
+                if '->' in branch_name:
+                    continue
+
+                # Strip 'remotes/' prefix from remote branch names
+                if branch_name.startswith('remotes/'):
+                    branch_name = branch_name[8:]
+
+                items.add(branch_name)
+
+        # Process tags
+        if tags_output:
+            for line in tags_output.splitlines():
+                tag_name = line.strip()
+                if tag_name:
+                    items.add(tag_name)
+        
+        return sorted(list(items))
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to get git branches or tags. Error: {e.output.strip()}")
+        return []
+    except FileNotFoundError:
+        logger.error("Git command not found. Is git installed and in your PATH?")
+        return []
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while getting git branches and tags: {e}")
+        return []

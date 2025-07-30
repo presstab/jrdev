@@ -5,13 +5,13 @@ from textual import events, on
 from textual.app import ComposeResult
 from textual.color import Color
 from textual.containers import Horizontal, Vertical, Container
-from textual.geometry import Offset
 from textual.widget import Widget
-from textual.widgets import Button, ListView
+from textual.widgets import Button, Label, Link
 from typing import Optional, Callable
 import logging
 import pyperclip
 import asyncio
+import tiktoken
 
 from jrdev.ui.tui.input_widget import CommandTextArea
 from jrdev.ui.tui.terminal_text_area import TerminalTextArea
@@ -78,6 +78,17 @@ class TerminalOutputWidget(Widget):
         height: auto;
         width: auto;
     }
+    #context-label {
+        margin-left: 1;
+        color: #7a7a7a;
+        align-horizontal: right;
+    }
+    #compact-btn, #clear-btn {
+        width: 3;
+        max-width: 3;
+        margin-left: 1;
+        height: 1;
+    }
     """
 
     def __init__(self, id: Optional[str] = None, output_widget_mode=False, core_app=None) -> None:
@@ -90,6 +101,9 @@ class TerminalOutputWidget(Widget):
             self.copy_button.styles.layer = "bottom"
         else:
             self.model_button = Button(label="Model", id="model_btn_term")
+            self.context_label = Label("Context Use 0%", id="context-label")
+            self.compact_button = Button(label="🗜️", id="compact-btn", tooltip="Compact conversation. Condenses conversation thread, keeping a summary, but not all details. Reduces Context Use.")
+            self.clear_button = Button(label="🗑️", id="clear-btn", tooltip="Clear the entire conversation with the router agent. Sets Context Use to 0.")
             if not core_app:
                 raise Exception("core app reference missing from terminal output widget")
             self.core_app = core_app
@@ -117,6 +131,9 @@ class TerminalOutputWidget(Widget):
                 with Horizontal(id="button-layout"):
                     yield self.copy_button
                     yield self.model_button
+                    yield self.compact_button
+                    yield self.clear_button
+                    yield self.context_label
         
         yield self.confirmation_container
 
@@ -159,17 +176,68 @@ class TerminalOutputWidget(Widget):
     def handle_model_pressed(self):
         self.model_listview.set_visible(not self._model_list_was_visible)
 
+    @on(Button.Pressed, "#clear-btn")
+    def handle_clear_pressed(self):
+        self.post_message(CommandRequest("/routeragent clear"))
+        self.context_label.update(f"Context Use: 0%")
+
+    @on(Button.Pressed, "#compact-btn")
+    def handle_compact_pressed(self):
+        self.post_message(CommandRequest("/compact"))
+
     @on(ModelListView.ModelSelected, "#model-listview-term")
-    def handle_model_selection(self, event: ModelListView.ModelSelected):
+    async def handle_model_selection(self, event: ModelListView.ModelSelected):
         model_name = event.model
         # terminal interacts with intent_router
         self.post_message(CommandRequest(f"/modelprofile set intent_router {model_name}"))
         self.model_listview.set_visible(False)
         self.model_button.styles.max_width = len(model_name) + 2
+        await self.update_token_progress()
 
     def update_models(self):
         model = self.core_app.profile_manager().get_model("intent_router")
         self.model_button.label = model
+
+    async def _get_current_token_usage(self):
+        if not self.core_app:
+            return 0, 100  # Default values if core_app is not available
+
+        model_name = self.core_app.profile_manager().get_model("intent_router")
+        if not model_name:
+            return 0, 100
+
+        # Get the context window for the model
+        models = self.core_app.get_models()
+        context_window = 27000  # Default
+        for model in models:
+            if model["name"] == model_name:
+                context_window = model.get("context_tokens", 27000)
+                break
+
+        # Get current token usage from the thread
+        thread = self.core_app.get_router_thread()
+        if not thread:
+            return 0, context_window
+
+        # Use tiktoken's cl100k_base encoding for accurate token counting
+        token_encoder = tiktoken.get_encoding("cl100k_base")
+        input_tokens = 0
+        for message in thread.messages:
+            content = message.get("content", "")
+            if isinstance(content, str):
+                input_tokens += len(token_encoder.encode(content))
+            elif isinstance(content, list):
+                for item in content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        input_tokens += len(token_encoder.encode(item.get("text", "")))
+
+        return input_tokens, context_window
+
+    async def update_token_progress(self):
+        input_tokens, context_window = await self._get_current_token_usage()
+        if context_window and input_tokens:
+            use = float(input_tokens) / float(context_window)
+            self.context_label.update(f"Context Use: {round(use, 2)}% ({input_tokens} tokens)")
 
     def copy_to_clipboard(self) -> None:
         # Logic to copy the selected text of the TextArea to the clipboard
@@ -196,6 +264,8 @@ class TerminalOutputWidget(Widget):
             text: The text to append to the terminal output.
         """
         self.terminal_output.append_text(text)
+        if not self.output_widget_mode:
+            self.call_later(self.update_token_progress)
 
     def clear_input(self):
         self.terminal_input.value = ""

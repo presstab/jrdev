@@ -4,17 +4,17 @@ from jrdev.ui.tui.command_request import CommandRequest
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, Container
 from textual.screen import ModalScreen
-from textual.widgets import Button, Label, Input, Static, MarkdownViewer, LoadingIndicator, ListView
+from textual.widgets import Button, Label, Input, Static, MarkdownViewer, LoadingIndicator, ListView, Select
 from textual import on, work
 from textual.worker import Worker, WorkerState
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 import logging
 
 from jrdev.commands.git_config import get_git_config, save_git_config, DEFAULT_GIT_CONFIG
 from jrdev.services.git_pr_service import generate_pr_analysis, GitPRServiceError
 from jrdev.file_operations.file_utils import JRDEV_ROOT_DIR
 from jrdev.ui.tui.git_overview_widget import GitOverviewWidget
-from jrdev.utils.git_utils import is_git_installed
+from jrdev.utils.git_utils import is_git_installed, get_all_branches_and_tags
 from jrdev.ui.tui.model_listview import ModelListView
 from jrdev.ui.tui.terminal_output_widget import TerminalOutputWidget
 
@@ -144,7 +144,7 @@ class GitToolsScreen(ModalScreen):
         margin-top: 1;
         height: auto;
     }
-    #base-branch-label { /* Style for the Base Branch label */
+    #base-branch-label {
         height: 1;
         align-vertical: middle;
         text-align: right;
@@ -152,13 +152,49 @@ class GitToolsScreen(ModalScreen):
         text-style: bold;
         color: $accent;
     }
-    #git-config-grid > Input { /* General input styling */
+    #base-branch-select {
+        height: 3;
+        width: auto;
+        max-width: 80;
+        border: round #63f554;
+        margin: 0;
+        padding: 0;
+        &:focus > SelectCurrent {
+            border: none;
+            background-tint: $foreground 5%;
+        }
+        & > SelectOverlay {
+            width: 1fr;
+            display: none;
+            height: auto;
+            max-height: 12;
+            overlay: screen;
+            constrain: none inside;
+            color: $foreground;
+            border: tall $border-blurred;
+            background: $surface;
+            &:focus {
+                background-tint: $foreground 5%;
+            }
+            & > .option-list--option {
+                padding: 0 1;
+            }
+        }
+        &.-expanded {
+            .down-arrow {
+                display: none;
+            }
+            .up-arrow {
+                display: block;
+            }
+            & > SelectOverlay {
+                display: block;
+            }
+        }
+    }
+    #git-config-grid > Input {
         height: 1;
         border: none;
-    }
-    #base-branch-input { /* Specific styling for base branch input */
-        background: $surface-lighten-1;
-        border: round $accent-lighten-1;
     }
     #config-buttons {
         margin-top: 1;
@@ -299,8 +335,8 @@ class GitToolsScreen(ModalScreen):
                     with Vertical(id="configure-view"):
                         yield Label("Git Configuration", classes="pr-view-title")
                         with Container(id="git-config-grid"):
-                            yield Label("Base Branch:", id="base-branch-label") # Added ID here
-                            yield Input(id="base-branch-input", placeholder="e.g., origin/main")
+                            yield Label("Base Branch:", id="base-branch-label")
+                            yield Select(options=[("Loading...", "Loading...")], id="base-branch-select", allow_blank=False)
                         yield Static("Upstream branch used for 'git diff' in PR commands (default: 'origin/main')", classes="text-muted")
                         with Horizontal(id="config-buttons"):
                             yield Button("Save", id="save-config-btn", variant="success")
@@ -361,6 +397,7 @@ class GitToolsScreen(ModalScreen):
             )
             overview_view.mount(MarkdownViewer(warning_text, show_table_of_contents=False))
         else:
+            self.load_branches_worker()
             try:
                 self.query_one("#unstaged-files-list", ListView).focus()
             except Exception as e:
@@ -369,9 +406,6 @@ class GitToolsScreen(ModalScreen):
     def load_config(self) -> None:
         """Load current git config."""
         self.current_config = get_git_config(self.core_app)
-        base_branch = self.current_config.get("base_branch", DEFAULT_GIT_CONFIG["base_branch"])
-        input_widget = self.query_one("#base-branch-input", Input)
-        input_widget.value = base_branch
 
     def load_help_content(self) -> None:
         """Load the markdown content into the help viewer."""
@@ -437,7 +471,7 @@ class GitToolsScreen(ModalScreen):
                 logger.error(f"Could not refresh or focus overview widget: {e}")
         elif button_id == "btn-configure":
             self.active_view = "configure"
-            self.query_one("#base-branch-input", Input).focus()
+            self.query_one("#base-branch-select", Select).focus()
         elif button_id == "btn-pr-summary":
             self.active_view = "pr_summary"
             self.query_one("#summary-prompt-input", Input).focus()
@@ -466,8 +500,8 @@ class GitToolsScreen(ModalScreen):
     @on(Button.Pressed, "#save-config-btn")
     def handle_save_config(self) -> None:
         """Save the updated git configuration."""
-        input_widget = self.query_one("#base-branch-input", Input)
-        new_base_branch = input_widget.value.strip()
+        select_widget = self.query_one("#base-branch-select", Select)
+        new_base_branch = select_widget.value
 
         if not new_base_branch:
             self.notify("Base branch cannot be empty.", severity="error")
@@ -482,6 +516,35 @@ class GitToolsScreen(ModalScreen):
         else:
             logger.error("Failed to save Git configuration.")
             self.notify("Failed to save Git configuration.", severity="error")
+
+    @work(group="git_tools", exclusive=True, name="load_branches", thread=True)
+    def load_branches_worker(self) -> None:
+        """Worker to load git branches into the Select widget."""
+        branches_and_tags = get_all_branches_and_tags()
+        if branches_and_tags:
+            self.call_later(self.update_branch_options, branches_and_tags)
+
+    def update_branch_options(self, branches_and_tags: list[str]) -> None:
+        """Update the options of the branch select widget."""
+        select_widget = self.query_one("#base-branch-select", Select)
+        
+        current_value = self.current_config.get("base_branch", DEFAULT_GIT_CONFIG["base_branch"])
+        
+        select_widget.set_options([(item, item) for item in branches_and_tags])
+        
+        # Restore the selection if it exists in the new options
+        if current_value in branches_and_tags:
+            select_widget.value = current_value
+        elif branches_and_tags:
+            # Fallback to the first available branch/tag if the saved one is not found
+            select_widget.value = branches_and_tags[0]
+        
+        # If the value was "Loading...", it might not be in the new options, so we need to set it again.
+        if select_widget.value == "Loading...":
+            if current_value in branches_and_tags:
+                select_widget.value = current_value
+            elif branches_and_tags:
+                select_widget.value = branches_and_tags[0]
 
     @on(Button.Pressed, ".select-model-btn")
     def handle_model_select(self, event: Button.Pressed) -> None:
