@@ -27,6 +27,7 @@ class ManagementWidget(Widget):
     #right-pane {
         width: 70%;
         padding: 1;
+        overflow-x: auto;
     }
     """
 

@@ -22,8 +22,8 @@ class SettingsScreen(ModalScreen):
     }
 
     #settings-container {
-        width: 90%;
-        height: 90%;
+        width: 100%;
+        height: 100%;
         background: $surface;
         border: round $accent;
         padding: 0;
