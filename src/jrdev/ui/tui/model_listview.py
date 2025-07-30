@@ -101,7 +101,6 @@ class ModelListView(Widget):
             self.input_query = None
             self.update_models()
             self.set_dimensions()
-            self.search_input.focus()
 
     @typing.no_type_check
     def set_dimensions(self):
