@@ -63,9 +63,13 @@ class ManagementWidget(Widget):
                 str(model.get("input_cost", 0)),
                 str(model.get("output_cost", 0)),
                 str(model.get("context_tokens", 0)),
-                Button("Edit", id=f"edit-model-{model['name']}"),
-                Button("Remove", id=f"remove-model-{model['name']}")
+                Button("Edit", id=f"edit-model-{self.sanitize_id(model['name'])}"),
+                Button("Remove", id=f"remove-model-{self.sanitize_id(model['name'])}")
             )
+
+    def sanitize_id(self, name: str) -> str:
+        """Sanitizes a string to be used as a widget ID."""
+        return "".join(c if c.isalnum() or c in "-_" else "_" for c in name)
 
     @on(Select.Changed, "#provider-select")
     def handle_provider_change(self, event: Select.Changed):
@@ -101,11 +105,17 @@ class ManagementWidget(Widget):
     def on_button_pressed(self, event: Button.Pressed):
         """Handle button presses in the widget."""
         if event.button.id.startswith("edit-model-"):
-            model_name = event.button.id.replace("edit-model-", "")
-            self.app.push_screen(EditModelModal(model_name))
+            sanitized_name = event.button.id.replace("edit-model-", "")
+            for model in self.core_app.get_models():
+                if self.sanitize_id(model['name']) == sanitized_name:
+                    self.app.push_screen(EditModelModal(model['name']))
+                    return
         elif event.button.id.startswith("remove-model-"):
-            model_name = event.button.id.replace("remove-model-", "")
-            self.post_message(CommandRequest(f"/model remove {model_name}"))
+            sanitized_name = event.button.id.replace("remove-model-", "")
+            for model in self.core_app.get_models():
+                if self.sanitize_id(model['name']) == sanitized_name:
+                    self.post_message(CommandRequest(f"/model remove {model['name']}"))
+                    return
 
     def compose(self):
         """Compose the widget."""
