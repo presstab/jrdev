@@ -20,6 +20,11 @@ class SettingsScreen(ModalScreen):
     SettingsScreen {
         align: center middle;
     }
+    
+    #management-view {
+        overflow-x: auto;
+        overflow-y: auto;
+    }
 
     #settings-container {
         width: 100%;
@@ -95,6 +100,7 @@ class SettingsScreen(ModalScreen):
         width: 80%;
         height: 100%;
         layout: vertical;
+        overflow-x: auto;
     }
 
     #providers-view, #models-view, #styles-view {
@@ -122,8 +128,9 @@ class SettingsScreen(ModalScreen):
         super().__init__()
         self.core_app = core_app
         self.active_view = "management"  # 'management', or 'styles'
-        self.management_widget = ManagementWidget(core_app=self.core_app)
-        self.styles_widget = TerminalStylesWidget(core_app=self.core_app)
+        # Expose sub-widgets as attributes for external access
+        self.management_widget: Optional[ManagementWidget] = ManagementWidget(core_app=self.core_app, id="management-widget")
+        self.styles_widget: Optional[TerminalStylesWidget] = TerminalStylesWidget(core_app=self.core_app)
         self.header_subtitle_label = None
 
     def get_active_subtitle(self) -> str:
@@ -150,8 +157,8 @@ class SettingsScreen(ModalScreen):
                     yield Button("Terminal Styles", id="btn-styles", classes="sidebar-button")
                 # Content Area
                 with Vertical(id="content-area"):
-                    with ScrollableContainer(id="management-view"):
-                        yield self.management_widget
+                    # Ensure attributes point to the yielded widgets
+                    yield self.management_widget
                     with ScrollableContainer(id="styles-view"):
                         yield self.styles_widget
             # Footer
@@ -168,7 +175,7 @@ class SettingsScreen(ModalScreen):
 
     def update_view_visibility(self) -> None:
         views = {
-            "management": "#management-view",
+            "management": "#management-widget",
             "styles": "#styles-view",
         }
         buttons = {

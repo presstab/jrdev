@@ -16,6 +16,21 @@ def _parse_bool(val: str) -> bool:
 class AddModelModal(ModalScreen):
     """A modal screen to add a new model."""
 
+    DEFAULT_CSS = """
+    AddModelModal {
+        align: center middle;
+    }
+
+    #add-model-container {
+        width: 50;
+        height: auto;
+        padding: 1 2;
+        border: round #2a2a2a;
+        background: #1e1e1e;
+        gap: 1;
+    }
+    """
+
     def compose(self):
         with Vertical(id="add-model-container"):
             yield Label("Add New Model")
@@ -31,7 +46,7 @@ class AddModelModal(ModalScreen):
     def on_mount(self):
         """Populate the provider select."""
         provider_select = self.query_one("#provider-select", Select)
-        providers = self.app.core_app.provider_list()
+        providers = self.app.jrdev.provider_list()
         provider_options = [(provider.name, provider.name) for provider in providers]
         provider_select.set_options(provider_options)
 

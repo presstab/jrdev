@@ -4,6 +4,7 @@ from textual.containers import Vertical
 from jrdev.ui.tui.command_request import CommandRequest
 from jrdev.utils.string_utils import is_valid_name, is_valid_cost, is_valid_context_window
 
+
 def _parse_bool(val: str) -> bool:
     true_vals = {"1", "true", "yes", "y", "on"}
     false_vals = {"0", "false", "no", "n", "off"}
@@ -13,8 +14,39 @@ def _parse_bool(val: str) -> bool:
         return False
     raise ValueError(f"Invalid boolean value: {val}")
 
+
 class EditModelModal(ModalScreen):
     """A modal screen to edit a model."""
+
+    DEFAULT_CSS = """
+    EditModelModal {
+        align: center middle;
+        background: transparent;
+    }
+    #edit-model-container {
+        width: 28;
+        min-width: 24;
+        max-width: 32;
+        height: auto;
+        padding: 0 1;
+        margin: 0;
+        align: center middle;
+        border: round #2a2a2a;
+        background: #1e1e1e 80%;
+        overflow: hidden;
+        content-align: center middle;
+    }
+    #edit-model-container > Label {
+        padding: 0;
+        margin: 0 0 1 0;
+    }
+    #edit-model-container > Input,
+    #edit-model-container > Select,
+    #edit-model-container > Button {
+        height: 1;
+        margin: 0;
+    }
+    """
 
     def __init__(self, model_name: str) -> None:
         super().__init__()
@@ -22,21 +54,21 @@ class EditModelModal(ModalScreen):
 
     def compose(self):
         with Vertical(id="edit-model-container"):
-            yield Label(f"Edit Model: {self.model_name}")
+            yield Label(f"Edit {self.model_name}")
             yield Select([], id="provider-select")
-            yield Input(placeholder="Is Think (true/false)", id="is-think")
-            yield Input(placeholder="Input Cost", id="input-cost")
-            yield Input(placeholder="Output Cost", id="output-cost")
-            yield Input(placeholder="Context Window", id="context-window")
+            yield Input(placeholder="Think? (true/false)", id="is-think")
+            yield Input(placeholder="In cost", id="input-cost")
+            yield Input(placeholder="Out cost", id="output-cost")
+            yield Input(placeholder="Ctx tokens", id="context-window")
             yield Button("Save", id="save")
             yield Button("Cancel", id="cancel")
 
     def on_mount(self):
         """Populate the inputs with the existing data."""
-        model = self.app.core_app.get_model(self.model_name)
+        model = self.app.jrdev.get_model(self.model_name)
         if model:
             provider_select = self.query_one("#provider-select", Select)
-            providers = self.app.core_app.provider_list()
+            providers = self.app.jrdev.provider_list()
             provider_options = [(provider.name, provider.name) for provider in providers]
             provider_select.set_options(provider_options)
             provider_select.value = model["provider"]

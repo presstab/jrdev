@@ -8,6 +8,21 @@ from jrdev.utils.string_utils import is_valid_name, is_valid_env_key, is_valid_u
 class AddProviderModal(ModalScreen):
     """A modal screen to add a new provider."""
 
+    DEFAULT_CSS = """
+    AddProviderModal {
+        align: center middle;
+    }
+
+    #add-provider-container {
+        width: 50;
+        height: auto;
+        padding: 1 2;
+        border: round #2a2a2a;
+        background: #1e1e1e;
+        gap: 1;
+    }
+    """
+
     def compose(self):
         with Vertical(id="add-provider-container"):
             yield Label("Add New Provider")

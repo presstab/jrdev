@@ -386,6 +386,13 @@ class Application:
     def get_models(self) -> List[Dict[str, Any]]:
         return self.state.model_list.get_model_list()
 
+    def get_model(self, model_name: str) -> Dict[str, Any] | None:
+        """Get a single model by name."""
+        for model in self.get_models():
+            if model["name"] == model_name:
+                return model
+        return None
+
     def get_available_models(self) -> List[str]:
         all_models = self.get_models()
         providers_with_keys = {

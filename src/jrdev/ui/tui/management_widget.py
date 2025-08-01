@@ -1,7 +1,7 @@
 from typing import Any, Optional
 from textual import on
 from textual.widgets import DataTable, Select, Button, Label
-from textual.containers import Horizontal, Vertical, Container
+from textual.containers import Horizontal, Vertical, Container, ScrollableContainer
 from textual.widget import Widget
 from jrdev.ui.tui.command_request import CommandRequest
 from jrdev.ui.tui.add_model_modal import AddModelModal
@@ -19,26 +19,49 @@ class ManagementWidget(Widget):
     }
 
     #left-pane {
-        width: 30%;
+        width: 3fr;
         padding: 1;
         border-right: solid $primary;
     }
 
     #right-pane {
-        width: 70%;
+        width: 7fr;
         padding: 1;
         overflow-x: auto;
+    }
+    
+    #models-scroll {
+        height: 1fr;
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: auto;
+    }
+
+    #models-table {
+        width: auto;
+        min-width: 100%;
+        overflow-x: auto;
+    }
+    
+    #models-crud-bar {
+        width: 100%;
+        padding-top: 1;
+        height: auto;
     }
     """
 
     def __init__(self, core_app: Any, name: Optional[str] = None, id: Optional[str] = None, classes: Optional[str] = None) -> None:
         super().__init__(name=name, id=id, classes=classes)
         self.core_app = core_app
+        # map row keys to model names for selection-aware actions
+        self._row_to_model: dict[Any, str] = {}
 
     def on_mount(self):
         """Populate the widgets with data."""
         self.populate_providers()
         self.populate_models()
+        # initialize CRUD buttons state
+        self._update_model_crud_buttons_state(False)
 
     def populate_providers(self):
         """Populates the provider select widget."""
@@ -50,23 +73,56 @@ class ManagementWidget(Widget):
     def populate_models(self, provider_filter: Optional[str] = None):
         """Populates the models table."""
         models_table = self.query_one("#models-table", DataTable)
-        models_table.clear()
+        # Clear rows and columns to reset the table state safely
+        models_table.clear(columns=True)
+        self._row_to_model.clear()
+        models_table.cursor_type = "row"
+        # Prevent table from forcing full width expansion; allow content size and horizontal scroll
+        models_table.styles.width = "auto"
+        models_table.styles.min_width = "100%"
+        models_table.styles.overflow_x = "auto"
+        models_table.styles.overflow_y = "auto"
+        models_table.fixed_columns = 0
+        models_table.zebra_stripes = True
+
+        # add columns
+        models_table.add_columns("Name", "Provider", "Think", "Input Cost", "Output Cost", "Context")
+
         models = self.core_app.get_models()
-        if not models_table.columns:
-            models_table.add_columns("Name", "Provider", "Think", "Input Cost", "Output Cost", "Context", "Edit", "Remove")
         for model in models:
             if provider_filter and provider_filter != "all" and model["provider"] != provider_filter:
                 continue
-            models_table.add_row(
+            row_key = models_table.add_row(
                 model["name"],
                 model["provider"],
                 str(model.get("is_think", False)),
                 str(model.get("input_cost", 0)),
                 str(model.get("output_cost", 0)),
                 str(model.get("context_tokens", 0)),
-                Button("Edit", id=f"edit-model-{self.sanitize_id(model['name'])}"),
-                Button("Remove", id=f"remove-model-{self.sanitize_id(model['name'])}")
             )
+            self._row_to_model[row_key] = model["name"]
+
+        # after repopulating, ensure CRUD buttons reflect current selection
+        self._update_model_crud_buttons_state(False)
+
+    def _get_selected_model_name(self) -> Optional[str]:
+        models_table = self.query_one("#models-table", DataTable)
+        if not models_table.row_count:
+            return None
+        if models_table.cursor_row is None:
+            return None
+        try:
+            row_key = models_table.row_key_at(models_table.cursor_row)
+        except Exception:
+            return None
+        return self._row_to_model.get(row_key)
+
+    def _update_model_crud_buttons_state(self, selected: bool) -> None:
+        """Enable/disable Edit and Remove model buttons based on selection."""
+        edit_btn = self.query_one("#edit-model", Button)
+        remove_btn = self.query_one("#remove-model", Button)
+        edit_btn.disabled = not selected
+        remove_btn.disabled = not selected
 
     def sanitize_id(self, name: str) -> str:
         """Sanitizes a string to be used as a widget ID."""
@@ -76,6 +132,12 @@ class ManagementWidget(Widget):
     def handle_provider_change(self, event: Select.Changed):
         """Handle provider selection changes."""
         self.populate_models(event.value)
+
+    @on(DataTable.RowHighlighted, "#models-table")
+    @on(DataTable.RowSelected, "#models-table")
+    def handle_models_table_selection_changed(self, event: DataTable.RowHighlighted) -> None:
+        """Toggle button enable state when table selection changes."""
+        self._update_model_crud_buttons_state(event.row_key is not None)
 
     @on(Button.Pressed, "#add-provider")
     def add_provider(self):
@@ -103,20 +165,19 @@ class ManagementWidget(Widget):
         """Add a new model."""
         self.app.push_screen(AddModelModal())
 
-    def on_button_pressed(self, event: Button.Pressed):
-        """Handle button presses in the widget."""
-        if event.button.id.startswith("edit-model-"):
-            sanitized_name = event.button.id.replace("edit-model-", "")
-            for model in self.core_app.get_models():
-                if self.sanitize_id(model['name']) == sanitized_name:
-                    self.app.push_screen(EditModelModal(model['name']))
-                    return
-        elif event.button.id.startswith("remove-model-"):
-            sanitized_name = event.button.id.replace("remove-model-", "")
-            for model in self.core_app.get_models():
-                if self.sanitize_id(model['name']) == sanitized_name:
-                    self.post_message(CommandRequest(f"/model remove {model['name']}"))
-                    return
+    @on(Button.Pressed, "#edit-model")
+    def edit_model(self):
+        """Edit the selected model from the table."""
+        model_name = self._get_selected_model_name()
+        if model_name:
+            self.app.push_screen(EditModelModal(model_name))
+
+    @on(Button.Pressed, "#remove-model")
+    def remove_model(self):
+        """Remove the selected model from the table."""
+        model_name = self._get_selected_model_name()
+        if model_name:
+            self.post_message(CommandRequest(f"/model remove {model_name}"))
 
     def compose(self):
         """Compose the widget."""
@@ -129,5 +190,9 @@ class ManagementWidget(Widget):
                 yield Button("Remove Provider", id="remove-provider")
             with Container(id="right-pane"):
                 yield Label("Models")
-                yield DataTable(id="models-table")
-                yield Button("Add Model", id="add-model")
+                with ScrollableContainer(id="models-scroll"):
+                    yield DataTable(id="models-table")
+                with Horizontal(id="models-crud-bar"):
+                    yield Button("New Model", id="add-model")
+                    yield Button("Edit Selected", id="edit-model", disabled=True)
+                    yield Button("Remove Selected", id="remove-model", disabled=True)
