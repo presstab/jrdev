@@ -7,8 +7,7 @@ from textual.containers import Vertical, Horizontal, Container, ScrollableContai
 from textual.screen import ModalScreen
 from textual.widgets import Button, Label, Input, Static
 
-from jrdev.ui.tui.providers_widget import ProvidersWidget
-from jrdev.ui.tui.models_widget import ModelsWidget
+from jrdev.ui.tui.model_management_widget import ModelManagementWidget
 from jrdev.ui.tui.api_key_entry import ApiKeyEntry
 from jrdev.ui.tui.terminal_styles_widget import TerminalStylesWidget
 
@@ -21,10 +20,15 @@ class SettingsScreen(ModalScreen):
     SettingsScreen {
         align: center middle;
     }
+    
+    #management-view {
+        overflow-x: auto;
+        overflow-y: auto;
+    }
 
     #settings-container {
-        width: 90%;
-        height: 90%;
+        width: 100%;
+        height: 100%;
         background: $surface;
         border: round $accent;
         padding: 0;
@@ -64,6 +68,7 @@ class SettingsScreen(ModalScreen):
 
     #sidebar {
         width: 20%;
+        max-width: 20;
         height: 100%;
         border-right: solid $panel;
         padding: 1 0;
@@ -96,6 +101,7 @@ class SettingsScreen(ModalScreen):
         width: 80%;
         height: 100%;
         layout: vertical;
+        overflow-x: auto;
     }
 
     #providers-view, #models-view, #styles-view {
@@ -122,17 +128,15 @@ class SettingsScreen(ModalScreen):
     def __init__(self, core_app: Any) -> None:
         super().__init__()
         self.core_app = core_app
-        self.active_view = "providers"  # 'providers', 'models', or 'styles'
-        self.providers_widget = ProvidersWidget(core_app=self.core_app)
-        self.models_widget = ModelsWidget(core_app=self.core_app)
-        self.styles_widget = TerminalStylesWidget(core_app=self.core_app)
+        self.active_view = "model_management"  # 'management', or 'styles'
+        # Expose sub-widgets as attributes for external access
+        self.management_widget: Optional[ModelManagementWidget] = ModelManagementWidget(core_app=self.core_app, id="management-widget")
+        self.styles_widget: Optional[TerminalStylesWidget] = TerminalStylesWidget(core_app=self.core_app)
         self.header_subtitle_label = None
 
     def get_active_subtitle(self) -> str:
-        if self.active_view == "providers":
-            return "Api Providers"
-        elif self.active_view == "models":
-            return "Edit Models"
+        if self.active_view == "model_management":
+            return "Manage Models and Providers"
         elif self.active_view == "styles":
             return "Terminal Styles"
         else:
@@ -150,15 +154,12 @@ class SettingsScreen(ModalScreen):
                 # Sidebar
                 with Vertical(id="sidebar"):
                     yield Button("API Keys", id="btn-api-keys", classes="sidebar-button")
-                    yield Button("Providers", id="btn-providers", classes="sidebar-button selected")
-                    yield Button("Models", id="btn-models", classes="sidebar-button")
+                    yield Button("Manage Models", id="btn-management", classes="sidebar-button selected")
                     yield Button("Terminal Styles", id="btn-styles", classes="sidebar-button")
                 # Content Area
                 with Vertical(id="content-area"):
-                    with ScrollableContainer(id="providers-view"):
-                        yield self.providers_widget
-                    with ScrollableContainer(id="models-view"):
-                        yield self.models_widget
+                    # Ensure attributes point to the yielded widgets
+                    yield self.management_widget
                     with ScrollableContainer(id="styles-view"):
                         yield self.styles_widget
             # Footer
@@ -166,23 +167,19 @@ class SettingsScreen(ModalScreen):
                 yield Button("Close", id="close-settings-btn", variant="default")
 
     def on_mount(self) -> None:
+        # Ensure default active view is management on mount
+        self.active_view = "model_management"
         self.update_view_visibility()
-        # Focus the first sidebar button
-        self.query_one("#btn-providers", Button).focus()
+        # Focus the Management sidebar button
+        self.query_one("#btn-management", Button).focus()
         # Set the correct subtitle
         if self.header_subtitle_label:
             self.header_subtitle_label.update(self.get_active_subtitle())
 
     def update_view_visibility(self) -> None:
         views = {
-            "providers": "#providers-view",
-            "models": "#models-view",
+            "model_management": "#management-widget",
             "styles": "#styles-view",
-        }
-        buttons = {
-            "providers": "#btn-providers",
-            "models": "#btn-models",
-            "styles": "#btn-styles",
         }
         for view_name, view_id in views.items():
             try:
@@ -197,13 +194,9 @@ class SettingsScreen(ModalScreen):
     @on(Button.Pressed, ".sidebar-button")
     def handle_sidebar_button(self, event: Button.Pressed) -> None:
         button_id = event.button.id
-        if button_id == "btn-providers":
-            self.active_view = "providers"
-            self.query_one("#btn-providers", Button).focus()
-            self.update_view_visibility()
-        elif button_id == "btn-models":
-            self.active_view = "models"
-            self.query_one("#btn-models", Button).focus()
+        if button_id == "btn-management":
+            self.active_view = "model_management"
+            self.query_one("#btn-management", Button).focus()
             self.update_view_visibility()
         elif button_id == "btn-styles":
             self.active_view = "styles"

@@ -12,6 +12,7 @@ from jrdev.ui.textual_events import TextualEvents
 from jrdev.ui.tui.code_confirmation_screen import CodeConfirmationScreen
 from jrdev.ui.tui.steps_screen import StepsScreen
 from jrdev.ui.tui.code_edit_screen import CodeEditScreen
+from jrdev.ui.tui.edit_model_modal import EditModelModal
 from jrdev.ui.tui.filtered_directory_tree import DirectoryWidget
 from jrdev.ui.tui.api_key_entry import ApiKeyEntry
 from jrdev.ui.tui.task_monitor import TaskMonitor
@@ -280,6 +281,13 @@ class JrDevUI(App[None]):
         """Open the model profile management screen"""
         self.app.push_screen(ModelProfileScreen(self.jrdev))
 
+    @on(Button.Pressed, "#button_edit_model")
+    def handle_edit_model_pressed(self) -> None:
+        """Open the edit model modal screen."""
+        model_name = self.jrdev.state.model
+        if model_name:
+            self.push_screen(EditModelModal(model_name=model_name))
+
     @on(TextualEvents.ModelChanged)
     def handle_model_change(self, message: TextualEvents.ModelChanged) -> None:
         self.chat_view.update_models()
@@ -287,11 +295,15 @@ class JrDevUI(App[None]):
     @on(RadioSet.Changed, "#model_list")
     def handle_model_selected(self, event: RadioSet.Changed) -> None:
         self.jrdev.set_model(str(event.pressed.label), send_to_ui=False)
+        edit_button = self.query_one("#button_edit_model", Button)
+        edit_button.disabled = False
 
     @on(TextualEvents.ModelListUpdated)
     async def handle_model_list_updated(self) -> None:
         self.chat_view.update_models()
         self.terminal_output_widget.update_models()
+        if self.settings_screen and hasattr(self.settings_screen, 'management_widget') and self.settings_screen.management_widget:
+            self.settings_screen.management_widget.populate_models()
 
     @on(TextualEvents.ChatThreadUpdate)
     async def handle_chat_update(self, message: TextualEvents.ChatThreadUpdate) -> None:
@@ -344,10 +356,10 @@ class JrDevUI(App[None]):
     # Add Settings button handler
     @on(Button.Pressed, "#button_settings")
     def handle_settings_pressed(self) -> None:
-        """Open the SettingsScreen with Providers tab active by default."""
+        """Open the SettingsScreen with Management view active by default."""
         if not self.settings_screen:
             self.settings_screen = SettingsScreen(core_app=self.jrdev)
-            self.settings_screen.active_view = "providers"
+            self.settings_screen.active_view = "management"
             self.app.push_screen(screen=self.settings_screen, callback=self.handle_settings_screen_closed)
 
     def handle_settings_screen_closed(self, success: bool) -> None:
@@ -356,13 +368,16 @@ class JrDevUI(App[None]):
 
     @on(TextualEvents.ProvidersUpdate)
     async def handle_providers_update(self) -> None:
-        if self.settings_screen:
-            await self.settings_screen.providers_widget.handle_providers_updated()
+        if self.settings_screen and getattr(self.settings_screen, "management_widget", None):
+            # Refresh providers and models in management widget
+            self.settings_screen.management_widget.populate_providers()
+            self.settings_screen.management_widget.populate_models()
 
     @on(TextualEvents.ModelListUpdated)
     async def handle_models_update(self) -> None:
-        if self.settings_screen:
-            await self.settings_screen.models_widget.handle_models_updated()
+        if self.settings_screen and getattr(self.settings_screen, "management_widget", None):
+            # Refresh models in management widget
+            self.settings_screen.management_widget.populate_models()
 
     @on(ChatViewWidget.ShowTerminal)
     @on(Button.Pressed, "#button_terminal")
