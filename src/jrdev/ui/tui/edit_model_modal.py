@@ -72,8 +72,8 @@ class EditModelModal(BaseModelModal):
                 return
 
             # Convert per-1M display values to stored per-10M
-            input_cost_stored = self.display_to_stored_cost(input_cost_display)
-            output_cost_stored = self.display_to_stored_cost(output_cost_display)
+            input_cost_stored = input_cost_display / 10
+            output_cost_stored = output_cost_display / 10
 
             self.post_message(CommandRequest(f"/model edit {self.model_name} {provider} {is_think} {input_cost_stored} {output_cost_stored} {context_window_int}"))
             self.app.pop_screen()

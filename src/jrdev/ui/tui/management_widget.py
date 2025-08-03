@@ -9,7 +9,7 @@ from jrdev.ui.tui.add_model_modal import AddModelModal
 from jrdev.ui.tui.add_provider_modal import AddProviderModal
 from jrdev.ui.tui.edit_provider_modal import EditProviderModal
 from jrdev.ui.tui.edit_model_modal import EditModelModal
-from jrdev.ui.tui.remove_model_modal import RemoveModelModal
+from jrdev.ui.tui.remove_model_modal import RemoveResourceModal
 
 import logging
 logger = logging.getLogger("jrdev")
@@ -225,7 +225,7 @@ class ManagementWidget(Widget):
         provider_select = self.query_one("#provider-select", Select)
         provider_name = provider_select.value
         if provider_name and provider_name != "all":
-            self.post_message(CommandRequest(f"/provider remove {provider_name}"))
+            self.app.push_screen(RemoveResourceModal(provider_name, resource_type="provider"))
 
     @on(Button.Pressed, "#add-model")
     def add_model(self):
@@ -244,4 +244,4 @@ class ManagementWidget(Widget):
         """Remove the selected model from the table."""
         model_name = self._get_selected_model_name()
         if model_name:
-            self.app.push_screen(RemoveModelModal(model_name))
+            self.app.push_screen(RemoveResourceModal(model_name))

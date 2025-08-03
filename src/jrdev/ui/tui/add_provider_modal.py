@@ -1,38 +1,22 @@
-from textual.screen import ModalScreen
-from textual.widgets import Input, Button, Label
-from textual.containers import Vertical
+from textual.widgets import Input
 from jrdev.ui.tui.command_request import CommandRequest
+from jrdev.ui.tui.base_model_modal import BaseModelModal
 from jrdev.utils.string_utils import is_valid_name, is_valid_env_key, is_valid_url
 
 
-class AddProviderModal(ModalScreen):
+class AddProviderModal(BaseModelModal):
     """A modal screen to add a new provider."""
 
-    DEFAULT_CSS = """
-    AddProviderModal {
-        align: center middle;
-    }
-
-    #add-provider-container {
-        width: 50;
-        height: auto;
-        padding: 1 2;
-        border: round #2a2a2a;
-        background: #1e1e1e;
-        gap: 1;
-    }
-    """
-
     def compose(self):
-        with Vertical(id="add-provider-container"):
-            yield Label("Add New Provider")
-            yield Input(placeholder="Provider Name", id="provider-name")
-            yield Input(placeholder="Base URL", id="base-url")
-            yield Input(placeholder="API Key Environment Variable", id="env-key")
-            yield Button("Save", id="save")
-            yield Button("Cancel", id="cancel")
+        container, header = self.build_container("add-provider-container", "Add New Provider")
+        with container:
+            yield header
+            yield self.labeled_row("Provider Name:", Input(placeholder="Provider Name", id="provider-name"))
+            yield self.labeled_row("Base URL:", Input(placeholder="Base URL", id="base-url"))
+            yield self.labeled_row("API Key Environment Variable:", Input(placeholder="API Key Environment Variable", id="env-key"))
+            yield self.actions_row()
 
-    def on_button_pressed(self, event: Button.Pressed):
+    def on_button_pressed(self, event):
         if event.button.id == "save":
             name = self.query_one("#provider-name", Input).value
             base_url = self.query_one("#base-url", Input).value
