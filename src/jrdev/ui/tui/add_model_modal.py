@@ -1,55 +1,28 @@
-from textual.screen import ModalScreen
 from textual.widgets import Input, Button, Label, Select
-from textual.containers import Vertical
+from textual.containers import Vertical, Horizontal
 from jrdev.ui.tui.command_request import CommandRequest
-from jrdev.utils.string_utils import is_valid_name, is_valid_cost, is_valid_context_window
+from jrdev.ui.tui.base_model_modal import BaseModelModal
 
-def _parse_bool(val: str) -> bool:
-    true_vals = {"1", "true", "yes", "y", "on"}
-    false_vals = {"0", "false", "no", "n", "off"}
-    if val.lower() in true_vals:
-        return True
-    if val.lower() in false_vals:
-        return False
-    raise ValueError(f"Invalid boolean value: {val}")
 
-class AddModelModal(ModalScreen):
-    """A modal screen to add a new model."""
-
-    DEFAULT_CSS = """
-    AddModelModal {
-        align: center middle;
-    }
-
-    #add-model-container {
-        width: 50;
-        height: auto;
-        padding: 1 2;
-        border: round #2a2a2a;
-        background: #1e1e1e;
-        gap: 1;
-    }
-    """
+class AddModelModal(BaseModelModal):
+    """A modal screen to add a new model, using shared BaseModelModal styling and helpers."""
 
     def compose(self):
-        with Vertical(id="add-model-container"):
-            yield Label("Add New Model")
-            yield Input(placeholder="Model Name", id="model-name")
-            yield Select([], id="provider-select")
-            yield Input(placeholder="Is Think (true/false)", id="is-think")
-            # Display and accept costs per 1M tokens
-            yield Input(placeholder="Input Cost (per 1M tokens)", id="input-cost")
-            yield Input(placeholder="Output Cost (per 1M tokens)", id="output-cost")
-            yield Input(placeholder="Context Window", id="context-window")
-            yield Button("Save", id="save")
-            yield Button("Cancel", id="cancel")
+        container, header = self.build_container("add-model-container", "Add New Model")
+        with container:
+            yield header
+            yield self.labeled_row("Model Name", Input(placeholder="Model Name", id="model-name"))
+            yield self.labeled_row("Provider", Select([], id="provider-select"))
+            yield self.labeled_row("Think?", Input(placeholder="true/false", id="is-think"))
+            yield self.labeled_row("Input Cost", Input(placeholder="Input Cost (per 1M tokens)", id="input-cost"))
+            yield self.labeled_row("Output Cost", Input(placeholder="Output Cost (per 1M tokens)", id="output-cost"))
+            yield self.labeled_row("Ctx Tokens", Input(placeholder="Ctx tokens", id="context-window"))
+            yield self.actions_row()
 
     def on_mount(self):
         """Populate the provider select."""
         provider_select = self.query_one("#provider-select", Select)
-        providers = self.app.jrdev.provider_list()
-        provider_options = [(provider.name, provider.name) for provider in providers]
-        provider_select.set_options(provider_options)
+        self.populate_providers(provider_select)
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "save":
@@ -60,51 +33,31 @@ class AddModelModal(ModalScreen):
             output_cost_str_display = self.query_one("#output-cost", Input).value
             context_window_str = self.query_one("#context-window", Input).value
 
-            if not is_valid_name(name):
+            if not self.validate_name(name):
                 self.app.notify("Invalid model name", severity="error")
                 return
             if not provider:
                 self.app.notify("Provider is required", severity="error")
                 return
             try:
-                is_think = _parse_bool(is_think_str)
+                is_think = self.parse_bool(is_think_str)
             except ValueError as e:
                 self.app.notify(str(e), severity="error")
                 return
 
-            # Validate display values (per 1M tokens), then convert to stored units (per 10M tokens)
-            try:
-                input_cost_display = float(input_cost_str_display)
-            except (TypeError, ValueError):
-                self.app.notify("Invalid input cost (per 1M tokens)", severity="error")
+            input_cost_display = self.parse_cost_display(input_cost_str_display, "input cost")
+            if input_cost_display is None:
                 return
-            try:
-                output_cost_display = float(output_cost_str_display)
-            except (TypeError, ValueError):
-                self.app.notify("Invalid output cost (per 1M tokens)", severity="error")
+            output_cost_display = self.parse_cost_display(output_cost_str_display, "output cost")
+            if output_cost_display is None:
                 return
 
-            # Ensure the per-1M values are within acceptable bounds
-            if not is_valid_cost(input_cost_display):
-                self.app.notify("Invalid input cost (per 1M tokens)", severity="error")
-                return
-            if not is_valid_cost(output_cost_display):
-                self.app.notify("Invalid output cost (per 1M tokens)", severity="error")
+            context_window_int = self.parse_context_window(context_window_str)
+            if context_window_int is None:
                 return
 
-            # Context window validation
-            try:
-                context_window_int = int(context_window_str)
-            except (TypeError, ValueError):
-                self.app.notify("Invalid context window", severity="error")
-                return
-            if not is_valid_context_window(context_window_int):
-                self.app.notify("Invalid context window", severity="error")
-                return
-
-            # Convert display (per 1M) to stored (per 10M) by multiplying by 10
-            input_cost_stored = input_cost_display * 10
-            output_cost_stored = output_cost_display * 10
+            input_cost_stored = self.display_to_stored_cost(input_cost_display)
+            output_cost_stored = self.display_to_stored_cost(output_cost_display)
 
             self.post_message(CommandRequest(f"/model add {name} {provider} {is_think} {input_cost_stored} {output_cost_stored} {context_window_int}"))
             self.app.pop_screen()
