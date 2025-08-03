@@ -68,6 +68,7 @@ class SettingsScreen(ModalScreen):
 
     #sidebar {
         width: 20%;
+        max-width: 20;
         height: 100%;
         border-right: solid $panel;
         padding: 1 0;
@@ -166,8 +167,10 @@ class SettingsScreen(ModalScreen):
                 yield Button("Close", id="close-settings-btn", variant="default")
 
     def on_mount(self) -> None:
+        # Ensure default active view is management on mount
+        self.active_view = "management"
         self.update_view_visibility()
-        # Focus the first sidebar button
+        # Focus the Management sidebar button
         self.query_one("#btn-management", Button).focus()
         # Set the correct subtitle
         if self.header_subtitle_label:
@@ -177,10 +180,6 @@ class SettingsScreen(ModalScreen):
         views = {
             "management": "#management-widget",
             "styles": "#styles-view",
-        }
-        buttons = {
-            "management": "#btn-management",
-            "styles": "#btn-styles",
         }
         for view_name, view_id in views.items():
             try:

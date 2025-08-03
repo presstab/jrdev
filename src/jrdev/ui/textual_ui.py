@@ -354,10 +354,10 @@ class JrDevUI(App[None]):
     # Add Settings button handler
     @on(Button.Pressed, "#button_settings")
     def handle_settings_pressed(self) -> None:
-        """Open the SettingsScreen with Providers tab active by default."""
+        """Open the SettingsScreen with Management view active by default."""
         if not self.settings_screen:
             self.settings_screen = SettingsScreen(core_app=self.jrdev)
-            self.settings_screen.active_view = "providers"
+            self.settings_screen.active_view = "management"
             self.app.push_screen(screen=self.settings_screen, callback=self.handle_settings_screen_closed)
 
     def handle_settings_screen_closed(self, success: bool) -> None:

@@ -1,5 +1,6 @@
 from typing import Any, Optional
 from textual import on
+from textual.coordinate import Coordinate
 from textual.widgets import DataTable, Select, Button, Label
 from textual.containers import Horizontal, Vertical, Container, ScrollableContainer
 from textual.widget import Widget
@@ -8,6 +9,9 @@ from jrdev.ui.tui.add_model_modal import AddModelModal
 from jrdev.ui.tui.add_provider_modal import AddProviderModal
 from jrdev.ui.tui.edit_provider_modal import EditProviderModal
 from jrdev.ui.tui.edit_model_modal import EditModelModal
+
+import logging
+logger = logging.getLogger("jrdev")
 
 
 class ManagementWidget(Widget):
@@ -20,6 +24,7 @@ class ManagementWidget(Widget):
 
     #left-pane {
         width: 3fr;
+        max-width: 20;
         padding: 1;
         border-right: solid $primary;
     }
@@ -48,6 +53,17 @@ class ManagementWidget(Widget):
         padding-top: 1;
         height: auto;
     }
+    
+    .provider-button {
+        margin-left: 1;
+        width: 6;
+        max-width: 6;
+    }
+    .provider-button-add-remove {
+        margin-left: 1;
+        width: 2;
+        max-width: 3;
+    }
     """
 
     def __init__(self, core_app: Any, name: Optional[str] = None, id: Optional[str] = None, classes: Optional[str] = None) -> None:
@@ -55,6 +71,25 @@ class ManagementWidget(Widget):
         self.core_app = core_app
         # map row keys to model names for selection-aware actions
         self._row_to_model: dict[Any, str] = {}
+
+    def compose(self):
+        """Compose the widget."""
+        with Horizontal():
+            with Vertical(id="left-pane"):
+                yield Label("Providers")
+                yield Select([], id="provider-select")
+                with Horizontal(id="provider-buttons-layout"):
+                    yield Button("+", id="add-provider", classes="provider-button-add-remove")
+                    yield Button("-", id="remove-provider", classes="provider-button-add-remove")
+                    yield Button("Edit", id="edit-provider", classes="provider-button")
+            with Container(id="right-pane"):
+                yield Label("Models")
+                with ScrollableContainer(id="models-scroll"):
+                    yield DataTable(id="models-table")
+                with Horizontal(id="models-crud-bar"):
+                    yield Button("New Model", id="add-model")
+                    yield Button("Edit Selected", id="edit-model", disabled=True)
+                    yield Button("Remove Selected", id="remove-model", disabled=True)
 
     def on_mount(self):
         """Populate the widgets with data."""
@@ -92,12 +127,30 @@ class ManagementWidget(Widget):
         for model in models:
             if provider_filter and provider_filter != "all" and model["provider"] != provider_filter:
                 continue
+
+            # Stored costs are per 10M tokens; convert to display per 1M tokens by dividing by 10
+            try:
+                input_cost_stored = float(model.get("input_cost", 0))
+            except (TypeError, ValueError):
+                input_cost_stored = 0.0
+            try:
+                output_cost_stored = float(model.get("output_cost", 0))
+            except (TypeError, ValueError):
+                output_cost_stored = 0.0
+
+            input_cost_display = input_cost_stored / 10.0
+            output_cost_display = output_cost_stored / 10.0
+
+            # Format to a sensible precision to avoid confusion
+            input_cost_str = f"${input_cost_display:.2f}"
+            output_cost_str = f"${output_cost_display:.2f}"
+
             row_key = models_table.add_row(
                 model["name"],
                 model["provider"],
                 str(model.get("is_think", False)),
-                str(model.get("input_cost", 0)),
-                str(model.get("output_cost", 0)),
+                input_cost_str,
+                output_cost_str,
                 str(model.get("context_tokens", 0)),
             )
             self._row_to_model[row_key] = model["name"]
@@ -112,10 +165,13 @@ class ManagementWidget(Widget):
         if models_table.cursor_row is None:
             return None
         try:
-            row_key = models_table.row_key_at(models_table.cursor_row)
-        except Exception:
+            row = models_table.cursor_row
+            column = models_table.cursor_column
+            cell_key = models_table.coordinate_to_cell_key(Coordinate(row, column))
+        except Exception as e:
+            logger.info("_get_selected_model_name(): Failed to get row key. Error: %s", e)
             return None
-        return self._row_to_model.get(row_key)
+        return self._row_to_model.get(cell_key.row_key, None)
 
     def _update_model_crud_buttons_state(self, selected: bool) -> None:
         """Enable/disable Edit and Remove model buttons based on selection."""
@@ -178,21 +234,3 @@ class ManagementWidget(Widget):
         model_name = self._get_selected_model_name()
         if model_name:
             self.post_message(CommandRequest(f"/model remove {model_name}"))
-
-    def compose(self):
-        """Compose the widget."""
-        with Horizontal():
-            with Vertical(id="left-pane"):
-                yield Label("Providers")
-                yield Select([], id="provider-select")
-                yield Button("Add Provider", id="add-provider")
-                yield Button("Edit Provider", id="edit-provider")
-                yield Button("Remove Provider", id="remove-provider")
-            with Container(id="right-pane"):
-                yield Label("Models")
-                with ScrollableContainer(id="models-scroll"):
-                    yield DataTable(id="models-table")
-                with Horizontal(id="models-crud-bar"):
-                    yield Button("New Model", id="add-model")
-                    yield Button("Edit Selected", id="edit-model", disabled=True)
-                    yield Button("Remove Selected", id="remove-model", disabled=True)
