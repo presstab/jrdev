@@ -76,6 +76,17 @@ class ModelManagementWidget(Widget):
         max-width: 3;
     }
 
+    #models-table, #provider-select > SelectOverlay, #models-scroll {
+        scrollbar-background: #1e1e1e;
+        scrollbar-background-hover: #1e1e1e;
+        scrollbar-background-active: #1e1e1e;
+        scrollbar-color: #63f554 30%;
+        scrollbar-color-active: #63f554;
+        scrollbar-color-hover: #63f554 50%;
+        scrollbar-size: 1 1;
+        scrollbar-size-horizontal: 1;
+    }
+
     #provider-select {
         height: 3;
         width: 1fr;
@@ -96,12 +107,14 @@ class ModelManagementWidget(Widget):
             constrain: none inside;
             color: $foreground;
             border: none;
+            padding: 0;
+            margin: 0;
             background: $surface;
             &:focus {
                 background-tint: $foreground 5%;
             }
             & > .option-list--option {
-                padding: 0 1;
+                padding: 0;
             }
         }
         &.-expanded {
