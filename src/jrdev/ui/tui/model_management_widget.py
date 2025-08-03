@@ -15,17 +15,17 @@ import logging
 logger = logging.getLogger("jrdev")
 
 
-class ManagementWidget(Widget):
+class ModelManagementWidget(Widget):
     """A widget to manage models and providers."""
 
     DEFAULT_CSS = """
-    ManagementWidget {
+    ModelManagementWidget {
         layout: horizontal;
     }
 
     #left-pane {
         width: 3fr;
-        max-width: 20;
+        max-width: 25;
         padding: 1;
         border-right: solid $primary;
     }
@@ -74,6 +74,41 @@ class ManagementWidget(Widget):
         margin-left: 1;
         width: 2;
         max-width: 3;
+    }
+
+    #provider-select {
+        height: 3;
+        width: 1fr;
+        max-width: 80;
+        border: round $accent;
+        margin: 0;
+        padding: 0;
+        & > SelectCurrent {
+            border: none;
+            background-tint: $foreground 5%;
+        }
+        & > SelectOverlay {
+            width: 1fr;
+            display: none;
+            height: auto;
+            max-height: 12;
+            overlay: screen;
+            constrain: none inside;
+            color: $foreground;
+            border: none;
+            background: $surface;
+            &:focus {
+                background-tint: $foreground 5%;
+            }
+            & > .option-list--option {
+                padding: 0 1;
+            }
+        }
+        &.-expanded {
+            .down-arrow { display: none; }
+            .up-arrow { display: block; }
+            & > SelectOverlay { display: block; }
+        }
     }
     """
 
@@ -224,8 +259,9 @@ class ManagementWidget(Widget):
         """Remove the selected provider."""
         provider_select = self.query_one("#provider-select", Select)
         provider_name = provider_select.value
-        if provider_name and provider_name != "all":
-            self.app.push_screen(RemoveResourceModal(provider_name, resource_type="provider"))
+        if provider_name is None or provider_name == "all" or provider_name == Select.BLANK:
+            return
+        self.app.push_screen(RemoveResourceModal(provider_name, resource_type="provider"))
 
     @on(Button.Pressed, "#add-model")
     def add_model(self):

@@ -109,7 +109,7 @@ class BaseModelModal(ModalScreen):
         layout: horizontal;
         width: 100%;
         height: auto;
-        align: center middle;
+        align: left middle;
         padding-top: 1;
         padding-left: 1;
     }
@@ -117,7 +117,9 @@ class BaseModelModal(ModalScreen):
     .form-actions > Button#save,
     .form-actions > Button#cancel {
         width: 1fr;
+        max-width: 10;
         height: 1;
+        margin-left: 1;
     }
     """
 
