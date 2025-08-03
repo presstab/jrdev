@@ -36,7 +36,7 @@ class AddModelModal(BaseModelModal):
             if not self.validate_name(name):
                 self.app.notify("Invalid model name", severity="error")
                 return
-            if not provider:
+            if not provider or provider is Select.BLANK:
                 self.app.notify("Provider is required", severity="error")
                 return
             try:

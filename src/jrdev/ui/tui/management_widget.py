@@ -9,6 +9,7 @@ from jrdev.ui.tui.add_model_modal import AddModelModal
 from jrdev.ui.tui.add_provider_modal import AddProviderModal
 from jrdev.ui.tui.edit_provider_modal import EditProviderModal
 from jrdev.ui.tui.edit_model_modal import EditModelModal
+from jrdev.ui.tui.remove_model_modal import RemoveModelModal
 
 import logging
 logger = logging.getLogger("jrdev")
@@ -64,6 +65,16 @@ class ManagementWidget(Widget):
         width: 2;
         max-width: 3;
     }
+    .model-button {
+        margin-left: 1;
+        width: 6;
+        max-width: 6;
+    }
+    .model-button-add-remove {
+        margin-left: 1;
+        width: 2;
+        max-width: 3;
+    }
     """
 
     def __init__(self, core_app: Any, name: Optional[str] = None, id: Optional[str] = None, classes: Optional[str] = None) -> None:
@@ -79,17 +90,17 @@ class ManagementWidget(Widget):
                 yield Label("Providers")
                 yield Select([], id="provider-select")
                 with Horizontal(id="provider-buttons-layout"):
-                    yield Button("+", id="add-provider", classes="provider-button-add-remove")
-                    yield Button("-", id="remove-provider", classes="provider-button-add-remove")
-                    yield Button("Edit", id="edit-provider", classes="provider-button")
+                    yield Button("+", id="add-provider", classes="provider-button-add-remove", tooltip="Add new provider")
+                    yield Button("-", id="remove-provider", classes="provider-button-add-remove", tooltip="Remove selected provider")
+                    yield Button("Edit", id="edit-provider", classes="provider-button", tooltip="Edit selected provider")
             with Container(id="right-pane"):
                 yield Label("Models")
                 with ScrollableContainer(id="models-scroll"):
                     yield DataTable(id="models-table")
                 with Horizontal(id="models-crud-bar"):
-                    yield Button("New Model", id="add-model")
-                    yield Button("Edit Selected", id="edit-model", disabled=True)
-                    yield Button("Remove Selected", id="remove-model", disabled=True)
+                    yield Button("+", id="add-model", classes="model-button-add-remove", tooltip="Add new model")
+                    yield Button("-", id="remove-model", classes="model-button-add-remove", disabled=True, tooltip="Remove selected model")
+                    yield Button("Edit", id="edit-model", classes="model-button", disabled=True, tooltip="Edit selected model")
 
     def on_mount(self):
         """Populate the widgets with data."""
@@ -233,4 +244,4 @@ class ManagementWidget(Widget):
         """Remove the selected model from the table."""
         model_name = self._get_selected_model_name()
         if model_name:
-            self.post_message(CommandRequest(f"/model remove {model_name}"))
+            self.app.push_screen(RemoveModelModal(model_name))

@@ -302,6 +302,8 @@ class JrDevUI(App[None]):
     async def handle_model_list_updated(self) -> None:
         self.chat_view.update_models()
         self.terminal_output_widget.update_models()
+        if self.settings_screen and hasattr(self.settings_screen, 'management_widget') and self.settings_screen.management_widget:
+            self.settings_screen.management_widget.populate_models()
 
     @on(TextualEvents.ChatThreadUpdate)
     async def handle_chat_update(self, message: TextualEvents.ChatThreadUpdate) -> None:
