@@ -326,7 +326,7 @@ class ModelManagementWidget(Widget):
         try:
             fetch_button.disabled = True
             self.app.notify(f"Fetching models for {provider_name}...")
-            models = await self.core_app.model_fetch_service.fetch_provider_models(provider_name)
+            models = await self.core_app.model_fetch_service.fetch_provider_models(provider_name, self.app.jrdev)
 
             if models:
                 await self.app.push_screen(ImportModelsModal(models=models, provider_name=provider_name))

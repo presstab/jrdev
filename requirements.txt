@@ -5,3 +5,4 @@ pyreadline3; platform_system=='Windows'
 windows-curses; platform_system=='Windows'
 colorama; platform_system=='Windows'
 pydantic>=2.0.0
+httpx
