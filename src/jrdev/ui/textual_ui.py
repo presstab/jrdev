@@ -359,7 +359,7 @@ class JrDevUI(App[None]):
         """Open the SettingsScreen with Management view active by default."""
         if not self.settings_screen:
             self.settings_screen = SettingsScreen(core_app=self.jrdev)
-            self.settings_screen.active_view = "management"
+            self.settings_screen.active_view = "model_management"
             self.app.push_screen(screen=self.settings_screen, callback=self.handle_settings_screen_closed)
 
     def handle_settings_screen_closed(self, success: bool) -> None:
@@ -423,7 +423,7 @@ class JrDevUI(App[None]):
     @on(events.DescendantBlur, "#model-search-input")
     def handle_modellistview_blur(self, event: events.DescendantBlur):
         # Only close if focus is truly leaving the entire model list view
-        model_listview: ModelListView = event.widget.parent
+        model_listview: ModelListView = event.widget.parent.parent
         if not model_listview.has_focus:
             model_listview.set_visible(False)
 
