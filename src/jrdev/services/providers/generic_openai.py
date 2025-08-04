@@ -1,31 +1,32 @@
 import logging
 logger = logging.getLogger("jrdev")
 
+from typing import Any
 from jrdev.services.providers.models_dev import fetch_models_dot_dev
 
-async def fetch_open_ai_models(core_app):
+async def fetch_openai_generic_models(core_app: Any, provider_name: str):
     """
     Fetches model data from the OpenAI API and formats it into the internal model list structure.
     """
-    client = core_app.state.clients.get_client("openai")
+    client = core_app.state.clients.get_client(provider_name)
     if not client:
         return []
 
     # fetch supporting details from models.dev
-    model_details = await fetch_models_dot_dev("openai")
+    model_details = await fetch_models_dot_dev(provider_name)
 
     try:
         response = await client.models.list()
         models = response.data
     except Exception as e:
-        logger.error(f"Failed to fetch OpenAI models: {e}")
+        logger.error(f"Failed to fetch {provider_name} models: {e}")
         return []
 
     formatted_models = []
     for model in models:
         formatted_model = {
             "name": model.id,
-            "provider": "openai",
+            "provider": provider_name,
             "is_think": True,
             "input_cost": 0,
             "output_cost": 0,

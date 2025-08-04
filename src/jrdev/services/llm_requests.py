@@ -56,7 +56,6 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
     elif model == "deepseek-r1-671b":
         kwargs["extra_body"] = {"venice_parameters": {"include_venice_system_prompt": False}}
     elif model == "deepseek-reasoner" or model == "deepseek-chat":
-        kwargs["max_tokens"] = 8000
         if model == "deepseek-chat" and json_output:
             kwargs["response_format"] = {"type": "json_object"}
     elif model_provider == "venice":
@@ -173,7 +172,7 @@ async def stream_messages_format(app, model, messages, task_id=None, print_strea
             app.logger.error(f"Error estimating input tokens for Anthropic: {e}")
 
     try:
-        kwargs = {"model": model, "messages": anthropic_messages, "max_tokens": 8192, "temperature": 0.0}
+        kwargs = {"model": model, "messages": anthropic_messages, "max_tokens": 32000, "temperature": 0.0}
         if system_message is not None:
             kwargs["system"] = system_message
         stream_manager = client.messages.stream(**kwargs)
