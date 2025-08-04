@@ -10,6 +10,7 @@ from jrdev.ui.tui.add_provider_modal import AddProviderModal
 from jrdev.ui.tui.edit_provider_modal import EditProviderModal
 from jrdev.ui.tui.edit_model_modal import EditModelModal
 from jrdev.ui.tui.remove_model_modal import RemoveResourceModal
+from jrdev.ui.tui.import_models_modal import ImportModelsModal
 
 import logging
 logger = logging.getLogger("jrdev")
@@ -141,6 +142,7 @@ class ModelManagementWidget(Widget):
                     yield Button("+", id="add-provider", classes="provider-button-add-remove", tooltip="Add new provider")
                     yield Button("-", id="remove-provider", classes="provider-button-add-remove", tooltip="Remove selected provider")
                     yield Button("Edit", id="edit-provider", classes="provider-button", tooltip="Edit selected provider")
+                yield Button("Fetch Provider Models", id="provider-fetch")
             with Container(id="right-pane"):
                 yield Label("Models")
                 with ScrollableContainer(id="models-scroll"):
@@ -294,3 +296,28 @@ class ModelManagementWidget(Widget):
         model_name = self._get_selected_model_name()
         if model_name:
             self.app.push_screen(RemoveResourceModal(model_name))
+
+    @on(Button.Pressed, "#provider-fetch")
+    async def fetch_provider_models(self):
+        provider_select = self.query_one("#provider-select", Select)
+        provider_name = provider_select.value
+
+        if not provider_name or provider_name == "all" or provider_name == Select.BLANK:
+            self.app.notify("Please select a specific provider to fetch models from.", severity="warning")
+            return
+
+        fetch_button = self.query_one("#provider-fetch", Button)
+        try:
+            fetch_button.disabled = True
+            self.app.notify(f"Fetching models for {provider_name}...")
+            models = await self.core_app.model_fetch_service.fetch_provider_models(provider_name)
+
+            if models:
+                await self.app.push_screen(ImportModelsModal(models=models, provider_name=provider_name))
+            else:
+                self.app.notify(f"Could not fetch models for '{provider_name}'. The provider may not be supported for automatic fetching.", severity="error")
+        except Exception as e:
+            logger.error(f"Failed to fetch provider models: {e}")
+            self.app.notify(f"An error occurred while fetching models: {e}", severity="error")
+        finally:
+            fetch_button.disabled = False

@@ -28,6 +28,7 @@ from jrdev.models.model_profiles import ModelProfileManager
 from jrdev.models.model_utils import load_models, save_models
 from jrdev.services.contextmanager import ContextManager
 from jrdev.services.message_service import MessageService
+from jrdev.services.fetch_models_service import ModelFetchService
 from jrdev.ui.ui import PrintType
 from jrdev.ui.ui_wrapper import UiWrapper
 from jrdev.utils.treechart import generate_compact_tree
@@ -270,6 +271,7 @@ class Application:
             await self._initialize_api_clients()
 
         self.message_service = MessageService(self)
+        self.model_fetch_service = ModelFetchService()
 
         # Initialize the router agent
         self.router_agent = CommandInterpretationAgent(self)
