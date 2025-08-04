@@ -4,16 +4,16 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.message import Message
 from textual.widget import Widget
-from textual.widgets import Button, Label, Input, Switch, ListView, ListItem
+from textual.widgets import Button, Label, Input, Switch
 from textual.color import Color
 from typing import Optional
 import logging
 
 from jrdev.ui.tui.command_request import CommandRequest
-from jrdev.ui.textual_events import TextualEvents
-from jrdev.ui.tui.chat_input_widget import ChatInputWidget
+from jrdev.ui.tui.textual_events import TextualEvents
+from jrdev.ui.tui.chat.chat_input_widget import ChatInputWidget
 from jrdev.messages.thread import MessageThread, USER_INPUT_PREFIX
-from jrdev.ui.tui.message_bubble import MessageBubble
+from jrdev.ui.tui.chat.message_bubble import MessageBubble
 from jrdev.ui.tui.model_listview import ModelListView
 
 logger = logging.getLogger("jrdev")

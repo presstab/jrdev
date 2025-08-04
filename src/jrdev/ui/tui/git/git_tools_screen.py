@@ -7,16 +7,16 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Label, Input, Static, MarkdownViewer, LoadingIndicator, ListView, Select
 from textual import on, work
 from textual.worker import Worker, WorkerState
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Optional
 import logging
 
 from jrdev.commands.git_config import get_git_config, save_git_config, DEFAULT_GIT_CONFIG
 from jrdev.services.git_pr_service import generate_pr_analysis, GitPRServiceError
 from jrdev.file_operations.file_utils import JRDEV_ROOT_DIR
-from jrdev.ui.tui.git_overview_widget import GitOverviewWidget
+from jrdev.ui.tui.git.git_overview_widget import GitOverviewWidget
 from jrdev.utils.git_utils import is_git_installed, get_all_branches_and_tags
 from jrdev.ui.tui.model_listview import ModelListView
-from jrdev.ui.tui.terminal_output_widget import TerminalOutputWidget
+from jrdev.ui.tui.terminal.terminal_output_widget import TerminalOutputWidget
 
 logger = logging.getLogger("jrdev")
 

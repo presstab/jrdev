@@ -1,16 +1,12 @@
-from textual import events
 from textual.app import ComposeResult
 from textual.containers import Grid, Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Label, Input, Static
-from textual.css.query import NoMatches
 import logging
-import json
 import os
-from pathlib import Path
 import pyperclip
 
-from jrdev.ui.tui.yes_no_modal_screen import YesNoScreen
+from jrdev.ui.tui.settings.yes_no_modal_screen import YesNoScreen
 from jrdev.file_operations.file_utils import get_env_path
 
 logger = logging.getLogger("jrdev")

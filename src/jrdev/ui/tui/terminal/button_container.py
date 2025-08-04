@@ -1,4 +1,4 @@
-from textual import events, on
+from textual import on
 from textual.app import ComposeResult
 from textual.widget import Widget
 from textual.widgets import Button
@@ -6,7 +6,7 @@ from typing import Dict, Optional
 import logging
 
 # Import the new screen
-from jrdev.ui.tui.git_tools_screen import GitToolsScreen
+from jrdev.ui.tui.git.git_tools_screen import GitToolsScreen
 
 logger = logging.getLogger("jrdev")
 

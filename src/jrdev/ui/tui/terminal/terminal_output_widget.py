@@ -1,4 +1,4 @@
-from jrdev.ui.tui.command_confirmation_widget import CommandConfirmationWidget
+from jrdev.ui.tui.terminal.command_confirmation_widget import CommandConfirmationWidget
 from jrdev.ui.tui.command_request import CommandRequest
 from jrdev.ui.tui.model_listview import ModelListView
 from textual import events, on
@@ -6,15 +6,15 @@ from textual.app import ComposeResult
 from textual.color import Color
 from textual.containers import Horizontal, Vertical, Container
 from textual.widget import Widget
-from textual.widgets import Button, Label, Link
-from typing import Optional, Callable
+from textual.widgets import Button, Label
+from typing import Optional
 import logging
 import pyperclip
 import asyncio
 import tiktoken
 
-from jrdev.ui.tui.input_widget import CommandTextArea
-from jrdev.ui.tui.terminal_text_area import TerminalTextArea
+from jrdev.ui.tui.terminal.input_widget import CommandTextArea
+from jrdev.ui.tui.terminal.terminal_text_area import TerminalTextArea
 
 logger = logging.getLogger("jrdev")
 

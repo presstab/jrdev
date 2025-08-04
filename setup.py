@@ -48,7 +48,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "jrdev=jrdev.ui.textual_ui:run_textual_ui",
+            "jrdev=jrdev.ui.tui.textual_ui:run_textual_ui",
             "jrdev-cli=jrdev.cli:run_cli",
         ],
     },

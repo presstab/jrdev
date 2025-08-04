@@ -5,7 +5,7 @@ This script launches the Textual User Interface (TUI) by default when
 the package is executed as a module using `python -m jrdev`.
 """
 
-from .ui.textual_ui import run_textual_ui
+from jrdev.ui.tui.textual_ui import run_textual_ui
 
 
 def main():

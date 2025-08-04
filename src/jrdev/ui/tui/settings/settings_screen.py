@@ -3,13 +3,13 @@ from typing import Any, Optional
 
 from textual import on
 from textual.app import ComposeResult
-from textual.containers import Vertical, Horizontal, Container, ScrollableContainer
+from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual.screen import ModalScreen
-from textual.widgets import Button, Label, Input, Static
+from textual.widgets import Button, Label
 
-from jrdev.ui.tui.model_management_widget import ModelManagementWidget
-from jrdev.ui.tui.api_key_entry import ApiKeyEntry
-from jrdev.ui.tui.terminal_styles_widget import TerminalStylesWidget
+from jrdev.ui.tui.settings.model_management.model_management_widget import ModelManagementWidget
+from jrdev.ui.tui.settings.api_key_entry import ApiKeyEntry
+from jrdev.ui.tui.settings.terminal_styles_widget import TerminalStylesWidget
 
 logger = logging.getLogger("jrdev")
 

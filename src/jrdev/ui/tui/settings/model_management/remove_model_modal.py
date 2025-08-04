@@ -1,7 +1,7 @@
 from textual.widgets import Button, Label
-from textual.containers import Vertical, Horizontal
+from textual.containers import Horizontal
 from jrdev.ui.tui.command_request import CommandRequest
-from jrdev.ui.tui.base_model_modal import BaseModelModal
+from jrdev.ui.tui.settings.model_management.base_model_modal import BaseModelModal
 
 
 class RemoveResourceModal(BaseModelModal):
