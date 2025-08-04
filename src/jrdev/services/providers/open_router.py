@@ -1,6 +1,4 @@
-import asyncio
 import httpx
-import json
 
 import logging
 logger = logging.getLogger("jrdev")
@@ -18,10 +16,7 @@ async def fetch_open_router_models():
             response.raise_for_status()  # Raise an exception for bad status codes
             api_data = response.json()
 
-        # The list of models is under the 'data' key
         for model in api_data.get('data', []):
-            # The pricing is given as a string per token.
-            # We convert it to an integer cost based on the internal format.
             try:
                 input_raw = float(model.get('pricing', {}).get('prompt', '0'))
                 output_raw = float(model.get('pricing', {}).get('completion', '0'))
@@ -53,15 +48,3 @@ async def fetch_open_router_models():
         return []
 
     return formatted_models
-
-async def main():
-    """
-    Main function to fetch and print the formatted model list.
-    """
-    models = await fetch_open_router_models()
-    if models:
-        # Pretty print the JSON output, matching the structure of model_list.json
-        print(json.dumps({"models": models}, indent=4))
-
-if __name__ == "__main__":
-    asyncio.run(main())

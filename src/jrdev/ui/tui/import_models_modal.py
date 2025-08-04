@@ -8,6 +8,9 @@ from datetime import datetime
 from jrdev.ui.tui.base_model_modal import BaseModelModal
 from jrdev.ui.tui.command_request import CommandRequest
 
+import logging
+logger = logging.getLogger("jrdev")
+
 class ImportModelsModal(BaseModelModal):
     """A modal to import models from a provider."""
 
@@ -43,11 +46,6 @@ class ImportModelsModal(BaseModelModal):
 
             # Build actions row using the base class helper to ensure consistent IDs
             actions = self.actions_row()
-            # Access the known save button (id="save") and adjust its label
-            for child in actions.children:
-                if isinstance(child, Button) and child.id == "save":
-                    child.label = "Import"
-                    break
             yield actions
 
     def on_mount(self):
@@ -93,6 +91,11 @@ class ImportModelsModal(BaseModelModal):
             )
             self._row_key_to_model[row_key] = model
 
+        # Update the save button label and disabled state after the DOM is ready
+        save_button = self.query_one("#save", Button)
+        save_button.label = "Import"
+        save_button.disabled = not self.selected_rows
+
     @on(DataTable.RowSelected, "#import-models-table")
     def toggle_row_selection(self, event: DataTable.RowSelected):
         table = self.query_one(DataTable)
@@ -109,41 +112,49 @@ class ImportModelsModal(BaseModelModal):
             self.selected_rows.add(row_key)
             table.update_cell(row_key, column_key=check_col_key, value="☑")
         
+        # Update the disabled state of the Import button
+        save_button = self.query_one("#save", Button)
+        save_button.disabled = not self.selected_rows
+
         table.move_cursor(row=-1)
 
-    @on(Button.Pressed)
-    def handle_button_press(self, event: Button.Pressed):
-        if event.button.id == "save":
-            if not self.selected_rows:
-                self.app.notify("No models selected for import.", severity="warning")
-                return
+    @on(Button.Pressed, "#save")
+    def handle_save_press(self, event: Button.Pressed):
+        if not self.selected_rows:
+            self.app.notify("No models selected for import.", severity="warning")
+            return
 
-            for row_key in self.selected_rows:
-                model_data = self._row_key_to_model.get(row_key)
-                if not model_data:
-                    continue
+        for row_key in self.selected_rows:
+            model_data = self._row_key_to_model.get(row_key)
+            if not model_data:
+                continue
 
-                # Use the same candidate name logic for consistency when issuing the add command
-                name = (model_data.get('name') or model_data.get('id'))
-                if not name:
-                    continue
-                name = str(name).strip()
+            # Use the same candidate name logic for consistency when issuing the add command
+            name = (model_data.get('name') or model_data.get('id'))
+            if not name:
+                continue
+            name = str(name).strip()
 
-                provider = self.provider_name
-                is_think = "true"
-                
-                input_cost_per_token = float(model_data.get('pricing', {}).get('input', '0'))
-                output_cost_per_token = float(model_data.get('pricing', {}).get('output', '0'))
-            
-                input_cost_per_1M = input_cost_per_token * 1_000_000
-                output_cost_per_1M = output_cost_per_token * 1_000_000
+            provider = self.provider_name
+            is_think = "true"
 
-                context_window = model_data.get('context_length', 0)
+            input_cost_per_1M = float(model_data.get('input_cost', 0))
+            output_cost_per_1M = float(model_data.get('output_cost', 0))
 
-                command = f"/model add {name} {provider} {is_think} {input_cost_per_1M:.6f} {output_cost_per_1M:.6f} {context_window}"
-                self.post_message(CommandRequest(command))
-            
-            self.app.pop_screen()
-            self.app.notify(f"Importing {len(self.selected_rows)} models...")
-        elif event.button.id == "cancel":
-            self.app.pop_screen()
+            #store internally as cost per 10m
+            input_cost = 0 if not input_cost_per_1M else input_cost_per_1M / 10
+            output_cost = 0 if not output_cost_per_1M else output_cost_per_1M / 10
+
+            context_window = model_data.get('context_tokens', 0)
+
+            command = f"/model add {name} {provider} {is_think} {input_cost:.6f} {output_cost:.6f} {context_window}"
+            logger.info(f"importing model {command}")
+            self.post_message(CommandRequest(command))
+
+        self.app.pop_screen()
+        self.app.notify(f"Importing {len(self.selected_rows)} models...")
+
+
+    @on(Button.Pressed, "#cancel")
+    def handle_cancel_press(self):
+        self.app.pop_screen()

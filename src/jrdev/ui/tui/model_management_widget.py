@@ -56,6 +56,12 @@ class ModelManagementWidget(Widget):
         height: auto;
     }
     
+    #provider-buttons-layout {
+        height: 1;
+        margin: 0;
+        padding: 0;
+    }
+    
     .provider-button {
         margin-left: 1;
         width: 6;
@@ -65,6 +71,9 @@ class ModelManagementWidget(Widget):
         margin-left: 1;
         width: 2;
         max-width: 3;
+    }
+    #provider-fetch {
+        margin-top: 1;
     }
     .model-button {
         margin-left: 1;
@@ -142,7 +151,7 @@ class ModelManagementWidget(Widget):
                     yield Button("+", id="add-provider", classes="provider-button-add-remove", tooltip="Add new provider")
                     yield Button("-", id="remove-provider", classes="provider-button-add-remove", tooltip="Remove selected provider")
                     yield Button("Edit", id="edit-provider", classes="provider-button", tooltip="Edit selected provider")
-                yield Button("Fetch Provider Models", id="provider-fetch")
+                yield Button("Fetch Models", id="provider-fetch", tooltip="Fetch the updated list of models for the selected provider")
             with Container(id="right-pane"):
                 yield Label("Models")
                 with ScrollableContainer(id="models-scroll"):
@@ -158,6 +167,9 @@ class ModelManagementWidget(Widget):
         self.populate_models()
         # initialize CRUD buttons state
         self._update_model_crud_buttons_state(False)
+        # Disable Fetch Models button until a provider is selected
+        fetch_button = self.query_one("#provider-fetch", Button)
+        fetch_button.disabled = True
 
     def populate_providers(self):
         """Populates the provider select widget."""
@@ -248,6 +260,10 @@ class ModelManagementWidget(Widget):
     @on(Select.Changed, "#provider-select")
     def handle_provider_change(self, event: Select.Changed):
         """Handle provider selection changes."""
+        provider_select = self.query_one("#provider-select", Select)
+        fetch_button = self.query_one("#provider-fetch", Button)
+        selected = provider_select.value
+        fetch_button.disabled = (not selected or selected == "all" or selected == Select.BLANK)
         self.populate_models(event.value)
 
     @on(DataTable.RowHighlighted, "#models-table")
