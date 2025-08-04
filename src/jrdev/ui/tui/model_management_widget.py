@@ -11,9 +11,17 @@ from jrdev.ui.tui.edit_provider_modal import EditProviderModal
 from jrdev.ui.tui.edit_model_modal import EditModelModal
 from jrdev.ui.tui.remove_model_modal import RemoveResourceModal
 from jrdev.ui.tui.import_models_modal import ImportModelsModal
+from enum import Enum
+from rich.text import Text
 
 import logging
 logger = logging.getLogger("jrdev")
+
+
+class SortingStatus(Enum):
+    UNSORTED = 0
+    ASCENDING = 1
+    DESCENDING = 2
 
 
 class ModelManagementWidget(Widget):
@@ -140,6 +148,15 @@ class ModelManagementWidget(Widget):
         self.core_app = core_app
         # map row keys to model names for selection-aware actions
         self._row_to_model: dict[Any, str] = {}
+        # Sorting state for models table (by column key value)
+        self._models_sorting_statuses: dict[str, SortingStatus] = {
+            "name": SortingStatus.UNSORTED,
+            "provider": SortingStatus.UNSORTED,
+            "think": SortingStatus.UNSORTED,
+            "input": SortingStatus.UNSORTED,
+            "output": SortingStatus.UNSORTED,
+            "context": SortingStatus.UNSORTED,
+        }
 
     def compose(self):
         """Compose the widget."""
@@ -178,6 +195,53 @@ class ModelManagementWidget(Widget):
         provider_options = [("ALL", "all")] + [(provider.name, provider.name) for provider in providers]
         provider_select.set_options(provider_options)
 
+    def _models_pretty_header_text(self, key: str) -> str:
+        mapping = {
+            "name": "Name",
+            "provider": "Provider",
+            "think": "Think",
+            "input": "Input Cost",
+            "output": "Output Cost",
+            "context": "Context",
+        }
+        return mapping.get(key, key)
+
+    def _reset_models_header_labels(self, table: DataTable) -> None:
+        for key in list(self._models_sorting_statuses.keys()):
+            self._models_sorting_statuses[key] = SortingStatus.UNSORTED
+            try:
+                col_index = table.get_column_index(key)
+                col = table.ordered_columns[col_index]
+                base = self._models_pretty_header_text(key)
+                col.label = Text.from_markup(f"{base} [yellow]-[/]")
+            except Exception:
+                continue
+
+    def _apply_models_sort(self, column_key_value: str) -> None:
+        table = self.query_one("#models-table", DataTable)
+        try:
+            column = table.columns[column_key_value]
+        except Exception:
+            return
+
+        key = column.key.value
+        if key not in self._models_sorting_statuses:
+            return
+
+        if self._models_sorting_statuses[key] == SortingStatus.UNSORTED:
+            self._reset_models_header_labels(table)
+            self._models_sorting_statuses[key] = SortingStatus.ASCENDING
+            table.sort(column.key, reverse=True)
+            column.label = Text.from_markup(f"{self._models_pretty_header_text(key)} [yellow]↑[/]")
+        elif self._models_sorting_statuses[key] == SortingStatus.ASCENDING:
+            self._models_sorting_statuses[key] = SortingStatus.DESCENDING
+            table.sort(column.key, reverse=False)
+            column.label = Text.from_markup(f"{self._models_pretty_header_text(key)} [yellow]↓[/]")
+        elif self._models_sorting_statuses[key] == SortingStatus.DESCENDING:
+            self._models_sorting_statuses[key] = SortingStatus.ASCENDING
+            table.sort(column.key, reverse=True)
+            column.label = Text.from_markup(f"{self._models_pretty_header_text(key)} [yellow]↑[/]")
+
     def populate_models(self, provider_filter: Optional[str] = None):
         """Populates the models table."""
         models_table = self.query_one("#models-table", DataTable)
@@ -193,8 +257,13 @@ class ModelManagementWidget(Widget):
         models_table.fixed_columns = 0
         models_table.zebra_stripes = True
 
-        # add columns
-        models_table.add_columns("Name", "Provider", "Think", "Input Cost", "Output Cost", "Context")
+        # add columns with keys and neutral sort indicator in labels
+        models_table.add_column("Name [yellow]-[/]", key="name")
+        models_table.add_column("Provider [yellow]-[/]", key="provider")
+        models_table.add_column("Think [yellow]-[/]", key="think")
+        models_table.add_column("Input Cost [yellow]-[/]", key="input")
+        models_table.add_column("Output Cost [yellow]-[/]", key="output")
+        models_table.add_column("Context [yellow]-[/]", key="context")
 
         models = self.core_app.get_models()
         for model in models:
@@ -227,6 +296,9 @@ class ModelManagementWidget(Widget):
                 str(model.get("context_tokens", 0)),
             )
             self._row_to_model[row_key] = model["name"]
+
+        # Reset headers to neutral state after repopulating
+        self._reset_models_header_labels(models_table)
 
         # after repopulating, ensure CRUD buttons reflect current selection
         self._update_model_crud_buttons_state(False)
@@ -265,6 +337,13 @@ class ModelManagementWidget(Widget):
         selected = provider_select.value
         fetch_button.disabled = (not selected or selected == "all" or selected == Select.BLANK)
         self.populate_models(event.value)
+
+    @on(DataTable.HeaderSelected, "#models-table")
+    def handle_models_header_selected(self, event: DataTable.HeaderSelected) -> None:
+        # All columns are sortable for this table
+        if not event.column_key:
+            return
+        self._apply_models_sort(event.column_key.value)
 
     @on(DataTable.RowHighlighted, "#models-table")
     @on(DataTable.RowSelected, "#models-table")

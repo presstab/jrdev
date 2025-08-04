@@ -1,15 +1,24 @@
 from typing import List, Dict, Any, Set
+from enum import Enum
 from textual.widgets import Button, DataTable
 from textual.binding import Binding
-from textual.widgets.data_table import RowKey
+from textual.widgets.data_table import RowKey, ColumnKey, Column
 from textual import on
 from datetime import datetime
+from rich.text import Text
 
 from jrdev.ui.tui.base_model_modal import BaseModelModal
 from jrdev.ui.tui.command_request import CommandRequest
 
 import logging
 logger = logging.getLogger("jrdev")
+
+
+class SortingStatus(Enum):
+    UNSORTED = 0
+    ASCENDING = 1
+    DESCENDING = 2
+
 
 class ImportModelsModal(BaseModelModal):
     """A modal to import models from a provider."""
@@ -37,6 +46,15 @@ class ImportModelsModal(BaseModelModal):
         self.provider_name = provider_name
         self.selected_rows: Set[RowKey] = set()
         self._row_key_to_model: Dict[RowKey, Dict[str, Any]] = {}
+        # Sorting state per column (by ColumnKey.value)
+        self._sorting_statuses: Dict[str, SortingStatus] = {
+            "select": SortingStatus.UNSORTED,
+            "name": SortingStatus.UNSORTED,
+            "date": SortingStatus.UNSORTED,
+            "context": SortingStatus.UNSORTED,
+            "input": SortingStatus.UNSORTED,
+            "output": SortingStatus.UNSORTED,
+        }
 
     def compose(self):
         container, header = self.build_container("import-models-container", f"Import Models from {self.provider_name}")
@@ -51,8 +69,14 @@ class ImportModelsModal(BaseModelModal):
     def on_mount(self):
         table = self.query_one(DataTable)
         table.cursor_type = "row"
-        table.add_columns("✓", "Name", "Date Added", "Context", "Input Cost/1M", "Output Cost/1M")
-        
+        # Add columns with keys to support sorting and header label updates
+        table.add_column("[yellow]-[/]", key="select")
+        table.add_column("Name [yellow]-[/]", key="name")
+        table.add_column("Date Added [yellow]-[/]", key="date")
+        table.add_column("Context [yellow]-[/]", key="context")
+        table.add_column("Input Cost/1M [yellow]-[/]", key="input")
+        table.add_column("Output Cost/1M [yellow]-[/]", key="output")
+
         # Build a set of existing local model names (as stored in jrdev)
         existing_model_names = {str(model.get('name', '')).strip() for model in self.app.jrdev.get_models() if model.get('name')}
 
@@ -75,8 +99,11 @@ class ImportModelsModal(BaseModelModal):
 
             # unix time that model was created
             created_time = model.get('created', 0)
-            created_time_str = datetime.fromtimestamp(created_time).strftime('%Y-%m-%d')
-            
+            try:
+                created_time_str = datetime.fromtimestamp(created_time).strftime('%Y-%m-%d') if created_time else ""
+            except Exception:
+                created_time_str = ""
+
             input_cost_str = f"${input_cost_per_1M:.2f}"
             output_cost_str = f"${output_cost_per_1M:.2f}"
 
@@ -91,10 +118,82 @@ class ImportModelsModal(BaseModelModal):
             )
             self._row_key_to_model[row_key] = model
 
+        # Initialize default sort on Date Added with newest first (descending by date)
+        if table.columns:
+            try:
+                date_column = table.columns[ColumnKey("date")]
+                # Reset headers, set date column to DESCENDING state visually and functionally
+                self._reset_all_header_labels(table)
+                # Sort by newest first
+                self._sorting_statuses["date"] = SortingStatus.ASCENDING
+                table.sort(date_column.key, reverse=True)
+                date_column.label = Text.from_markup(f"{self._pretty_header_text('date')} [yellow]↑[/]")
+            except Exception as e:
+                logger.debug(f"Failed to set initial sort: {e}")
+
         # Update the save button label and disabled state after the DOM is ready
         save_button = self.query_one("#save", Button)
         save_button.label = "Import"
         save_button.disabled = not self.selected_rows
+
+    def _reset_all_header_labels(self, table: DataTable) -> None:
+        for key in list(self._sorting_statuses.keys()):
+            # reset stored state
+            self._sorting_statuses[key] = SortingStatus.UNSORTED
+            # update visual label on column if it exists
+            try:
+                col_index = table.get_column_index(key)
+                col = table.ordered_columns[col_index]
+                base = self._pretty_header_text(key)
+                col.label = Text.from_markup(f"{base} [yellow]-[/]")
+            except Exception:
+                continue
+
+    def _pretty_header_text(self, key: str) -> str:
+        mapping = {
+            "select": "✓",
+            "name": "Name",
+            "date": "Date Added",
+            "context": "Context",
+            "input": "Input Cost/1M",
+            "output": "Output Cost/1M",
+        }
+        return mapping.get(key, key)
+
+    def _apply_sort_to_column(self, column: Column, column_key: ColumnKey, initial: bool = False) -> None:
+        table = self.query_one(DataTable)
+        key = column_key.value
+        if key not in self._sorting_statuses:
+            # do nothing for unknown keys
+            return
+
+        # If UNSORTED or initial call, set to ASCENDING and reset others
+        if initial or self._sorting_statuses[key] == SortingStatus.UNSORTED:
+            self._reset_all_header_labels(table)
+            self._sorting_statuses[key] = SortingStatus.ASCENDING
+            # ASCENDING corresponds to reverse=True for Textual to show ↑ (per example)
+            table.sort(column_key, reverse=True)
+            column.label = Text.from_markup(f"{self._pretty_header_text(key)} [yellow]↑[/]")
+        elif self._sorting_statuses[key] == SortingStatus.ASCENDING:
+            self._sorting_statuses[key] = SortingStatus.DESCENDING
+            table.sort(column_key, reverse=False)
+            column.label = Text.from_markup(f"{self._pretty_header_text(key)} [yellow]↓[/]")
+        elif self._sorting_statuses[key] == SortingStatus.DESCENDING:
+            self._sorting_statuses[key] = SortingStatus.ASCENDING
+            table.sort(column_key, reverse=True)
+            column.label = Text.from_markup(f"{self._pretty_header_text(key)} [yellow]↑[/]")
+
+    @on(DataTable.HeaderSelected, "#import-models-table")
+    def handle_header_selected(self, event: DataTable.HeaderSelected) -> None:
+        table = self.query_one(DataTable)
+        try:
+            column = table.columns[event.column_key]
+        except Exception:
+            return
+        # Do not sort on the checkbox column; allow toggling only by row select
+        if event.column_key.value == "select":
+            return
+        self._apply_sort_to_column(column, column.key)
 
     @on(DataTable.RowSelected, "#import-models-table")
     def toggle_row_selection(self, event: DataTable.RowSelected):
