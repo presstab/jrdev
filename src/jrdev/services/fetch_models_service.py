@@ -1,3 +1,4 @@
+from jrdev.services.providers.anthropic import fetch_open_anthropic_models
 from jrdev.services.providers.open_router import fetch_open_router_models
 from jrdev.services.providers.openai import fetch_open_ai_models
 
@@ -10,4 +11,6 @@ class ModelFetchService:
             return await fetch_open_router_models()
         elif provider_name == "openai":
             return await fetch_open_ai_models(core_app)
+        elif provider_name == "anthropic":
+            return await fetch_open_anthropic_models(core_app)
         return None
