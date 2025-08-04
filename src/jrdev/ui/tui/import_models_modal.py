@@ -69,6 +69,7 @@ class ImportModelsModal(BaseModelModal):
     def on_mount(self):
         table = self.query_one(DataTable)
         table.cursor_type = "row"
+        table.zebra_stripes = True
         # Add columns with keys to support sorting and header label updates
         table.add_column("[yellow]-[/]", key="select")
         table.add_column("Name [yellow]-[/]", key="name")
