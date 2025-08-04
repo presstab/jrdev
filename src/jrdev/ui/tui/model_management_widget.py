@@ -10,9 +10,18 @@ from jrdev.ui.tui.add_provider_modal import AddProviderModal
 from jrdev.ui.tui.edit_provider_modal import EditProviderModal
 from jrdev.ui.tui.edit_model_modal import EditModelModal
 from jrdev.ui.tui.remove_model_modal import RemoveResourceModal
+from jrdev.ui.tui.import_models_modal import ImportModelsModal
+from enum import Enum
+from rich.text import Text
 
 import logging
 logger = logging.getLogger("jrdev")
+
+
+class SortingStatus(Enum):
+    UNSORTED = 0
+    ASCENDING = 1
+    DESCENDING = 2
 
 
 class ModelManagementWidget(Widget):
@@ -55,6 +64,12 @@ class ModelManagementWidget(Widget):
         height: auto;
     }
     
+    #provider-buttons-layout {
+        height: 1;
+        margin: 0;
+        padding: 0;
+    }
+    
     .provider-button {
         margin-left: 1;
         width: 6;
@@ -64,6 +79,9 @@ class ModelManagementWidget(Widget):
         margin-left: 1;
         width: 2;
         max-width: 3;
+    }
+    #provider-fetch {
+        margin-top: 1;
     }
     .model-button {
         margin-left: 1;
@@ -130,6 +148,15 @@ class ModelManagementWidget(Widget):
         self.core_app = core_app
         # map row keys to model names for selection-aware actions
         self._row_to_model: dict[Any, str] = {}
+        # Sorting state for models table (by column key value)
+        self._models_sorting_statuses: dict[str, SortingStatus] = {
+            "name": SortingStatus.UNSORTED,
+            "provider": SortingStatus.UNSORTED,
+            "think": SortingStatus.UNSORTED,
+            "input": SortingStatus.UNSORTED,
+            "output": SortingStatus.UNSORTED,
+            "context": SortingStatus.UNSORTED,
+        }
 
     def compose(self):
         """Compose the widget."""
@@ -141,6 +168,7 @@ class ModelManagementWidget(Widget):
                     yield Button("+", id="add-provider", classes="provider-button-add-remove", tooltip="Add new provider")
                     yield Button("-", id="remove-provider", classes="provider-button-add-remove", tooltip="Remove selected provider")
                     yield Button("Edit", id="edit-provider", classes="provider-button", tooltip="Edit selected provider")
+                yield Button("Fetch Models", id="provider-fetch", tooltip="Fetch the updated list of models for the selected provider")
             with Container(id="right-pane"):
                 yield Label("Models")
                 with ScrollableContainer(id="models-scroll"):
@@ -156,6 +184,9 @@ class ModelManagementWidget(Widget):
         self.populate_models()
         # initialize CRUD buttons state
         self._update_model_crud_buttons_state(False)
+        # Disable Fetch Models button until a provider is selected
+        fetch_button = self.query_one("#provider-fetch", Button)
+        fetch_button.disabled = True
 
     def populate_providers(self):
         """Populates the provider select widget."""
@@ -163,6 +194,53 @@ class ModelManagementWidget(Widget):
         providers = self.core_app.provider_list()
         provider_options = [("ALL", "all")] + [(provider.name, provider.name) for provider in providers]
         provider_select.set_options(provider_options)
+
+    def _models_pretty_header_text(self, key: str) -> str:
+        mapping = {
+            "name": "Name",
+            "provider": "Provider",
+            "think": "Think",
+            "input": "Input Cost",
+            "output": "Output Cost",
+            "context": "Context",
+        }
+        return mapping.get(key, key)
+
+    def _reset_models_header_labels(self, table: DataTable) -> None:
+        for key in list(self._models_sorting_statuses.keys()):
+            self._models_sorting_statuses[key] = SortingStatus.UNSORTED
+            try:
+                col_index = table.get_column_index(key)
+                col = table.ordered_columns[col_index]
+                base = self._models_pretty_header_text(key)
+                col.label = Text.from_markup(f"{base} [yellow]-[/]")
+            except Exception:
+                continue
+
+    def _apply_models_sort(self, column_key_value: str) -> None:
+        table = self.query_one("#models-table", DataTable)
+        try:
+            column = table.columns[column_key_value]
+        except Exception:
+            return
+
+        key = column.key.value
+        if key not in self._models_sorting_statuses:
+            return
+
+        if self._models_sorting_statuses[key] == SortingStatus.UNSORTED:
+            self._reset_models_header_labels(table)
+            self._models_sorting_statuses[key] = SortingStatus.ASCENDING
+            table.sort(column.key, reverse=True)
+            column.label = Text.from_markup(f"{self._models_pretty_header_text(key)} [yellow]↑[/]")
+        elif self._models_sorting_statuses[key] == SortingStatus.ASCENDING:
+            self._models_sorting_statuses[key] = SortingStatus.DESCENDING
+            table.sort(column.key, reverse=False)
+            column.label = Text.from_markup(f"{self._models_pretty_header_text(key)} [yellow]↓[/]")
+        elif self._models_sorting_statuses[key] == SortingStatus.DESCENDING:
+            self._models_sorting_statuses[key] = SortingStatus.ASCENDING
+            table.sort(column.key, reverse=True)
+            column.label = Text.from_markup(f"{self._models_pretty_header_text(key)} [yellow]↑[/]")
 
     def populate_models(self, provider_filter: Optional[str] = None):
         """Populates the models table."""
@@ -179,8 +257,13 @@ class ModelManagementWidget(Widget):
         models_table.fixed_columns = 0
         models_table.zebra_stripes = True
 
-        # add columns
-        models_table.add_columns("Name", "Provider", "Think", "Input Cost", "Output Cost", "Context")
+        # add columns with keys and neutral sort indicator in labels
+        models_table.add_column("Name [yellow]-[/]", key="name")
+        models_table.add_column("Provider [yellow]-[/]", key="provider")
+        models_table.add_column("Think [yellow]-[/]", key="think")
+        models_table.add_column("Input Cost [yellow]-[/]", key="input")
+        models_table.add_column("Output Cost [yellow]-[/]", key="output")
+        models_table.add_column("Context [yellow]-[/]", key="context")
 
         models = self.core_app.get_models()
         for model in models:
@@ -214,6 +297,9 @@ class ModelManagementWidget(Widget):
             )
             self._row_to_model[row_key] = model["name"]
 
+        # Reset headers to neutral state after repopulating
+        self._reset_models_header_labels(models_table)
+
         # after repopulating, ensure CRUD buttons reflect current selection
         self._update_model_crud_buttons_state(False)
 
@@ -246,7 +332,18 @@ class ModelManagementWidget(Widget):
     @on(Select.Changed, "#provider-select")
     def handle_provider_change(self, event: Select.Changed):
         """Handle provider selection changes."""
+        provider_select = self.query_one("#provider-select", Select)
+        fetch_button = self.query_one("#provider-fetch", Button)
+        selected = provider_select.value
+        fetch_button.disabled = (not selected or selected == "all" or selected == Select.BLANK)
         self.populate_models(event.value)
+
+    @on(DataTable.HeaderSelected, "#models-table")
+    def handle_models_header_selected(self, event: DataTable.HeaderSelected) -> None:
+        # All columns are sortable for this table
+        if not event.column_key:
+            return
+        self._apply_models_sort(event.column_key.value)
 
     @on(DataTable.RowHighlighted, "#models-table")
     @on(DataTable.RowSelected, "#models-table")
@@ -294,3 +391,28 @@ class ModelManagementWidget(Widget):
         model_name = self._get_selected_model_name()
         if model_name:
             self.app.push_screen(RemoveResourceModal(model_name))
+
+    @on(Button.Pressed, "#provider-fetch")
+    async def fetch_provider_models(self):
+        provider_select = self.query_one("#provider-select", Select)
+        provider_name = provider_select.value
+
+        if not provider_name or provider_name == "all" or provider_name == Select.BLANK:
+            self.app.notify("Please select a specific provider to fetch models from.", severity="warning")
+            return
+
+        fetch_button = self.query_one("#provider-fetch", Button)
+        try:
+            fetch_button.disabled = True
+            self.app.notify(f"Fetching models for {provider_name}...")
+            models = await self.core_app.model_fetch_service.fetch_provider_models(provider_name, self.app.jrdev)
+
+            if models:
+                await self.app.push_screen(ImportModelsModal(models=models, provider_name=provider_name))
+            else:
+                self.app.notify(f"Could not fetch models for '{provider_name}'. The provider may not be supported for automatic fetching.", severity="error")
+        except Exception as e:
+            logger.error(f"Failed to fetch provider models: {e}")
+            self.app.notify(f"An error occurred while fetching models: {e}", severity="error")
+        finally:
+            fetch_button.disabled = False

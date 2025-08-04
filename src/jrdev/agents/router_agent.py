@@ -119,6 +119,10 @@ class CommandInterpretationAgent:
 
         if decision == "execute_action":
             action = response_json.get("action")
+            if not action:
+                self.logger.error(f"Router decision was 'execute_action' but no action was provided. Response: {response_json}")
+                self.app.ui.print_text("I decided to execute an action, but encountered an error. Please try again.", print_type=PrintType.ERROR)
+                return None
             action_type = action.get("type")
             final_command = bool(response_json.get("final_command", False))
             reasoning = response_json.get("reasoning", "")

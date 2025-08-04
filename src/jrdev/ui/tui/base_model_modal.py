@@ -145,10 +145,12 @@ class BaseModelModal(ModalScreen):
         )
 
     def actions_row(self) -> Horizontal:
-        """Return a row with Save and Cancel buttons."""
+        """Return a row with Save and Cancel buttons, ensuring standard IDs."""
+        save_button = Button("Save", id="save")
+        cancel_button = Button("Cancel", id="cancel")
         return Horizontal(
-            Button("Save", id="save"),
-            Button("Cancel", id="cancel"),
+            save_button,
+            cancel_button,
             classes="form-actions"
         )
 

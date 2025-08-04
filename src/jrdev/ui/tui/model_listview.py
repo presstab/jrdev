@@ -3,6 +3,7 @@ from typing import Any
 
 from textual import on, events
 from textual.color import Color
+from textual.containers import Horizontal
 from textual.geometry import Offset
 from textual.message import Message
 from textual.widget import Widget
@@ -24,10 +25,24 @@ class ModelListView(Widget):
     DEFAULT_CSS = """
     #model-search-input {
         border: none;
+        height: 1;
+        padding: 0;
+        margin: 0;
+        width: 1fr;
+    }
+    #layout-top {
+        border: none;
         height: 2;
         border-bottom: solid;
         padding: 0;
         margin: 0;
+    }
+    #btn-settings {
+        height: 1;
+        width: 3;
+        max-width: 3;
+        margin: 0;
+        padding: 0;
     }
     """
 
@@ -54,11 +69,14 @@ class ModelListView(Widget):
         self.height = 10
         self.models = []
         self.search_input = SearchInput(placeholder="Search models...", id="model-search-input")
+        self.btn_settings = Button("⚙️", id="btn-settings", tooltip="Model & Provider Settings")
         self.list_view = ListView(id="_listview")
         self.input_query = None
 
     def compose(self):
-        yield self.search_input
+        with Horizontal(id="layout-top"):
+            yield self.search_input
+            yield self.btn_settings
         yield self.list_view
 
     def update_models(self, query_filter: str = "") -> None:
@@ -184,3 +202,7 @@ class ModelListView(Widget):
     def selection_updated(self, selected: ListView.Selected) -> None:
         if not selected.item.disabled:
             self.post_message(self.ModelSelected(self, selected.item.name))
+
+    @on(Button.Pressed, "#btn-settings")
+    def handle_settings_pressed(self):
+        self.app.handle_settings_pressed()
