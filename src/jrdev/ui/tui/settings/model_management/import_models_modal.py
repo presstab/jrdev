@@ -7,7 +7,7 @@ from textual import on
 from datetime import datetime
 from rich.text import Text
 
-from jrdev.ui.tui.base_model_modal import BaseModelModal
+from jrdev.ui.tui.settings.model_management.base_model_modal import BaseModelModal
 from jrdev.ui.tui.command_request import CommandRequest
 
 import logging

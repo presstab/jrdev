@@ -17,8 +17,7 @@ from jrdev.core.user_settings import UserSettings
 from jrdev.file_operations.file_utils import (JRDEV_DIR, JRDEV_PACKAGE_DIR,
                                               add_to_gitignore, get_env_path,
                                               get_persistent_storage_path,
-                                              read_json_file, write_json_file,
-                                              write_string_to_file)
+                                              read_json_file, write_json_file)
 from jrdev.logger import setup_logger
 from jrdev.messages.thread import (  # Added MessageThread, THREADS_DIR
     THREADS_DIR, USER_INPUT_PREFIX, MessageThread)
@@ -32,7 +31,7 @@ from jrdev.services.fetch_models_service import ModelFetchService
 from jrdev.ui.ui import PrintType
 from jrdev.ui.ui_wrapper import UiWrapper
 from jrdev.utils.treechart import generate_compact_tree
-from jrdev.ui.tui.terminal_text_styles import TerminalTextStyles
+from jrdev.ui.tui.terminal.terminal_text_styles import TerminalTextStyles
 
 
 class Application:

@@ -4,13 +4,12 @@ from textual.coordinate import Coordinate
 from textual.widgets import DataTable, Select, Button, Label
 from textual.containers import Horizontal, Vertical, Container, ScrollableContainer
 from textual.widget import Widget
-from jrdev.ui.tui.command_request import CommandRequest
-from jrdev.ui.tui.add_model_modal import AddModelModal
-from jrdev.ui.tui.add_provider_modal import AddProviderModal
-from jrdev.ui.tui.edit_provider_modal import EditProviderModal
-from jrdev.ui.tui.edit_model_modal import EditModelModal
-from jrdev.ui.tui.remove_model_modal import RemoveResourceModal
-from jrdev.ui.tui.import_models_modal import ImportModelsModal
+from jrdev.ui.tui.settings.model_management.add_model_modal import AddModelModal
+from jrdev.ui.tui.settings.model_management.add_provider_modal import AddProviderModal
+from jrdev.ui.tui.settings.model_management.edit_provider_modal import EditProviderModal
+from jrdev.ui.tui.settings.model_management.edit_model_modal import EditModelModal
+from jrdev.ui.tui.settings.model_management.remove_model_modal import RemoveResourceModal
+from jrdev.ui.tui.settings.model_management.import_models_modal import ImportModelsModal
 from enum import Enum
 from rich.text import Text
 

@@ -1,7 +1,7 @@
 from textual.widgets import Input
 from jrdev.ui.tui.command_request import CommandRequest
-from jrdev.ui.tui.base_model_modal import BaseModelModal
-from jrdev.ui.tui.remove_model_modal import RemoveResourceModal
+from jrdev.ui.tui.settings.model_management.base_model_modal import BaseModelModal
+from jrdev.ui.tui.settings.model_management.remove_model_modal import RemoveResourceModal
 from jrdev.utils.string_utils import is_valid_env_key, is_valid_url
 
 

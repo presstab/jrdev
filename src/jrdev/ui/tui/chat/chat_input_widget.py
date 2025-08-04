@@ -1,8 +1,7 @@
 from textual.color import Color
-from typing import Optional
 import logging
 
-from jrdev.ui.tui.input_widget import CommandTextArea
+from jrdev.ui.tui.terminal.input_widget import CommandTextArea
 
 logger = logging.getLogger("jrdev")
 

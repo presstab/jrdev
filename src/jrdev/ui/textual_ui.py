@@ -8,24 +8,24 @@ from textual.worker import Worker, WorkerState
 from textual.color import Color
 from jrdev.core.application import Application
 from jrdev import __version__
-from jrdev.ui.textual_events import TextualEvents
-from jrdev.ui.tui.code_confirmation_screen import CodeConfirmationScreen
-from jrdev.ui.tui.steps_screen import StepsScreen
-from jrdev.ui.tui.code_edit_screen import CodeEditScreen
-from jrdev.ui.tui.edit_model_modal import EditModelModal
+from jrdev.ui.tui.textual_events import TextualEvents
+from jrdev.ui.tui.code.code_confirmation_screen import CodeConfirmationScreen
+from jrdev.ui.tui.code.steps_screen import StepsScreen
+from jrdev.ui.tui.code.code_edit_screen import CodeEditScreen
+from jrdev.ui.tui.settings.model_management.edit_model_modal import EditModelModal
 from jrdev.ui.tui.filtered_directory_tree import DirectoryWidget
-from jrdev.ui.tui.api_key_entry import ApiKeyEntry
+from jrdev.ui.tui.settings.api_key_entry import ApiKeyEntry
 from jrdev.ui.tui.task_monitor import TaskMonitor
-from jrdev.ui.tui.terminal_output_widget import TerminalOutputWidget
-from jrdev.ui.tui.input_widget import CommandTextArea
-from jrdev.ui.tui.button_container import ButtonContainer
-from jrdev.ui.tui.chat_list import ChatList
-from jrdev.ui.tui.model_profile_widget import ModelProfileScreen
+from jrdev.ui.tui.terminal.terminal_output_widget import TerminalOutputWidget
+from jrdev.ui.tui.terminal.input_widget import CommandTextArea
+from jrdev.ui.tui.terminal.button_container import ButtonContainer
+from jrdev.ui.tui.chat.chat_list import ChatList
+from jrdev.ui.tui.settings.model_profile_widget import ModelProfileScreen
 from jrdev.ui.tui.command_request import CommandRequest
-from jrdev.ui.tui.chat_view_widget import ChatViewWidget
-from jrdev.ui.tui.bordered_switcher import BorderedSwitcher
-from jrdev.ui.tui.file_deletion_screen import FileDeletionScreen
-from jrdev.ui.tui.settings_screen import SettingsScreen
+from jrdev.ui.tui.chat.chat_view_widget import ChatViewWidget
+from jrdev.ui.tui.terminal.bordered_switcher import BorderedSwitcher
+from jrdev.ui.tui.code.file_deletion_screen import FileDeletionScreen
+from jrdev.ui.tui.settings.settings_screen import SettingsScreen
 
 from typing import Any, Generator, Set, List
 import logging

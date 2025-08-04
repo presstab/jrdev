@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Iterable, Any, Optional
+from typing import Iterable, Optional
 
 from rich.style import Style
 from rich.text import Text
@@ -15,7 +15,7 @@ from textual.app import ComposeResult
 
 from jrdev.core.application import Application
 from jrdev.messages import MessageThread
-from jrdev.ui.textual_events import TextualEvents
+from jrdev.ui.tui.textual_events import TextualEvents
 
 import logging
 logger = logging.getLogger("jrdev")

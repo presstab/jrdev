@@ -5,11 +5,11 @@ from textual.containers import Vertical
 from textual.widgets import DataTable, Button
 from textual.color import Color
 from textual.worker import Worker, WorkerState
-from jrdev.ui.textual_events import TextualEvents
+from jrdev.ui.tui.textual_events import TextualEvents
 import logging
 import time
 
-from jrdev.models.model_utils import get_model_cost, Price_Per_Token_Scale
+from jrdev.models.model_utils import get_model_cost
 
 logger = logging.getLogger("jrdev")
 

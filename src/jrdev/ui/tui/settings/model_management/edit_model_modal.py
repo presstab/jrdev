@@ -1,7 +1,6 @@
-from textual.widgets import Input, Button, Label, Select
-from textual.containers import Vertical, Horizontal
+from textual.widgets import Input, Button, Select
 from jrdev.ui.tui.command_request import CommandRequest
-from jrdev.ui.tui.base_model_modal import BaseModelModal
+from jrdev.ui.tui.settings.model_management.base_model_modal import BaseModelModal
 
 
 class EditModelModal(BaseModelModal):
