@@ -70,6 +70,7 @@ class ModelListView(Widget):
         self.models = []
         self.search_input = SearchInput(placeholder="Search models...", id="model-search-input")
         self.btn_settings = Button("⚙️", id="btn-settings", tooltip="Model & Provider Settings")
+        self.btn_settings.can_focus = False
         self.list_view = ListView(id="_listview")
         self.input_query = None
 
@@ -116,9 +117,16 @@ class ModelListView(Widget):
         self.visible = is_visible
         if is_visible:
             self.search_input.clear()
+            self.search_input.focus()
             self.input_query = None
             self.update_models()
             self.set_dimensions()
+
+    async def _on_mouse_down(self, event: events.MouseDown) -> None:
+        """Override mouse down to set focus - if focus not set, click on listviewitem is not reliable"""
+        if not self.has_focus:
+            self.focus()
+        await super()._on_mouse_down(event)
 
     @typing.no_type_check
     def set_dimensions(self):

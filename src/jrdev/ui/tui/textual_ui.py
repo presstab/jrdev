@@ -421,10 +421,16 @@ class JrDevUI(App[None]):
 
     #globally watch for modellistview focus loss
     @on(events.DescendantBlur, "#model-search-input")
-    def handle_modellistview_blur(self, event: events.DescendantBlur):
+    def handle_modellistsearch_blur(self, event: events.DescendantBlur):
         # Only close if focus is truly leaving the entire model list view
         model_listview: ModelListView = event.widget.parent.parent
-        if not model_listview.has_focus:
+
+        if not model_listview.has_focus and not model_listview.btn_settings.has_focus and not model_listview.list_view.has_focus:
+            model_listview.set_visible(False)
+    @on(events.DescendantBlur, "ModelListView")
+    def handle_modellistview_blur(self, event: events.DescendantBlur):
+        model_listview: ModelListView = event.widget
+        if not model_listview.btn_settings.has_focus and not model_listview.search_input.has_focus:
             model_listview.set_visible(False)
 
 def run_textual_ui() -> None:
