@@ -1,3 +1,4 @@
+import time
 import typing
 from typing import Any
 
@@ -73,6 +74,7 @@ class ModelListView(Widget):
         self.btn_settings.can_focus = False
         self.list_view = ListView(id="_listview")
         self.input_query = None
+        self.last_blur = 0
 
     def compose(self):
         with Horizontal(id="layout-top"):
@@ -113,14 +115,26 @@ class ModelListView(Widget):
                 self.models_text_width = max(self.models_text_width, len(model_name))
                 self.list_view.append(ListItem(Label(model_name), name=model_name))
 
-    def set_visible(self, is_visible: bool) -> None:
-        self.visible = is_visible
+    def set_visible(self, is_visible: bool, is_blur: bool = False) -> None:
         if is_visible:
+            time_passed = (time.time_ns() // 1_000_000) - self.last_blur
+            if time_passed < 500:
+                # not enough time has passed since blur event - likely a race condition - ignore this
+                return
+
+            self.visible = is_visible
             self.search_input.clear()
             self.search_input.focus()
             self.input_query = None
             self.update_models()
             self.set_dimensions()
+            return
+
+        if is_blur:
+            # race conditions with blur and the model button press can cause it to fail to hide
+            self.last_blur = time.time_ns() // 1_000_000
+
+        self.visible = is_visible
 
     async def _on_mouse_down(self, event: events.MouseDown) -> None:
         """Override mouse down to set focus - if focus not set, click on listviewitem is not reliable"""
