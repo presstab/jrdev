@@ -1,3 +1,4 @@
+import time
 import typing
 from typing import Any
 
@@ -70,8 +71,10 @@ class ModelListView(Widget):
         self.models = []
         self.search_input = SearchInput(placeholder="Search models...", id="model-search-input")
         self.btn_settings = Button("⚙️", id="btn-settings", tooltip="Model & Provider Settings")
+        self.btn_settings.can_focus = False
         self.list_view = ListView(id="_listview")
         self.input_query = None
+        self.last_blur = 0
 
     def compose(self):
         with Horizontal(id="layout-top"):
@@ -104,21 +107,45 @@ class ModelListView(Widget):
         if len(self.styles.border) > 1:
             star_color = self.styles.border.top[1]
 
+        is_first = True
         for provider, provider_models in grouped_models.items():
             provider_item = ListItem(Label(f"[{star_color.rich_color.name}][bold white]✨{provider}✨[/bold white][/{star_color.rich_color.name}]", markup=True), name=provider, disabled=True)
             self.list_view.append(provider_item)
             for model in provider_models:
                 model_name = model["name"]
                 self.models_text_width = max(self.models_text_width, len(model_name))
-                self.list_view.append(ListItem(Label(model_name), name=model_name))
+                item = ListItem(Label(model_name), name=model_name)
+                if is_first:
+                    item.highlighted = True
+                    is_first = False
+                self.list_view.append(item)
 
-    def set_visible(self, is_visible: bool) -> None:
-        self.visible = is_visible
+    def set_visible(self, is_visible: bool, is_blur: bool = False) -> None:
         if is_visible:
+            time_passed = (time.time_ns() // 1_000_000) - self.last_blur
+            if time_passed < 500:
+                # not enough time has passed since blur event - likely a race condition - ignore this
+                return
+
+            self.visible = is_visible
             self.search_input.clear()
+            self.search_input.focus()
             self.input_query = None
             self.update_models()
             self.set_dimensions()
+            return
+
+        if is_blur:
+            # race conditions with blur and the model button press can cause it to fail to hide
+            self.last_blur = time.time_ns() // 1_000_000
+
+        self.visible = is_visible
+
+    async def _on_mouse_down(self, event: events.MouseDown) -> None:
+        """Override mouse down to set focus - if focus not set, click on listviewitem is not reliable"""
+        if not self.has_focus:
+            self.focus()
+        await super()._on_mouse_down(event)
 
     @typing.no_type_check
     def set_dimensions(self):
@@ -151,16 +178,14 @@ class ModelListView(Widget):
         """Search filter changed"""
         if event.input.id != "model-search-input":
             return
+        self.update_models(event.input.value)
+        self.call_after_refresh(self.highlight_first_enabled_index)
 
-        # Update models with filter
-        query = event.value.lower()
-        self.update_models(query_filter=query)
-
+    def highlight_first_enabled_index(self):
         if len(self.list_view.children):
             for i, item in enumerate(self.list_view.children):
                 if not item.disabled:
                     self.list_view.index = i
-                    self.list_view.children[i].highlighted = True
                     break
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
