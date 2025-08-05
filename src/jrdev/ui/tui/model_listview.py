@@ -107,13 +107,18 @@ class ModelListView(Widget):
         if len(self.styles.border) > 1:
             star_color = self.styles.border.top[1]
 
+        is_first = True
         for provider, provider_models in grouped_models.items():
             provider_item = ListItem(Label(f"[{star_color.rich_color.name}][bold white]✨{provider}✨[/bold white][/{star_color.rich_color.name}]", markup=True), name=provider, disabled=True)
             self.list_view.append(provider_item)
             for model in provider_models:
                 model_name = model["name"]
                 self.models_text_width = max(self.models_text_width, len(model_name))
-                self.list_view.append(ListItem(Label(model_name), name=model_name))
+                item = ListItem(Label(model_name), name=model_name)
+                if is_first:
+                    item.highlighted = True
+                    is_first = False
+                self.list_view.append(item)
 
     def set_visible(self, is_visible: bool, is_blur: bool = False) -> None:
         if is_visible:
@@ -173,16 +178,14 @@ class ModelListView(Widget):
         """Search filter changed"""
         if event.input.id != "model-search-input":
             return
+        self.update_models(event.input.value)
+        self.call_after_refresh(self.highlight_first_enabled_index)
 
-        # Update models with filter
-        query = event.value.lower()
-        self.update_models(query_filter=query)
-
+    def highlight_first_enabled_index(self):
         if len(self.list_view.children):
             for i, item in enumerate(self.list_view.children):
                 if not item.disabled:
                     self.list_view.index = i
-                    self.list_view.children[i].highlighted = True
                     break
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
