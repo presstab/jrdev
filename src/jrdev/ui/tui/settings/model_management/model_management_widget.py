@@ -227,18 +227,29 @@ class ModelManagementWidget(Widget):
         if key not in self._models_sorting_statuses:
             return
 
+        sort_key_func = None
+        if key in ["context", "input", "output"]:
+            def sort_key(value: Text) -> float:
+                try:
+                    # For cost columns, remove '$' and convert to float.
+                    # For context, just convert to float/int.
+                    return float(str(value).lstrip('$'))
+                except (ValueError, TypeError):
+                    return 0.0
+            sort_key_func = sort_key
+
         if self._models_sorting_statuses[key] == SortingStatus.UNSORTED:
             self._reset_models_header_labels(table)
             self._models_sorting_statuses[key] = SortingStatus.ASCENDING
-            table.sort(column.key, reverse=True)
+            table.sort(column.key, reverse=True, key=sort_key_func)
             column.label = Text.from_markup(f"{self._models_pretty_header_text(key)} [yellow]↑[/]")
         elif self._models_sorting_statuses[key] == SortingStatus.ASCENDING:
             self._models_sorting_statuses[key] = SortingStatus.DESCENDING
-            table.sort(column.key, reverse=False)
+            table.sort(column.key, reverse=False, key=sort_key_func)
             column.label = Text.from_markup(f"{self._models_pretty_header_text(key)} [yellow]↓[/]")
         elif self._models_sorting_statuses[key] == SortingStatus.DESCENDING:
             self._models_sorting_statuses[key] = SortingStatus.ASCENDING
-            table.sort(column.key, reverse=True)
+            table.sort(column.key, reverse=True, key=sort_key_func)
             column.label = Text.from_markup(f"{self._models_pretty_header_text(key)} [yellow]↑[/]")
 
     def populate_models(self, provider_filter: Optional[str] = None):

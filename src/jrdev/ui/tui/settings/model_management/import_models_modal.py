@@ -168,20 +168,31 @@ class ImportModelsModal(BaseModelModal):
             # do nothing for unknown keys
             return
 
+        sort_key_func = None
+        if key in ["context", "input", "output"]:
+            def sort_key(value: Text) -> float:
+                try:
+                    # For cost columns, remove '$' and convert to float.
+                    # For context, just convert to float/int.
+                    return float(str(value).lstrip('$'))
+                except (ValueError, TypeError):
+                    return 0.0
+            sort_key_func = sort_key
+
         # If UNSORTED or initial call, set to ASCENDING and reset others
         if initial or self._sorting_statuses[key] == SortingStatus.UNSORTED:
             self._reset_all_header_labels(table)
             self._sorting_statuses[key] = SortingStatus.ASCENDING
             # ASCENDING corresponds to reverse=True for Textual to show ↑ (per example)
-            table.sort(column_key, reverse=True)
+            table.sort(column_key, reverse=True, key=sort_key_func)
             column.label = Text.from_markup(f"{self._pretty_header_text(key)} [yellow]↑[/]")
         elif self._sorting_statuses[key] == SortingStatus.ASCENDING:
             self._sorting_statuses[key] = SortingStatus.DESCENDING
-            table.sort(column_key, reverse=False)
+            table.sort(column_key, reverse=False, key=sort_key_func)
             column.label = Text.from_markup(f"{self._pretty_header_text(key)} [yellow]↓[/]")
         elif self._sorting_statuses[key] == SortingStatus.DESCENDING:
             self._sorting_statuses[key] = SortingStatus.ASCENDING
-            table.sort(column_key, reverse=True)
+            table.sort(column_key, reverse=True, key=sort_key_func)
             column.label = Text.from_markup(f"{self._pretty_header_text(key)} [yellow]↑[/]")
 
     @on(DataTable.HeaderSelected, "#import-models-table")
