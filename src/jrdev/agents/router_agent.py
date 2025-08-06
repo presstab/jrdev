@@ -18,7 +18,7 @@ class CommandInterpretationAgent:
         # Use the dedicated system thread for conversation history
         self.thread: MessageThread = self.app.state.get_thread(self.app.state.router_thread_id)
 
-    def _get_formatted_commands(self) -> str:
+    def get_formatted_commands(self) -> str:
         lines = []
         commands = self.app.command_handler.get_commands()
         for name, handler in commands.items():
@@ -28,7 +28,7 @@ class CommandInterpretationAgent:
             lines.append(f"- `{name}`: {doc}")
         return "\n".join(lines)
 
-    def _get_formatted_tools(self) -> str:
+    def get_formatted_tools(self) -> str:
         lines = []
         for tool, desc in agent_tools.tools_list.items():
             lines.append(f"- `{tool}`: {desc}")
@@ -48,8 +48,8 @@ class CommandInterpretationAgent:
 
         # Build the prompt for the LLM
         select_action_prompt = PromptManager().load("router/select_command")
-        select_action_prompt = select_action_prompt.replace("tools_list", self._get_formatted_tools())
-        select_action_prompt = select_action_prompt.replace("commands_list", self._get_formatted_commands())
+        select_action_prompt = select_action_prompt.replace("tools_list", self.get_formatted_tools())
+        select_action_prompt = select_action_prompt.replace("commands_list", self.get_formatted_commands())
         builder.add_system_message(select_action_prompt)
         builder.add_project_summary()
 
