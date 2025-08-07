@@ -269,13 +269,15 @@ def add_to_gitignore(gitignore_path: str, ignore_str: str, create_if_dne: bool =
             if ignore_pattern in lines:
                 return True
 
-            # Add a newline at the end if needed
-            needs_newline = lines and lines[-1] != ""
+            # Read the entire file content to check for a trailing newline
+            with open(gitignore_path, 'r') as f:
+                content = f.read()
 
             # Append the pattern to the file
             with open(gitignore_path, 'a') as f:
-                if needs_newline:
-                    f.write("\n")
+                # Add a newline only if the file is not empty and doesn't already end with a newline
+                if content and not content.endswith('\n'):
+                    f.write('\n')
                 f.write(f"{ignore_pattern}\n")
 
             logger.info(f"Added '{ignore_pattern}' to {gitignore_path}")
