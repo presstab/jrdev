@@ -1,3 +1,5 @@
+from jrdev.messages.message_builder import MessageBuilder
+from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.ui.tui.terminal.command_confirmation_widget import CommandConfirmationWidget
 from jrdev.ui.tui.command_request import CommandRequest
 from jrdev.ui.tui.model_listview import ModelListView
@@ -219,10 +221,24 @@ class TerminalOutputWidget(Widget):
         if not thread:
             return 0, context_window
 
+        builder = MessageBuilder(self.core_app)
+        # Use the agent's private message history
+        if thread.messages:
+            builder.add_historical_messages(thread.messages)
+
+        # Build the prompt for the LLM
+        select_action_prompt = PromptManager().load("router/select_command")
+        select_action_prompt = select_action_prompt.replace("tools_list", self.core_app.router_agent.get_formatted_tools())
+        select_action_prompt = select_action_prompt.replace("commands_list", self.core_app.router_agent.get_formatted_commands())
+        builder.add_system_message(select_action_prompt)
+        builder.add_project_summary()
+
+        messages = builder.build()
+
         # Use tiktoken's cl100k_base encoding for accurate token counting
         token_encoder = tiktoken.get_encoding("cl100k_base")
         input_tokens = 0
-        for message in thread.messages:
+        for message in messages:
             content = message.get("content", "")
             if isinstance(content, str):
                 input_tokens += len(token_encoder.encode(content))
