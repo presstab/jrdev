@@ -1,0 +1,2 @@
+/app/src/jrdev/ui/tui/code/code_confirmation_screen.py:136: SyntaxWarning: invalid escape sequence '\['
+  escaped_line = line.replace("[", "\[")

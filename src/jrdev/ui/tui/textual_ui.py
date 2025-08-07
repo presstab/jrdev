@@ -26,6 +26,7 @@ from jrdev.ui.tui.chat.chat_view_widget import ChatViewWidget
 from jrdev.ui.tui.terminal.bordered_switcher import BorderedSwitcher
 from jrdev.ui.tui.code.file_deletion_screen import FileDeletionScreen
 from jrdev.ui.tui.settings.settings_screen import SettingsScreen
+from jrdev.ui.tui.effects import show_confetti
 
 from typing import Any, Generator, Set, List
 import logging
@@ -269,6 +270,11 @@ class JrDevUI(App[None]):
 
         providers = self.jrdev.provider_list()
         self.push_screen(ApiKeyEntry(core_app=self.jrdev, providers=providers), check_keys)
+
+    @on(Button.Pressed)
+    def handle_any_button_press(self, event: Button.Pressed) -> None:
+        """Show confetti on any button press."""
+        show_confetti(event.button)
 
     @on(Button.Pressed, "#stop-button")
     def handle_stop_button(self) -> None:
