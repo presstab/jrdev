@@ -125,7 +125,7 @@ def apply_diff_markup(original_content: str, diff: List[str]) -> List[str]:
 
     return marked_content
 
-def remove_diff_markup(edited_content_list: List[str]):
+def remove_diff_markup(edited_content_list: List[str]) -> str:
     """
     Takes code that has been marked up in diff format and removes the formatting.
     Args:
