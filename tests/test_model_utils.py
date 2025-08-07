@@ -26,13 +26,13 @@ class TestModelUtils(unittest.TestCase):
     def setUp(self):
         # Patch get_persistent_storage_path to use a temp dir
         self.temp_dir = tempfile.mkdtemp()
-        patcher = patch("jrdev.file_operations.file_utils.get_persistent_storage_path", return_value=Path(self.temp_dir))
+        patcher = patch("jrdev.models.model_utils.get_persistent_storage_path", return_value=Path(self.temp_dir))
         self.addCleanup(patcher.stop)
         self.mock_storage_path = patcher.start()
         # Patch JRDEV_PACKAGE_DIR to a temp dir with a default config
         self.package_dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.package_dir)
-        patcher2 = patch("jrdev.file_operations.file_utils.JRDEV_PACKAGE_DIR", self.package_dir)
+        patcher2 = patch("jrdev.models.model_utils.JRDEV_PACKAGE_DIR", self.package_dir)
         self.addCleanup(patcher2.stop)
         patcher2.start()
         # Write a default model_list.json in the package config dir
