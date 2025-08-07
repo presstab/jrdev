@@ -18,6 +18,11 @@ class ConfettiWidget(Widget):
 
     def on_mount(self) -> None:
         """Create the confetti particles."""
+        self.styles.background = "transparent"
+        self.styles.border = ("none", "transparent")
+        self.styles.layout = "absolute"
+        self.styles.width = "100%"
+        self.styles.height = "100%"
         for _ in range(self.num_particles):
             particle = self._create_particle()
             self.particles.append(particle)
