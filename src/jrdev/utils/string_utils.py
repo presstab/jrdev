@@ -11,6 +11,8 @@ def find_code_snippet(lines, code_snippet):
     Returns:
         tuple: (start_idx, end_idx) of the snippet, or (-1, -1) if not found
     """
+    if not code_snippet:
+        return -1, -1
     # Normalize line endings in the snippet
     normalized_snippet = code_snippet.replace('\r\n', '\n').replace('\\n', '\n').replace('\\"', '"')
     snippet_lines = normalized_snippet.split('\n')
