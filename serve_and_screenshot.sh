@@ -3,12 +3,13 @@ set -euo pipefail
 
 # 1. Start Textual in the background
 echo "Starting Textual server..."
+export PYTHONPATH=${PYTHONPATH:-}:$(pwd)/src
 textual serve "python3 src/jrdev/ui/tui/textual_ui.py" &
 textual_pid=$!
 
 # 2. Optional: Wait a moment to let the server initialize
 echo "Waiting for Textual server to become available..."
-sleep 2
+sleep 5
 
 # 3. Run Playwright script
 echo "Running Playwright script..."
