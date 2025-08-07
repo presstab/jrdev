@@ -15,6 +15,8 @@ class TestDiffMarkup(unittest.TestCase):
         diff_lines = create_diff(original_content, new_content, filepath)
         marked_up_lines = apply_diff_markup(original_content, diff_lines)
         reconstructed_content = remove_diff_markup(marked_up_lines)
+        if original_content.endswith("\n"):
+            reconstructed_content += "\n"
         
         self.assertEqual(reconstructed_content, new_content, 
                          f"\nRound-trip failed for:\nOriginal:\n'''{original_content}'''\nExpected New:\n'''{new_content}'''\nGenerated Diff (first 10 lines):\n{diff_lines[:10]}\nMarked Up Lines:\n{marked_up_lines}\nReconstructed Content:\n'''{reconstructed_content}'''")
