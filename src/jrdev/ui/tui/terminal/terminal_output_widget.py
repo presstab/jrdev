@@ -228,8 +228,12 @@ class TerminalOutputWidget(Widget):
 
         # Build the prompt for the LLM
         select_action_prompt = PromptManager().load("router/select_command")
-        select_action_prompt = select_action_prompt.replace("tools_list", self.core_app.router_agent.get_formatted_tools())
-        select_action_prompt = select_action_prompt.replace("commands_list", self.core_app.router_agent.get_formatted_commands())
+        if self.core_app.router_agent:
+            select_action_prompt = select_action_prompt.replace("tools_list", self.core_app.router_agent.get_formatted_tools())
+            select_action_prompt = select_action_prompt.replace("commands_list", self.core_app.router_agent.get_formatted_commands())
+        else:
+            select_action_prompt = select_action_prompt.replace("tools_list", "")
+            select_action_prompt = select_action_prompt.replace("commands_list", "")
         builder.add_system_message(select_action_prompt)
         builder.add_project_summary()
 
