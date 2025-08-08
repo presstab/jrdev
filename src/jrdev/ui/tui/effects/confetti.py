@@ -11,7 +11,7 @@ class ConfettiWidget(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.particles = []
-        self.animation_task = None
+        self.animation_worker = None
 
     def on_mount(self) -> None:
         """Called when the widget is mounted."""
@@ -27,12 +27,12 @@ class ConfettiWidget(Widget):
 
     def start(self, duration: float = 2.0):
         """Start the confetti animation."""
-        if self.animation_task:
-            self.animation_task.cancel()
+        if self.animation_worker:
+            self.animation_worker.cancel()
 
         self.styles.visibility = "visible"
         self.particles = self._create_particles()
-        self.animation_task = self.app.create_background_task(self._animate(duration))
+        self.animation_worker = self.run_worker(self._animate(duration))
 
     async def _animate(self, duration: float):
         """Animate the particles."""
