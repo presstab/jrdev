@@ -46,7 +46,7 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
         kwargs["max_completion_tokens"] = max_output_tokens
 
     if model_provider == "openai":
-        if "o3" in model or "o4-mini" in model:
+        if "o3" in model or "o4-mini" in model or "gpt-5" in model:
             kwargs["reasoning_effort"] = "high"
             del kwargs["temperature"]
         kwargs["stream_options"] = {"include_usage": True}
