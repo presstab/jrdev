@@ -1,7 +1,7 @@
 from jrdev.ui.tui.model_listview import ModelListView
 from jrdev.ui.ui import printtype_to_string
 from textual import on, events
-from textual.app import App
+from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, RadioSet
 from textual.worker import Worker, WorkerState
@@ -26,6 +26,7 @@ from jrdev.ui.tui.chat.chat_view_widget import ChatViewWidget
 from jrdev.ui.tui.terminal.bordered_switcher import BorderedSwitcher
 from jrdev.ui.tui.code.file_deletion_screen import FileDeletionScreen
 from jrdev.ui.tui.settings.settings_screen import SettingsScreen
+from jrdev.ui.tui.effects.confetti import ConfettiWidget
 
 from typing import Any, Generator, Set, List
 import logging
@@ -33,6 +34,7 @@ logger = logging.getLogger("jrdev")
 
 class JrDevUI(App[None]):
     CSS_PATH = "textual_ui.tcss"
+    LAYERS = ["main", "confetti"]
 
     def __init__(self):
         super().__init__()
@@ -55,6 +57,7 @@ class JrDevUI(App[None]):
         self.button_container = ButtonContainer(id="button_container")
         self.chat_list = ChatList(self.jrdev, id="chat_list")
         self.chat_view = ChatViewWidget(self.jrdev, id="chat_view")
+        self.confetti = ConfettiWidget(id="confetti")
         
         # Initialize content switcher
         self.content_switcher = BorderedSwitcher(id="content_switcher", initial="terminal_output_container")
@@ -70,6 +73,7 @@ class JrDevUI(App[None]):
                     yield self.chat_view
             with self.vlayout_right:
                 yield self.directory_widget
+        yield self.confetti
 
     async def on_mount(self) -> None:
         # init state of project context for chat widget
@@ -269,6 +273,11 @@ class JrDevUI(App[None]):
 
         providers = self.jrdev.provider_list()
         self.push_screen(ApiKeyEntry(core_app=self.jrdev, providers=providers), check_keys)
+
+    @on(Button.Pressed)
+    def handle_any_button_press(self, event: Button.Pressed) -> None:
+        """Handle any button press to trigger confetti."""
+        self.confetti.start()
 
     @on(Button.Pressed, "#stop-button")
     def handle_stop_button(self) -> None:
