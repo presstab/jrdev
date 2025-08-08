@@ -26,13 +26,14 @@ from jrdev.ui.tui.chat.chat_view_widget import ChatViewWidget
 from jrdev.ui.tui.terminal.bordered_switcher import BorderedSwitcher
 from jrdev.ui.tui.code.file_deletion_screen import FileDeletionScreen
 from jrdev.ui.tui.settings.settings_screen import SettingsScreen
+from jrdev.ui.tui.confetti_widget import ConfettiWidget
 
 from typing import Any, Generator, Set, List
 import logging
 logger = logging.getLogger("jrdev")
 
 class JrDevUI(App[None]):
-    CSS_PATH = "textual_ui.tcss"
+    CSS_PATH = ["textual_ui.tcss", "confetti_widget.tcss"]
 
     def __init__(self):
         super().__init__()
@@ -55,6 +56,7 @@ class JrDevUI(App[None]):
         self.button_container = ButtonContainer(id="button_container")
         self.chat_list = ChatList(self.jrdev, id="chat_list")
         self.chat_view = ChatViewWidget(self.jrdev, id="chat_view")
+        self.confetti = ConfettiWidget()
         
         # Initialize content switcher
         self.content_switcher = BorderedSwitcher(id="content_switcher", initial="terminal_output_container")
@@ -70,6 +72,7 @@ class JrDevUI(App[None]):
                     yield self.chat_view
             with self.vlayout_right:
                 yield self.directory_widget
+        yield self.confetti
 
     async def on_mount(self) -> None:
         # init state of project context for chat widget
@@ -276,13 +279,18 @@ class JrDevUI(App[None]):
             if worker:
                 worker.cancel()
 
+    async def handle_any_button_pressed(self) -> None:
+        """Handle any button press to trigger confetti."""
+        await self.confetti.start()
+
     @on(Button.Pressed, "#button_profiles")
-    def handle_profiles_pressed(self) -> None:
+    async def handle_profiles_pressed(self) -> None:
         """Open the model profile management screen"""
+        await self.handle_any_button_pressed()
         self.app.push_screen(ModelProfileScreen(self.jrdev))
 
     @on(Button.Pressed, "#button_edit_model")
-    def handle_edit_model_pressed(self) -> None:
+    async def handle_edit_model_pressed(self) -> None:
         """Open the edit model modal screen."""
         model_name = self.jrdev.state.model
         if model_name:
@@ -355,8 +363,9 @@ class JrDevUI(App[None]):
 
     # Add Settings button handler
     @on(Button.Pressed, "#button_settings")
-    def handle_settings_pressed(self) -> None:
+    async def handle_settings_pressed(self) -> None:
         """Open the SettingsScreen with Management view active by default."""
+        await self.handle_any_button_pressed()
         if not self.settings_screen:
             self.settings_screen = SettingsScreen(core_app=self.jrdev)
             self.settings_screen.active_view = "model_management"
@@ -381,8 +390,9 @@ class JrDevUI(App[None]):
 
     @on(ChatViewWidget.ShowTerminal)
     @on(Button.Pressed, "#button_terminal")
-    def handle_show_terminal(self) -> None:
+    async def handle_show_terminal(self) -> None:
         """Switch to terminal view"""
+        await self.handle_any_button_pressed()
         self.content_switcher.current = "terminal_output_container"
 
     @on(Button.Pressed, ".sidebar_button")
@@ -397,6 +407,7 @@ class JrDevUI(App[None]):
         # If it's a thread button, switch to chat view
         if btn.id in self.chat_list.buttons:
             # Switch to chat view mode
+            await self.handle_any_button_pressed()
             self.content_switcher.current = "chat_view"
 
     @on(ChatList.NewChatActivated)
