@@ -17,6 +17,7 @@ import tiktoken
 
 from jrdev.ui.tui.terminal.input_widget import CommandTextArea
 from jrdev.ui.tui.terminal.terminal_text_area import TerminalTextArea
+from jrdev.ui.tui.effects.confetti import ConfettiWidget
 
 logger = logging.getLogger("jrdev")
 
@@ -165,6 +166,13 @@ class TerminalOutputWidget(Widget):
     @on(Button.Pressed, "#copy_btn_term")
     def handle_copy(self):
         self.copy_to_clipboard()
+
+    @on(Button.Pressed, "#copy_btn_term, #model_btn_term")
+    def trigger_confetti(self, event: Button.Pressed) -> None:
+        """Trigger the confetti animation for specific buttons."""
+        confetti_widget = ConfettiWidget()
+        self.mount(confetti_widget)
+        confetti_widget.start()
 
     def on_mouse_down(self, event: events.MouseDown) -> None:
         """

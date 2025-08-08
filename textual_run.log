@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/app/src/jrdev/ui/tui/textual_ui.py", line 1, in <module>
+    from jrdev.ui.tui.model_listview import ModelListView
+ModuleNotFoundError: No module named 'jrdev'
