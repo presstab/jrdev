@@ -75,6 +75,7 @@ class ModelListView(Widget):
         self.list_view = ListView(id="_listview")
         self.input_query = None
         self.last_blur = 0
+        self.add_class("hidden")
 
     def compose(self):
         with Horizontal(id="layout-top"):
@@ -120,26 +121,16 @@ class ModelListView(Widget):
                     is_first = False
                 self.list_view.append(item)
 
-    def set_visible(self, is_visible: bool, is_blur: bool = False) -> None:
+    def set_visible(self, is_visible: bool) -> None:
+        """Set the visibility of the model list view."""
         if is_visible:
-            time_passed = (time.time_ns() // 1_000_000) - self.last_blur
-            if time_passed < 500:
-                # not enough time has passed since blur event - likely a race condition - ignore this
-                return
-
-            self.visible = is_visible
+            self.remove_class("hidden")
             self.search_input.clear()
             self.search_input.focus()
-            self.input_query = None
             self.update_models()
             self.set_dimensions()
-            return
-
-        if is_blur:
-            # race conditions with blur and the model button press can cause it to fail to hide
-            self.last_blur = time.time_ns() // 1_000_000
-
-        self.visible = is_visible
+        else:
+            self.add_class("hidden")
 
     async def _on_mouse_down(self, event: events.MouseDown) -> None:
         """Override mouse down to set focus - if focus not set, click on listviewitem is not reliable"""
@@ -169,6 +160,10 @@ class ModelListView(Widget):
         max_width = self.models_text_width + 2
         container_available_width = self.parent.content_region.width - offset_x
         self.styles.max_width = min(max_width, container_available_width)
+
+    def on_blur(self, event: events.Blur) -> None:
+        """Hide the model list when it loses focus."""
+        self.set_visible(False)
 
     def _set_list_view_index(self, index: int) -> None:
         """Helper method to set the list view index."""

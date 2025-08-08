@@ -161,3 +161,11 @@ Horizontal {
     height: 1fr;
     width: 100%;
 }
+
+ModelListView {
+    transition: offset 250ms in_out_sine;
+}
+
+ModelListView.hidden {
+    offset: 0 -100%;
+}

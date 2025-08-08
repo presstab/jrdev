@@ -115,7 +115,6 @@ class ChatViewWidget(Widget):
         self.model_button = Button(label=core_app.state.model, id="model-button", variant="primary", classes="chat-model-btn", tooltip="Model used for chat responses")
         self.models_text_width = 1
         self.model_listview = ModelListView(id="chat-model-list", core_app=core_app, model_button=self.model_button, above_button=True)
-        self.model_listview.visible = False
         self.change_name_button = Button(label="Rename", id="change_name_button")
         self.delete_button = Button(label="Delete", id="delete_button")
         self.context_switch = Switch(value=False, id="context_switch", tooltip="When enabled, summarized information about the project is added as context to the chat, this includes select file summaries, file tree, and a project overview")
@@ -302,7 +301,7 @@ class ChatViewWidget(Widget):
 
     @on(Button.Pressed, "#model-button")
     def handle_model_pressed(self) -> None:
-        self.model_listview.set_visible(not self.model_listview.visible)
+        self.model_listview.set_visible(True)
 
     @on(ModelListView.ModelSelected, "#chat-model-list")
     def handle_model_selection(self, selected: ModelListView.ModelSelected):

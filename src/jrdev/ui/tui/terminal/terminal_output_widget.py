@@ -115,7 +115,6 @@ class TerminalOutputWidget(Widget):
                 model_button=self.model_button,
                 above_button=True
             )
-            self.model_listview.set_visible(False)
             self.terminal_input = CommandTextArea(placeholder="Enter Command", id="cmd_input")
         self.layout_output = Vertical(id="vlayout_output")
         self.confirmation_container = Container(id="confirmation-container")
@@ -176,7 +175,7 @@ class TerminalOutputWidget(Widget):
 
     @on(Button.Pressed, "#model_btn_term")
     def handle_model_pressed(self):
-        self.model_listview.set_visible(not self._model_list_was_visible)
+        self.model_listview.set_visible(True)
 
     @on(Button.Pressed, "#clear-btn")
     def handle_clear_pressed(self):
