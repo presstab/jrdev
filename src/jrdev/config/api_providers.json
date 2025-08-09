@@ -55,6 +55,24 @@
       }
     },
     {
+      "name": "gemini",
+      "env_key": "GOOGLE_API_KEY",
+      "base_url": null,
+      "required": false,
+      "default_profiles": {
+        "profiles": {
+          "advanced_reasoning": "gemini-2.5-pro-latest",
+          "advanced_coding": "gemini-2.5-pro-latest",
+          "intermediate_reasoning": "gemini-2.5-flash-latest",
+          "intermediate_coding": "gemini-2.5-flash-latest",
+          "quick_reasoning": "gemini-2.5-flash-latest",
+          "intent_router": "gemini-2.5-flash-latest",
+          "low_cost_search": "gemini-2.5-flash-latest"
+        },
+        "default_profile": "advanced_coding"
+      }
+    },
+    {
       "name": "deepseek",
       "env_key": "DEEPSEEK_API_KEY",
       "base_url": "https://api.deepseek.com",

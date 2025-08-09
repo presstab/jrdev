@@ -3,6 +3,7 @@ import logging
 from typing import Any, Dict, List, Optional
 from openai import AsyncOpenAI
 import anthropic
+import google.generativeai as genai
 import json
 from pathlib import Path
 import jrdev.file_operations.file_utils as file_utils
@@ -116,6 +117,9 @@ class APIClients:
 
         if name == "anthropic":
             self._clients[name] = anthropic.AsyncAnthropic(api_key=api_key)
+        elif name == "gemini":
+            genai.configure(api_key=api_key)
+            self._clients[name] = genai
         else:
             self._clients[name] = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=600)
 

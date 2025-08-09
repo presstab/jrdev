@@ -11,3 +11,4 @@ tiktoken
 pyperclip
 ddgs
 markdownify
+google-generativeai

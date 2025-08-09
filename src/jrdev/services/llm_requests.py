@@ -3,6 +3,7 @@ import tiktoken
 from typing import AsyncIterator
 from asyncio import CancelledError
 from jrdev.core.usage import get_instance
+import base64
 
 
 async def stream_openai_format(app, model, messages, task_id=None, print_stream=True, json_output=False, max_output_tokens=None) -> AsyncIterator[str]:
@@ -242,6 +243,148 @@ async def stream_messages_format(app, model, messages, task_id=None, print_strea
         app.logger.error(f"Error making Anthropic API request: {str(e)}")
         raise ValueError(f"Error making Anthropic API request: {str(e)}")
 
+async def stream_gemini_format(app, model, messages, task_id=None, print_stream=True, json_output=False, max_output_tokens=None) -> AsyncIterator[str]:
+    start_time = time.time()
+
+    log_msg = f"Sending request to {model} with {len(messages)} messages"
+    app.logger.info(log_msg)
+
+    client = app.state.clients.get_client("gemini")
+    if not client:
+        raise ValueError(f"Gemini client not configured but model {model} requires it")
+
+    # Separate system message and convert messages to Gemini format
+    system_message = None
+    gemini_messages = []
+    for msg in messages:
+        if msg["role"] == "system":
+            system_message = msg["content"]
+            continue
+
+        # Gemini uses 'model' for assistant role
+        role = 'model' if msg["role"] == "assistant" else msg["role"]
+        
+        content = msg.get("content")
+        parts = []
+        if isinstance(content, str):
+            parts.append(content)
+        elif isinstance(content, list):
+            for item in content:
+                if item.get("type") == "text":
+                    parts.append(item.get("text", ""))
+                elif item.get("type") == "image_url":
+                    image_url = item["image_url"]["url"]
+                    if image_url.startswith("data:"):
+                        header, b64_data = image_url.split(',', 1)
+                        mime_type = header.split(';')[0].split(':')[1]
+                        image_data = base64.b64decode(b64_data)
+                        parts.append({'inline_data': {'mime_type': mime_type, 'data': image_data}})
+
+        if parts:
+            # Gemini API requires that the 'user' and 'model' roles alternate.
+            # If the last message has the same role, we merge the parts.
+            if gemini_messages and gemini_messages[-1]['role'] == role:
+                gemini_messages[-1]['parts'].extend(parts)
+            else:
+                gemini_messages.append({'role': role, 'parts': parts})
+
+    # Configure generation
+    generation_config = {
+        "temperature": 0.0,
+    }
+    if max_output_tokens:
+        generation_config["max_output_tokens"] = max_output_tokens
+    if json_output:
+        generation_config["response_mime_type"] = "application/json"
+
+    # Initialize model
+    generative_model = client.GenerativeModel(
+        model_name=model,
+        system_instruction=system_message,
+        generation_config=generation_config
+    )
+
+    token_encoder = tiktoken.get_encoding("cl100k_base")
+
+    # Estimate and update input tokens
+    if task_id:
+        try:
+            token_count_response = await generative_model.count_tokens_async(gemini_messages)
+            input_tokens = token_count_response.total_tokens
+            app.ui.update_task_info(task_id, update={"input_token_estimate": input_tokens, "model": model})
+        except Exception as e:
+            app.logger.error(f"Error counting input tokens for Gemini: {e}. Falling back to estimation.")
+            input_chunk_content = ""
+            for msg in gemini_messages:
+                for part in msg.get('parts', []):
+                    if isinstance(part, str):
+                        input_chunk_content += part
+            input_token_estimate = token_encoder.encode(input_chunk_content)
+            app.ui.update_task_info(task_id, update={"input_token_estimate": len(input_token_estimate), "model": model})
+
+    stream = await generative_model.generate_content_async(
+        gemini_messages,
+        stream=True
+    )
+
+    first_chunk = True
+    chunk_count = 0
+    log_interval = 100
+    stream_start_time = None
+    output_tokens_estimate = 0
+    
+    async for chunk in stream:
+        if first_chunk:
+            stream_start_time = time.time()
+            app.logger.info(f"Started receiving response from {model}")
+            first_chunk = False
+        
+        chunk_count += 1
+        if chunk_count % log_interval == 0 and stream_start_time:
+            elapsed = time.time() - stream_start_time
+            app.logger.info(f"Received {chunk_count} chunks from {model} ({round(chunk_count/elapsed,2) if elapsed > 0 else 0} chunks/sec)")
+
+        if hasattr(chunk, 'text'):
+            chunk_text = chunk.text
+            if task_id:
+                try:
+                    tokens = token_encoder.encode(chunk_text)
+                    output_tokens_estimate += len(tokens)
+                    if chunk_count % 10 == 0 and stream_start_time:
+                        elapsed = time.time() - stream_start_time
+                        app.ui.update_task_info(worker_id=task_id, update={"output_token_estimate": output_tokens_estimate, "tokens_per_second": (output_tokens_estimate)/elapsed if elapsed>0 else 0})
+                except Exception as e:
+                    app.logger.error(f"Error estimating output tokens for chunk: {e}")
+            yield chunk_text
+
+    end_time = time.time()
+    elapsed_seconds = round(end_time - start_time, 2)
+    stream_elapsed = end_time - (stream_start_time or start_time)
+    
+    input_tokens = 0
+    output_tokens = 0
+    
+    if hasattr(stream, 'usage_metadata') and stream.usage_metadata:
+        input_tokens = stream.usage_metadata.prompt_token_count
+        output_tokens = stream.usage_metadata.candidates_token_count
+        if task_id:
+            app.ui.update_task_info(worker_id=task_id, update={"input_tokens": input_tokens, "output_tokens": output_tokens, "tokens_per_second": round(output_tokens/stream_elapsed,2) if stream_elapsed > 0 else 0})
+        app.logger.info(f"Response completed: {model}, {input_tokens} input tokens, {output_tokens} output tokens, {elapsed_seconds}s, {chunk_count} chunks, {round(chunk_count/stream_elapsed,2) if stream_elapsed > 0 else 0} chunks/sec")
+        await get_instance().add_use(model, input_tokens, output_tokens)
+    elif stream_start_time: # Fallback if usage not available
+        try:
+            token_count_response = await generative_model.count_tokens_async(gemini_messages)
+            input_tokens = token_count_response.total_tokens
+        except Exception:
+            input_tokens = 0
+        
+        output_tokens = output_tokens_estimate
+        app.logger.info(f"Response completed (usage data not in final chunk): {model}, {elapsed_seconds}s, {chunk_count} chunks, {round(chunk_count/stream_elapsed,2) if stream_elapsed > 0 else 0} chunks/sec. Estimated tokens: {input_tokens} in, {output_tokens} out.")
+        if input_tokens > 0 and output_tokens > 0:
+            await get_instance().add_use(model, input_tokens, output_tokens)
+        if task_id:
+            app.ui.update_task_info(worker_id=task_id, update={"input_tokens": input_tokens, "output_tokens": output_tokens, "tokens_per_second": round(output_tokens/stream_elapsed,2) if stream_elapsed > 0 else 0})
+
 def stream_request(app, model, messages, task_id=None, print_stream=True, json_output=False, max_output_tokens=None) -> AsyncIterator[str]:
     model_provider = None
     for entry in app.get_models():
@@ -250,6 +393,8 @@ def stream_request(app, model, messages, task_id=None, print_stream=True, json_o
             break
     if model_provider == "anthropic":
         return stream_messages_format(app, model, messages, task_id, print_stream)
+    elif model_provider == "gemini":
+        return stream_gemini_format(app, model, messages, task_id, print_stream, json_output, max_output_tokens)
     else:
         return stream_openai_format(app, model, messages, task_id, print_stream, json_output, max_output_tokens)
 
