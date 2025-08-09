@@ -58,6 +58,10 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
     elif model == "deepseek-reasoner" or model == "deepseek-chat":
         if model == "deepseek-chat" and json_output:
             kwargs["response_format"] = {"type": "json_object"}
+    elif model_provider == "gemini":
+        if "pro" in model:
+            kwargs["reasoning_effort"] = "high"
+            del kwargs["temperature"]
     elif model_provider == "venice":
         kwargs["extra_body"] = {"venice_parameters": {"include_venice_system_prompt": False}}
 
