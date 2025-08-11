@@ -26,6 +26,7 @@ from jrdev.ui.tui.chat.chat_view_widget import ChatViewWidget
 from jrdev.ui.tui.terminal.bordered_switcher import BorderedSwitcher
 from jrdev.ui.tui.code.file_deletion_screen import FileDeletionScreen
 from jrdev.ui.tui.settings.settings_screen import SettingsScreen
+from jrdev.ui.tui.terminal.log_view_widget import LogViewWidget
 
 from typing import Any, Generator, Set, List
 import logging
@@ -55,6 +56,7 @@ class JrDevUI(App[None]):
         self.button_container = ButtonContainer(id="button_container")
         self.chat_list = ChatList(self.jrdev, id="chat_list")
         self.chat_view = ChatViewWidget(self.jrdev, id="chat_view")
+        self.log_view = LogViewWidget(core_app=self.jrdev, id="log_view")
         
         # Initialize content switcher
         self.content_switcher = BorderedSwitcher(id="content_switcher", initial="terminal_output_container")
@@ -68,6 +70,7 @@ class JrDevUI(App[None]):
                 with self.content_switcher:
                     yield self.terminal_output_widget
                     yield self.chat_view
+                    yield self.log_view
             with self.vlayout_right:
                 yield self.directory_widget
 
@@ -385,6 +388,11 @@ class JrDevUI(App[None]):
         """Switch to terminal view"""
         self.content_switcher.current = "terminal_output_container"
 
+    @on(Button.Pressed, "#button_logs")
+    def handle_show_logs(self) -> None:
+        """Switch to logs view"""
+        self.content_switcher.current = "log_view"
+
     @on(Button.Pressed, ".sidebar_button")
     async def handle_chat_thread_button(self, event: Button.Pressed) -> None:
         """Handle clicks on chat thread buttons in the sidebar"""
@@ -418,6 +426,10 @@ class JrDevUI(App[None]):
             # your chat pane lives in self.chat_view.layout_output
             self.chat_view.layout_output.border_title = "Chat"
             self.task_monitor.styles.height = 6 # min size to display a row
+        elif new == "log_view":
+            # your log pane lives in self.log_view.layout_output
+            self.log_view.layout_output.border_title = "Logs"
+            self.task_monitor.styles.height = 6
 
     #globally watch for modellistview focus loss
     @on(events.DescendantBlur, "#model-search-input")
