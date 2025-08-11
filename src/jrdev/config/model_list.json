@@ -183,6 +183,14 @@
             "input_cost": 20,
             "output_cost": 80,
             "context_tokens": 1047576
+        },
+        {
+            "name": "gemma3:4b",
+            "provider": "ollama",
+            "is_think": false,
+            "input_cost": 0,
+            "output_cost": 0,
+            "context_tokens": 8192
         }
     ]
 }

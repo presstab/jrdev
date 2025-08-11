@@ -1,24 +1,6 @@
 {
   "providers": [
     {
-      "name": "venice",
-      "env_key": "VENICE_API_KEY",
-      "base_url": "https://api.venice.ai/api/v1",
-      "required": false,
-      "default_profiles": {
-        "profiles": {
-          "advanced_reasoning": "deepseek-r1-671b",
-          "advanced_coding": "qwen3-235b",
-          "intermediate_reasoning": "qwen3-235b",
-          "intermediate_coding": "qwen3-235b",
-          "quick_reasoning": "llama-3.3-70b",
-          "intent_router": "llama-3.3-70b",
-          "low_cost_search": "llama-3.3-70b"
-        },
-        "default_profile": "advanced_coding"
-      }
-    },
-    {
       "name": "openai",
       "env_key": "OPENAI_API_KEY",
       "base_url": null,
