@@ -13,10 +13,10 @@ logger = logging.getLogger("jrdev")
 class ButtonContainer(Widget):
     BUTTONS = [
         {"label": "Terminal", "id": "button_terminal"},
-        {"label": "Logs", "id": "button_logs"},
         {"label": "Profiles", "id": "button_profiles"},
         {"label": "Git Tools", "id": "git"},
         {"label": "Settings", "id": "button_settings"},
+        {"label": "Logs", "id": "button_logs"},
     ]
 
     def __init__(self, id: Optional[str] = None) -> None:

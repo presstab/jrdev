@@ -7,6 +7,7 @@ from typing import Deque, Optional
 from textual.app import ComposeResult
 from textual.widget import Widget
 from textual.containers import Vertical
+from textual.color import Color
 
 from jrdev.file_operations.file_utils import JRDEV_DIR
 from jrdev.ui.tui.terminal.terminal_text_area import TerminalTextArea
@@ -58,6 +59,11 @@ class LogViewWidget(Widget):
         # Give a default border title; parent app may override on switch
         if self.layout_output:
             self.layout_output.border_title = "Logs"
+            self.layout_output.styles.border = ("round", Color.parse("#5e5e5e"))
+            self.layout_output.styles.border_title_color = "#fabd2f"
+            self.text_area.styles.border = "none"
+            self.text_area.styles.margin = 0
+            self.text_area.styles.padding = 0
 
         self._stop_event = asyncio.Event()
         # Timer to refresh UI from buffer at a sane cadence

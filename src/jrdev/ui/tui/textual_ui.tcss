@@ -145,7 +145,7 @@ ModelSelectionWidget, ButtonContainer, DirectoryTree {
 }
 
 /* Ensure all widgets with borders have matching border backgrounds */
-#task_monitor, #cmd_input, #model_list, #directory_widget, #button_container, #chat_list {
+#task_monitor, #cmd_input, #model_list, #directory_widget, #button_container, #chat_list, #log_view {
     border-title-background: #1e1e1e;
 }
 
