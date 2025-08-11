@@ -20,6 +20,7 @@ from jrdev.ui.tui.terminal.terminal_output_widget import TerminalOutputWidget
 from jrdev.ui.tui.terminal.input_widget import CommandTextArea
 from jrdev.ui.tui.terminal.button_container import ButtonContainer
 from jrdev.ui.tui.chat.chat_list import ChatList
+from jrdev.ui.tui.log_viewer import LogViewer
 from jrdev.ui.tui.settings.model_profile_widget import ModelProfileScreen
 from jrdev.ui.tui.command_request import CommandRequest
 from jrdev.ui.tui.chat.chat_view_widget import ChatViewWidget
@@ -55,6 +56,7 @@ class JrDevUI(App[None]):
         self.button_container = ButtonContainer(id="button_container")
         self.chat_list = ChatList(self.jrdev, id="chat_list")
         self.chat_view = ChatViewWidget(self.jrdev, id="chat_view")
+        self.log_viewer = LogViewer(id="log_viewer")
         
         # Initialize content switcher
         self.content_switcher = BorderedSwitcher(id="content_switcher", initial="terminal_output_container")
@@ -68,6 +70,7 @@ class JrDevUI(App[None]):
                 with self.content_switcher:
                     yield self.terminal_output_widget
                     yield self.chat_view
+                    yield self.log_viewer
             with self.vlayout_right:
                 yield self.directory_widget
 
@@ -384,6 +387,11 @@ class JrDevUI(App[None]):
     def handle_show_terminal(self) -> None:
         """Switch to terminal view"""
         self.content_switcher.current = "terminal_output_container"
+
+    @on(Button.Pressed, "#button_logs")
+    def handle_show_logs(self) -> None:
+        """Switch to log viewer"""
+        self.content_switcher.current = "log_viewer"
 
     @on(Button.Pressed, ".sidebar_button")
     async def handle_chat_thread_button(self, event: Button.Pressed) -> None:
