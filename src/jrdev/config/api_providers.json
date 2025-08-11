@@ -89,6 +89,24 @@
         },
         "default_profile": "advanced_coding"
       }
+    },
+    {
+      "name": "gemini",
+      "env_key": "GEMINI_API_KEY",
+      "base_url": null,
+      "required": false,
+      "default_profiles": {
+        "profiles": {
+          "advanced_reasoning": "gemini-2.5-pro",
+          "advanced_coding": "gemini-2.5-pro",
+          "intermediate_reasoning": "gemini-2.5-pro",
+          "intermediate_coding": "gemini-2.5-pro",
+          "quick_reasoning": "gemini-2.5-flash",
+          "intent_router": "gemini-2.5-flash",
+          "low_cost_search": "gemini-2.5-flash"
+        },
+        "default_profile": "advanced_coding"
+      }
     }
   ]
 }

@@ -191,6 +191,22 @@
             "input_cost": 0,
             "output_cost": 0,
             "context_tokens": 8192
+        },
+        {
+            "name": "gemini-2.5-pro",
+            "provider": "gemini",
+            "is_think": true,
+            "input_cost": 25,
+            "output_cost": 150,
+            "context_tokens": 1000000
+        },
+        {
+            "name": "gemini-2.5-flash",
+            "provider": "gemini",
+            "is_think": true,
+            "input_cost": 3,
+            "output_cost": 25,
+            "context_tokens": 1000000
         }
     ]
 }

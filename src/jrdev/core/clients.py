@@ -11,6 +11,11 @@ from jrdev.file_operations.file_lock import FileLock
 import os
 import tempfile
 
+try:
+    import google.genai as genai
+except ImportError:
+    genai = None
+
 # Get the global logger instance
 logger = logging.getLogger("jrdev")
 
@@ -116,6 +121,16 @@ class APIClients:
 
         if name == "anthropic":
             self._clients[name] = anthropic.AsyncAnthropic(api_key=api_key)
+        elif name == "gemini":
+            if genai:
+                try:
+                    self._clients[name] = genai.Client(api_key=api_key)
+                except Exception as e:
+                    logger.error(f"Failed to initialize Gemini client: {e}", exc_info=True)
+                    self._clients[name] = None
+            else:
+                logger.warning("google-genai library not installed. Gemini provider will be unavailable.")
+                self._clients[name] = None
         else:
             self._clients[name] = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=600)
 
