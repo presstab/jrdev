@@ -38,7 +38,8 @@ async def fetch_models_dot_dev(provider_name: str):
                 "is_think": True,  # Defaulting to True - this should be deprecated anyways
                 "input_cost": input_cost,
                 "output_cost": output_cost,
-                "context_tokens": model.get('limit', {}).get('context', 0)
+                "context_tokens": model.get('limit', {}).get('context', 0),
+                "release_date": model.get('release_date', "")
             }
             if formatted_model["name"]:
                 formatted_models[model_name] = formatted_model

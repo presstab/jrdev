@@ -1,5 +1,6 @@
 openai>=1.0.0
 anthropic>=0.23.1
+google-genai
 python-dotenv
 pyreadline3; sys_platform == 'win32'
 windows-curses; sys_platform == 'win32'

@@ -44,7 +44,8 @@ setup(
         "anthropic",
         "ddgs",
         "markdownify",
-        "httpx"
+        "httpx",
+        "google-genai"
     ],
     entry_points={
         "console_scripts": [
