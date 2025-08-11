@@ -7,6 +7,7 @@ import logging
 
 # Import the new screen
 from jrdev.ui.tui.git.git_tools_screen import GitToolsScreen
+from jrdev.ui.tui.log_viewer import LogViewerScreen
 
 logger = logging.getLogger("jrdev")
 
@@ -15,6 +16,7 @@ class ButtonContainer(Widget):
         {"label": "Terminal", "id": "button_terminal"},
         {"label": "Profiles", "id": "button_profiles"},
         {"label": "Git Tools", "id": "git"},
+        {"label": "Logs", "id": "button_logs"},
         {"label": "Settings", "id": "button_settings"},
     ]
 
@@ -43,3 +45,8 @@ class ButtonContainer(Widget):
         """Handle the Git Tools button press by opening the GitToolsScreen."""
         # Access the core application instance via self.app.jrdev
         self.app.push_screen(GitToolsScreen(core_app=self.app.jrdev))
+
+    @on(Button.Pressed, "#button_logs")
+    def handle_log_viewer_pressed(self, event: Button.Pressed) -> None:
+        """Handle the Logs button press by opening the LogViewerScreen."""
+        self.app.push_screen(LogViewerScreen(core_app=self.app.jrdev))
