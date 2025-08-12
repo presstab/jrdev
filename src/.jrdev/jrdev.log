@@ -1,0 +1,35 @@
+2025-08-12 02:06:48,397 - jrdev - INFO - -----------JrDev application started at 2025-08-12 02:06:48-----------
+2025-08-12 02:06:48,397 - jrdev - INFO - Loading persisted threads from '.jrdev/threads'...
+2025-08-12 02:06:48,398 - jrdev - INFO - Finished loading threads. Total loaded: 0.
+2025-08-12 02:06:48,400 - jrdev - INFO - user_api_providers.json not found. Creating from default.
+2025-08-12 02:06:48,406 - jrdev - INFO - Added provider: openai url: None
+2025-08-12 02:06:48,406 - jrdev - INFO - Added provider: anthropic url: None
+2025-08-12 02:06:48,406 - jrdev - INFO - Added provider: deepseek url: https://api.deepseek.com
+2025-08-12 02:06:48,406 - jrdev - INFO - Added provider: open_router url: https://openrouter.ai/api/v1
+2025-08-12 02:06:48,406 - jrdev - INFO - Added provider: ollama url: http://localhost:11434/v1
+2025-08-12 02:06:48,406 - jrdev - INFO - Added provider: gemini url: None
+2025-08-12 02:06:48,407 - jrdev - WARNING - JSON file not found at /home/jules/.jrdev/user_settings.json. This may be expected if it's being created for the first time.
+2025-08-12 02:06:48,407 - jrdev - INFO - Creating user settings file /home/jules/.jrdev/user_settings.json
+2025-08-12 02:06:48,411 - jrdev - INFO - Terminal stylesheet not found. Using default styles and creating a new one.
+2025-08-12 02:06:48,413 - jrdev - INFO - Saved terminal styles to /home/jules/.jrdev/terminal_styles.json
+2025-08-12 02:06:48,413 - jrdev - INFO - Gitignore check completed: pattern added
+2025-08-12 02:06:48,413 - jrdev - INFO - User models config file not found at /home/jules/.jrdev/user_models.json. Creating from system defaults.
+2025-08-12 02:06:48,414 - jrdev - INFO - Successfully created user models config at /home/jules/.jrdev/user_models.json with 26 models.
+2025-08-12 02:06:48,416 - jrdev - INFO - Ensured contexts directory exists at .jrdev/contexts
+2025-08-12 02:06:48,417 - jrdev - INFO - Saved context index with 0 entries
+2025-08-12 02:06:48,417 - jrdev - INFO - Created new context index
+2025-08-12 02:06:48,418 - jrdev - WARNING - JSON file not found at /home/jules/.jrdev/model_profiles.json. This may be expected if it's being created for the first time.
+2025-08-12 02:06:48,418 - jrdev - INFO - Profile configuration file /home/jules/.jrdev/model_profiles.json not found or invalid. Attempting to create one.
+2025-08-12 02:06:48,418 - jrdev - INFO - Loading model profiles for open_router
+2025-08-12 02:06:48,418 - jrdev - INFO - Selected provider-based defaults for Model Profiles.
+2025-08-12 02:06:48,421 - jrdev - INFO - Created default profile configuration at /home/jules/.jrdev/model_profiles.json
+2025-08-12 02:06:48,592 - jrdev - INFO - initialize services
+2025-08-12 02:06:48,592 - jrdev - INFO - api clients not initialized
+2025-08-12 02:06:48,592 - jrdev - INFO - initializing api clients
+2025-08-12 02:06:48,726 - jrdev - INFO - API clients initialized successfully
+2025-08-12 02:06:48,726 - jrdev - INFO - CommandInterpretationAgent initialized.
+2025-08-12 02:06:48,727 - jrdev - INFO - Setting chat model to qwen/qwen3-coder:free
+2025-08-12 02:06:48,727 - jrdev - INFO - Application services initialized
+2025-08-12 02:06:48,731 - jrdev - INFO - Checking project context status...
+2025-08-12 02:06:48,732 - jrdev - INFO - Project context index file not found.
+2025-08-12 02:06:48,732 - jrdev - WARNING - Old 'jrdev/' directory detected. Migration to new '.jrdev/' directory is required.

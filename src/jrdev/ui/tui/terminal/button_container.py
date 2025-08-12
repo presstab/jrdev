@@ -16,6 +16,7 @@ class ButtonContainer(Widget):
         {"label": "Profiles", "id": "button_profiles"},
         {"label": "Git Tools", "id": "git"},
         {"label": "Settings", "id": "button_settings"},
+        {"label": "Logs", "id": "button_logs"},
     ]
 
     def __init__(self, id: Optional[str] = None) -> None:
