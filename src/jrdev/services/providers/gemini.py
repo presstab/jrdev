@@ -3,7 +3,6 @@ from typing import Any, Dict, List
 from datetime import datetime
 
 import google.genai as genai
-from google.api_core import exceptions as google_exceptions
 
 from jrdev.services.providers.models_dev import fetch_models_dot_dev
 
@@ -63,9 +62,5 @@ async def fetch_gemini_models(core_app: Any) -> List[Dict[str, Any]]:
         logger.info(f"Fetched {len(models_list)} models from Gemini.")
         return models_list
     except Exception as e:
-        if google_exceptions and isinstance(e, google_exceptions.PermissionDenied):
-            logger.error(f"Permission denied when fetching Gemini models. Check API key. Disabling Gemini. Error: {e}")
-            core_app.state.clients.set_client_null("gemini")
-        else:
-            logger.error(f"Failed to fetch models from Gemini: {e}", exc_info=True)
+        logger.error(f"Failed to fetch models from Gemini: {e}", exc_info=True)
         return []

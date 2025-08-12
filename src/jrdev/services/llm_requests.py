@@ -252,12 +252,10 @@ async def stream_gemini_format(app, model, messages, task_id=None, print_stream=
     start_time = time.time()
     log_msg = f"Sending request to Gemini model {model} with {len(messages)} messages"
     app.logger.info(log_msg)
-    app.logger.info(f"***255")
 
     client = app.state.clients.get_client("gemini")
     if not client:
         raise ValueError("Gemini client not initialized. Check API key.")
-    app.logger.info(f"***260")
 
     # Convert messages to Gemini format
     gemini_contents = []
@@ -266,10 +264,7 @@ async def stream_gemini_format(app, model, messages, task_id=None, print_stream=
     non_system_messages = []
     for msg in messages:
         if msg["role"] == "system":
-            if system_instruction:
-                system_instruction = f"{system_instruction}\n{msg['content']}"
-            else:
-                system_instruction = msg["content"]
+                system_instruction = msg['content']
         else:
             non_system_messages.append(msg)
 
@@ -293,17 +288,10 @@ async def stream_gemini_format(app, model, messages, task_id=None, print_stream=
         generation_config_kwargs['max_output_tokens'] = max_output_tokens
     if json_output:
         generation_config_kwargs['response_mime_type'] = 'application/json'
+    if system_instruction:
+        generation_config_kwargs['system_instruction'] = system_instruction.split("\n")
     
-    #generation_config = genai_types.GenerationConfig(**generation_config_kwargs)
-    app.logger.info(f"***298")
-    try:
-        generation_config = genai_types.GenerationConfig()
-    except ValueError as e:
-        app.logger.error(f"Generation config error: {str(e)}")
-    app.logger.info(f"***303")
-    #generation_config.tools = None
-    app.logger.info(f"***305")
-    app.logger.info(f"Generation config: {generation_config}")
+    generation_config = genai_types.GenerateContentConfig(**generation_config_kwargs)
 
     # Token estimation
     token_encoder = tiktoken.get_encoding("cl100k_base")
@@ -332,10 +320,8 @@ async def stream_gemini_format(app, model, messages, task_id=None, print_stream=
     stream_kwargs = {
         "model": model,
         "contents": gemini_contents,
-        #"config": generation_config,
+        "config": generation_config,
     }
-    if system_instruction:
-        stream_kwargs["system_instruction"] = system_instruction
 
     stream = await client.aio.models.generate_content_stream(**stream_kwargs)
 
