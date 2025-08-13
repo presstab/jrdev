@@ -4,7 +4,7 @@
 Model command implementation for the JrDev terminal.
 Manages the user's list of available models and the active chat model.
 """
-from typing import Any, List
+from typing import Any, List, Union
 
 from jrdev.ui.ui import PrintType
 from jrdev.utils.string_utils import is_valid_context_window, is_valid_cost, is_valid_name
@@ -22,7 +22,7 @@ def _parse_bool(val: str) -> bool:
 
 
 # pylint: disable=too-many-return-statements
-def _parse_model_arguments(app, args: List[str], start_idx: int) -> dict | None:
+def _parse_model_arguments(app, args: List[str], start_idx: int) -> Union[dict, None]:
     """Parse and validate model arguments starting from given index."""
     name = args[start_idx]
     provider = args[start_idx + 1]
