@@ -7,6 +7,7 @@ from jrdev.services.streaming.openai_stream import stream_openai_format
 
 
 def stream_request(app, model, messages, task_id=None, print_stream=True, json_output=False, max_output_tokens=None) -> AsyncIterator[str]:
+    """Route a streaming LLM request to the appropriate provider based on the model."""
     model_provider = None
     for entry in app.get_models():
         if entry["name"] == model:
@@ -20,7 +21,9 @@ def stream_request(app, model, messages, task_id=None, print_stream=True, json_o
         return stream_openai_format(app, model, messages, task_id, print_stream, json_output, max_output_tokens)
 
 async def generate_llm_response(app, model, messages, task_id=None, print_stream=True, json_output=False, max_output_tokens=None, attempts=0):
-    # Stream response from LLM and return the full response string
+    """Consume a streamed LLM response and return the accumulated text.
+    Filters out <think>...</think> segments and trims leading newlines that follow.
+    """
     try:
         llm_response_stream = stream_request(app, model, messages, task_id, print_stream, json_output, max_output_tokens)
 
