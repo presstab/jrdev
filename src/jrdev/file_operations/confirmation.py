@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 from jrdev.file_operations.diff_markup import apply_diff_markup, remove_diff_markup
 from jrdev.file_operations.diff_utils import create_diff
@@ -91,7 +91,7 @@ async def write_file_with_confirmation(app, filepath: str, content: str):
     return 'no', None
 
 
-async def write_with_confirmation(app, filepath: str, content: list | str) -> Tuple[str, str]:
+async def write_with_confirmation(app, filepath: str, content: Union[list, str]) -> Tuple[str, Optional[str]]:
     if isinstance(content, list):
         content_str = ''.join(content)
     else:
