@@ -207,6 +207,14 @@
             "input_cost": 3,
             "output_cost": 25,
             "context_tokens": 1000000
+        },
+        {
+            "name": "moonshotai/kimi-k2-instruct",
+            "provider": "groq",
+            "is_think": false,
+            "input_cost": 10,
+            "output_cost": 30,
+            "context_tokens": 131072
         }
     ]
 }

@@ -107,6 +107,24 @@
         },
         "default_profile": "advanced_coding"
       }
+    },
+    {
+      "name": "groq",
+      "env_key": "GROQ_API_KEY",
+      "base_url": "https://api.groq.com/openai/v1",
+      "required": false,
+      "default_profiles": {
+          "profiles": {
+          "advanced_reasoning": "moonshotai/kimi-k2-instruct",
+          "advanced_coding": "moonshotai/kimi-k2-instruct",
+          "intermediate_reasoning": "moonshotai/kimi-k2-instruct",
+          "intermediate_coding": "moonshotai/kimi-k2-instruct",
+          "quick_reasoning": "moonshotai/kimi-k2-instruct",
+          "intent_router": "moonshotai/kimi-k2-instruct",
+          "low_cost_search": "moonshotai/kimi-k2-instruct"
+        },
+        "default_profile": "advanced_coding"
+      }
     }
   ]
 }
