@@ -80,6 +80,13 @@ class MessageBuilder:
                 for aliases in self.app.state.context_manager.get_index_paths():
                     self.add_index_file(aliases[0], aliases[1])
 
+        try:
+            agents_md_path = os.path.join(os.getcwd(), "AGENTS.md")
+            if os.path.exists(agents_md_path) and os.path.getsize(agents_md_path) > 0:
+                self.project_files.add(agents_md_path)
+        except (IOError, OSError) as e:
+            logger.error(f"Error checking for AGENTS.md: {str(e)}")
+
     def add_project_summary(self):
         """Add the project summary"""
         if self.app and hasattr(self.app.state, "project_files"):
