@@ -1,5 +1,6 @@
 # JrDev Terminal - An agentic coding toolkit for developers.
-![code-fast](https://github.com/user-attachments/assets/5efa7671-c2bd-4343-8338-bb2d482cb02f)
+![jrdev-code-demo4](https://github.com/user-attachments/assets/9753ea2d-e68e-4dbd-ac63-2acb70a498a5)
+
 
 ## Key Features
 
