@@ -601,6 +601,7 @@ class GitOverviewWidget(Static):
 
         if success:
             self.notify("Commit successful.", severity="information")
+            self.commit_message_textarea.text = ""
             self._toggle_commit_view(False)
             self.refresh_git_status()
             self.reset_file_label()
