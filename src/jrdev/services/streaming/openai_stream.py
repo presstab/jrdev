@@ -70,6 +70,7 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
     stream_start_time = None  # Track when we start receiving chunks
 
     # notify ui of tokens
+    input_token_estimate = 0
     if task_id:
         try:
             input_chunk_content = ""
@@ -80,8 +81,8 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
                     for item in msg["content"]:
                         if isinstance(item, dict) and item.get("type") == "text":
                             input_chunk_content += item.get("text", "")
-            input_token_estimate = token_encoder.encode(input_chunk_content)
-            app.ui.update_task_info(task_id, update={"input_token_estimate": len(input_token_estimate), "model": model})
+            input_token_estimate = len(token_encoder.encode(input_chunk_content))
+            app.ui.update_task_info(task_id, update={"input_token_estimate": input_token_estimate, "model": model})
         except Exception as e:
             app.logger.error(f"Error estimating input tokens: {e}")
 
@@ -126,3 +127,4 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
         elapsed_seconds = round(end_time - start_time, 2)
         stream_elapsed = end_time - stream_start_time
         app.logger.info(f"Response completed (no usage data in final chunk): {model}, {elapsed_seconds}s, {chunk_count} chunks, {round(chunk_count/stream_elapsed,2) if stream_elapsed > 0 else 0} chunks/sec")
+        await get_instance().add_use(model, input_token_estimate, output_tokens_estimate)
