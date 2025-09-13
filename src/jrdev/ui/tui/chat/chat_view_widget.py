@@ -1,4 +1,5 @@
 import os
+
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -36,25 +37,32 @@ class ChatViewWidget(Widget):
         min-height: 0;
     }
     #chat_controls_container {
-        height: auto;
+        height: 2;
         width: 100%;
         layout: horizontal;
-        border-top: #5e5e5e;
+        border: #5e5e5e;
         border-bottom: none;
         border-left: none;
         border-right: none;
+    }
+    #toggle_container {
+        height: 3;
+        width: 100%;
+        layout: horizontal;
+        border: #5e5e5e round;
+        border-title-background: #1e1e1e;
     }
     #chat_context_display_container {
         height: auto; /* Allow wrapping for multiple files */
         width: 100%;
         layout: horizontal;
-        padding: 0 1; /* Horizontal padding */
+        padding: 0 1;
     }
     #chat_context_title_label {
         height: 1;
         width: auto;
         margin-right: 1;
-        color: #63f554; /* Match other labels */
+        color: #63f554;
     }
     #chat_context_files_label {
         height: 1;
@@ -72,6 +80,12 @@ class ChatViewWidget(Widget):
         height: 1;
         width: auto;
         max-width: 10;
+        margin-left: 1;
+    }
+    #settings_button {
+        height: 1;
+        width: auto;
+        max-width: 3;
         margin-left: 1;
     }
     #context_switch {
@@ -123,6 +137,7 @@ class ChatViewWidget(Widget):
         #controls and input
         self.layout_output = Vertical(id="chat_output_layout")
         self.layout_chat_controls = Horizontal(id="chat_controls_container")
+        self.layout_context_display = Horizontal(id="chat_context_display_container")
         self.terminal_button = Button(label="⇤", id="terminal_button")
         self.model_button = Button(label=core_app.state.model, id="model-button", variant="primary", classes="chat-model-btn", tooltip="Model used for chat responses")
         self.models_text_width = 1
@@ -130,6 +145,9 @@ class ChatViewWidget(Widget):
         self.model_listview.visible = False
         self.change_name_button = Button(label="Rename", id="change_name_button")
         self.delete_button = Button(label="Delete", id="delete_button")
+        self.settings_button = Button("⚙", id="settings_button", tooltip="Chat Settings")
+        self.toggle_container: Optional[Horizontal] = None
+        self.settings_expanded = False
         self.context_switch = Switch(value=False, id="context_switch", tooltip="When enabled, summarized information about the project is added as context to the chat, this includes select file summaries, file tree, and a project overview")
         self.context_label = Label("Project Ctx", id="context_label")
         self.web_search_switch = Switch(value=False, id="web_search_switch", tooltip="When enabled, the LLM can perform a web search to answer questions.")
@@ -157,15 +175,23 @@ class ChatViewWidget(Widget):
                 yield self.model_button
                 yield self.change_name_button
                 yield self.delete_button
-                yield self.context_switch
-                yield self.context_label
-                yield self.web_search_switch
-                yield self.web_search_label
+                yield self.settings_button
             yield self.model_listview
-            with Horizontal(id="chat_context_display_container"):
+            with self.layout_context_display:
                 yield self.chat_context_title_label
                 yield self.chat_context_files_label
         yield self.input_widget
+
+    async def _mount_settings(self) -> None:
+        """Mount the settings toggle container with its children."""
+        self.toggle_container = Horizontal(id="toggle_container")
+        self.toggle_container.styles.border_title_color = "#fabd2f"
+        self.toggle_container.border_title = "Chat Settings"
+        await self.layout_output.mount(self.toggle_container, after=self.layout_context_display)
+        await self.toggle_container.mount(self.context_switch)
+        await self.toggle_container.mount(self.context_label)
+        await self.toggle_container.mount(self.web_search_switch)
+        await self.toggle_container.mount(self.web_search_label)
 
     async def on_mount(self) -> None:
         """Set up the widget when mounted."""
@@ -338,6 +364,15 @@ class ChatViewWidget(Widget):
         self.model_listview.set_visible(False)
         self.model_button.styles.max_width = len(model_name) + 2
 
+    @on(Button.Pressed, "#settings_button")
+    async def handle_settings_toggle(self) -> None:
+        self.settings_expanded = not self.settings_expanded
+        if self.settings_expanded:
+            await self._mount_settings()
+        else:
+            if self.toggle_container and self.toggle_container.is_mounted:
+                await self.toggle_container.remove()
+
     @on(Button.Pressed, "#terminal_button")
     async def handle_show_terminal(self):
         if self.name_edit_mode:
@@ -368,12 +403,11 @@ class ChatViewWidget(Widget):
             self.terminal_button.styles.max_width = 5
             self.change_name_button.label = "Cancel"
             self.delete_button.visible = False
-            self.context_label.visible = False
-            self.context_switch.visible = False
-            self.web_search_label.visible = False
-            self.web_search_switch.visible = False
             self.model_button.visible = False
             self.model_button.styles.max_width = 0
+            self.settings_button.visible = False
+            if self.toggle_container and self.toggle_container.is_mounted:
+                await self.toggle_container.remove()
 
             # detemine thread name
             self.label_delete_prompt = Label(f'Delete chat thread "{self.current_thread_id}?"')
@@ -384,12 +418,11 @@ class ChatViewWidget(Widget):
             self.terminal_button.width = 5
             self.change_name_button.label = "Rename"
             self.delete_button.visible = True
-            self.context_switch.visible = True
-            self.context_label.visible = True
-            self.web_search_switch.visible = True
-            self.web_search_label.visible = True
             self.model_button.visible = True
             self.model_button.styles.max_width = 15
+            self.settings_button.visible = True
+            if self.settings_expanded:
+                await self._mount_settings()
             await self.label_delete_prompt.remove()
             self.label_delete_prompt = None
 
@@ -433,26 +466,22 @@ class ChatViewWidget(Widget):
 
             # hide other elements
             self.delete_button.visible = False
-            self.context_switch.visible = False
-            self.context_label.visible = False
-            self.web_search_switch.visible = False
-            self.web_search_label.visible = False
-
-            # have to set width to 0 to get alignment right
             self.model_button.visible = False
             self.model_button.styles.max_width = 0
+            self.settings_button.visible = False
+            if self.toggle_container and self.toggle_container.is_mounted:
+                await self.toggle_container.remove()
         else:
             # return widgets to their normal state
             self.terminal_button.label = "⇤"
             self.terminal_button.max_width = 5
             self.change_name_button.label = "Rename"
             self.delete_button.visible = True
-            self.context_switch.visible = True
-            self.context_label.visible = True
-            self.web_search_switch.visible = True
-            self.web_search_label.visible = True
             self.model_button.visible = True
             self.model_button.styles.max_width = 15
+            self.settings_button.visible = True
+            if self.settings_expanded:
+                await self._mount_settings()
             await self.input_name.remove()
             self.input_name = None
 
