@@ -86,6 +86,18 @@ class ChatViewWidget(Widget):
     #context_label:disabled {
         color: #365b2d;
     }
+    #web_search_switch {
+        height: 1;
+        width: auto;
+        margin-left: 1;
+        border: none;
+    }
+    #web_search_label {
+        color: #63f554;
+    }
+    #web_search_label:disabled {
+        color: #365b2d;
+    }
     #chat-model-list {
         border: round #63f554;
         layer: top;
@@ -120,6 +132,8 @@ class ChatViewWidget(Widget):
         self.delete_button = Button(label="Delete", id="delete_button")
         self.context_switch = Switch(value=False, id="context_switch", tooltip="When enabled, summarized information about the project is added as context to the chat, this includes select file summaries, file tree, and a project overview")
         self.context_label = Label("Project Ctx", id="context_label")
+        self.web_search_switch = Switch(value=False, id="web_search_switch", tooltip="When enabled, the LLM can perform a web search to answer questions.")
+        self.web_search_label = Label("Web Search", id="web_search_label")
         self.input_widget = ChatInputWidget(id="chat_input")
         self.input_name = None
         self.label_delete_prompt = None
@@ -145,6 +159,8 @@ class ChatViewWidget(Widget):
                 yield self.delete_button
                 yield self.context_switch
                 yield self.context_label
+                yield self.web_search_switch
+                yield self.web_search_label
             yield self.model_listview
             with Horizontal(id="chat_context_display_container"):
                 yield self.chat_context_title_label
@@ -159,6 +175,7 @@ class ChatViewWidget(Widget):
 
         self.terminal_button.can_focus = False
         self.context_switch.can_focus = False
+        self.web_search_switch.can_focus = False
 
         self.input_widget.styles.height = 8
 
@@ -300,6 +317,16 @@ class ChatViewWidget(Widget):
         else:
             self.send_commands = True # Reset for next user interaction
 
+    @on(Switch.Changed, "#web_search_switch")
+    def handle_web_search_switch_change(self, event: Switch.Changed) -> None:
+        """Handles user interaction with the web search switch."""
+        self.web_search_label.disabled = not event.value
+        if self.send_commands:
+            # This command modifies the metadata of the current thread.
+            self.post_message(CommandRequest(f"/thread websearch {'on' if event.value else 'off'}"))
+        else:
+            self.send_commands = True # Reset for next user interaction
+
     @on(Button.Pressed, "#model-button")
     def handle_model_pressed(self) -> None:
         self.model_listview.set_visible(not self.model_listview.visible)
@@ -343,11 +370,13 @@ class ChatViewWidget(Widget):
             self.delete_button.visible = False
             self.context_label.visible = False
             self.context_switch.visible = False
+            self.web_search_label.visible = False
+            self.web_search_switch.visible = False
             self.model_button.visible = False
             self.model_button.styles.max_width = 0
 
             # detemine thread name
-            self.label_delete_prompt = Label(f"Delete chat thread \"{self.current_thread_id}?\"")
+            self.label_delete_prompt = Label(f'Delete chat thread "{self.current_thread_id}?"')
             await self.layout_chat_controls.mount(self.label_delete_prompt, before=0)
         else:
             # return widgets to their normal state
@@ -357,6 +386,8 @@ class ChatViewWidget(Widget):
             self.delete_button.visible = True
             self.context_switch.visible = True
             self.context_label.visible = True
+            self.web_search_switch.visible = True
+            self.web_search_label.visible = True
             self.model_button.visible = True
             self.model_button.styles.max_width = 15
             await self.label_delete_prompt.remove()
@@ -404,6 +435,8 @@ class ChatViewWidget(Widget):
             self.delete_button.visible = False
             self.context_switch.visible = False
             self.context_label.visible = False
+            self.web_search_switch.visible = False
+            self.web_search_label.visible = False
 
             # have to set width to 0 to get alignment right
             self.model_button.visible = False
@@ -416,6 +449,8 @@ class ChatViewWidget(Widget):
             self.delete_button.visible = True
             self.context_switch.visible = True
             self.context_label.visible = True
+            self.web_search_switch.visible = True
+            self.web_search_label.visible = True
             self.model_button.visible = True
             self.model_button.styles.max_width = 15
             await self.input_name.remove()
@@ -427,6 +462,14 @@ class ChatViewWidget(Widget):
     async def on_thread_switched(self) -> None:
         """Called when the core application signals a thread switch."""
         await self._load_current_thread()
+        thread = self.core_app.get_current_thread()
+        if thread:
+            is_enabled = thread.metadata.get("web_search_enabled", False)
+            self.web_search_switch.value = is_enabled
+            self.web_search_label.disabled = not is_enabled
+        else:
+            self.web_search_switch.value = False
+            self.web_search_label.disabled = True
 
     def update_models(self) -> None:
         self.model_button.label = self.core_app.state.model

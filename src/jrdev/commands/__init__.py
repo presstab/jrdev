@@ -23,6 +23,7 @@ from jrdev.commands.modelprofile import handle_modelprofile
 from jrdev.commands.models import handle_models
 from jrdev.commands.projectcontext import handle_projectcontext
 from jrdev.commands.provider import handle_provider
+from jrdev.commands.handle_research import handle_research
 from jrdev.commands.routeragent import handle_routeragent
 from jrdev.commands.stateinfo import handle_stateinfo
 from jrdev.commands.tasks import handle_tasks
@@ -49,6 +50,7 @@ __all__ = [
     "handle_modelprofile",
     "handle_projectcontext",
     "handle_provider",
+    "handle_research",
     "handle_routeragent",
     "handle_stateinfo",
     "handle_tasks",
