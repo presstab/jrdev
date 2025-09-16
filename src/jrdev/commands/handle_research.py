@@ -1,4 +1,5 @@
 import asyncio
+import httpx
 from typing import Any, List, Optional
 
 from jrdev.agents import agent_tools
@@ -76,8 +77,24 @@ async def handle_research(app: Any, args: List[str], worker_id: str, chat_thread
                     if not chat_thread_id:
                         app.ui.print_text(error_msg, PrintType.ERROR)
                     tool_call.result = error_msg
+            except httpx.HTTPStatusError as e:
+                error_message = f"HTTP error during '{tool_call.command}': {e.response.status_code} {e.response.reason_phrase} for URL {e.request.url}"
+                app.logger.error(f"Tool execution failed: {error_message}", exc_info=True)
+                tool_call.result = error_message
+            except httpx.RequestError as e:
+                error_message = f"Network error during '{tool_call.command}': {str(e)}. This could be a timeout, DNS issue, or invalid URL."
+                app.logger.error(f"Tool execution failed: {error_message}", exc_info=True)
+                tool_call.result = error_message
+            except asyncio.TimeoutError:
+                error_message = f"Timeout during '{tool_call.command}'. The operation took too long to complete."
+                app.logger.error(f"Tool execution failed: {error_message}", exc_info=True)
+                tool_call.result = error_message
+            except (ValueError, IndexError) as e:
+                error_message = f"Invalid arguments for tool '{tool_call.command}': {str(e)}"
+                app.logger.error(f"Tool execution failed: {error_message}", exc_info=True)
+                tool_call.result = error_message
             except Exception as e:
-                error_message = f"Error executing tool '{tool_call.command}': {str(e)}"
+                error_message = f"An unexpected error occurred while executing tool '{tool_call.command}': {str(e)}"
                 app.logger.error(f"Tool execution failed: {error_message}", exc_info=True)
                 tool_call.result = error_message
 
