@@ -11,6 +11,8 @@ from jrdev.ui.ui import PrintType
 
 
 class ResearchAgent:
+    ALLOWED_TOOLS = {"web_search", "web_scrape_url"}
+
     def __init__(self, app: Any, thread: MessageThread):
         self.app = app
         self.logger = app.logger
@@ -49,7 +51,7 @@ class ResearchAgent:
             self.thread.messages.append({"role": "user", "content": f"**Researching**: {user_input}"})
 
         # Use a specific model for this task
-        research_model = self.app.profile_manager().get_model("intermediate_reasoning")
+        research_model = self.app.state.model
         response_text = await generate_llm_response(self.app, research_model, messages, task_id=worker_id)
 
         json_content = ""
@@ -78,10 +80,21 @@ class ResearchAgent:
                 self.logger.error(f"Research agent decision was 'execute_action' but no action was provided. Response: {response_json}")
                 self.app.ui.print_text("Research agent decided to execute an action, but encountered an error. Aborting.", print_type=PrintType.ERROR)
                 return None
-            
+
+            tool_name = action.get("name")
+            if tool_name not in self.ALLOWED_TOOLS:
+                self.logger.error(
+                    f"Research agent attempted to use an unauthorized tool: {tool_name}. Allowed tools are: {self.ALLOWED_TOOLS}"
+                )
+                self.app.ui.print_text(
+                    f"Research agent tried to use an unauthorized tool '{tool_name}'. Aborting research task.",
+                    print_type=PrintType.ERROR,
+                )
+                return None
+
             tool_call = ToolCall(
                 action_type="tool",
-                command=action["name"],
+                command=tool_name,
                 args=action["args"],
                 reasoning=response_json.get("reasoning", ""),
                 has_next=True,  # Research agent always has a next step until it summarizes
