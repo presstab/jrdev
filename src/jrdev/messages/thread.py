@@ -48,6 +48,14 @@ class MessageThread:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert the thread's state to a serializable dictionary."""
+        # Serialize metadata including any additional fields beyond timestamps
+        metadata_serializable: Dict[str, Any] = {}
+        for key, value in self.metadata.items():
+            if isinstance(value, datetime):
+                metadata_serializable[key] = value.isoformat()
+            else:
+                metadata_serializable[key] = value
+
         return {
             "thread_id": self.thread_id,
             "name": self.name,
@@ -55,10 +63,7 @@ class MessageThread:
             "context": list(self.context),
             "embedded_files": list(self.embedded_files),
             "token_usage": self.token_usage,
-            "metadata": {
-                "created_at": self.metadata["created_at"].isoformat(),
-                "last_modified": self.metadata["last_modified"].isoformat(),
-            }
+            "metadata": metadata_serializable,
         }
 
     @classmethod
@@ -71,10 +76,29 @@ class MessageThread:
         thread.embedded_files = set(data.get("embedded_files", []))
         thread.token_usage = data.get("token_usage", {"input": 0, "output": 0})
         metadata_dict = data.get("metadata", {})
-        thread.metadata = {
-            "created_at": datetime.fromisoformat(metadata_dict.get("created_at", datetime.now().isoformat())),
-            "last_modified": datetime.fromisoformat(metadata_dict.get("last_modified", datetime.now().isoformat())),
-        }
+        # Preserve all metadata keys; parse timestamps back to datetime
+        thread.metadata = {}
+        created_at_raw = metadata_dict.get("created_at", datetime.now().isoformat())
+        last_modified_raw = metadata_dict.get("last_modified", datetime.now().isoformat())
+        try:
+            thread.metadata["created_at"] = (
+                datetime.fromisoformat(created_at_raw) if isinstance(created_at_raw, str) else created_at_raw
+            )
+        except Exception:
+            thread.metadata["created_at"] = datetime.now()
+
+        try:
+            thread.metadata["last_modified"] = (
+                datetime.fromisoformat(last_modified_raw) if isinstance(last_modified_raw, str) else last_modified_raw
+            )
+        except Exception:
+            thread.metadata["last_modified"] = datetime.now()
+
+        # Add any additional metadata fields
+        for k, v in metadata_dict.items():
+            if k in ("created_at", "last_modified"):
+                continue
+            thread.metadata[k] = v
         return thread
 
     def save(self) -> None:

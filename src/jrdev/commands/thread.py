@@ -12,6 +12,9 @@ Commands:
 - /thread view [COUNT]: View conversation history in the current thread (default: 10)
 - /thread delete THREAD_ID: Delete an existing thread
 
+Additional toggle:
+- /thread websearch on|off: Enable or disable per-thread web search mode used by chat input
+
 For more details, see the docs/threads.md documentation.
 """
 
@@ -130,6 +133,20 @@ async def handle_thread(app: Any, args: List[str], _worker_id: str) -> None:
     )
     delete_parser.add_argument("thread_id", type=str, help="Unique ID of the thread to delete")
 
+    # Web search toggle (per-thread)
+    websearch_parser = subparsers.add_parser(
+        "websearch",
+        help="Toggle web search for current thread",
+        description="Enable or disable per-thread web search mode",
+        epilog=f"Example: {format_command_with_args_plain('/thread websearch', 'on')}",
+    )
+    websearch_parser.add_argument(
+        "state",
+        type=str,
+        choices=["on", "off"],
+        help="Turn web search on or off for the current thread",
+    )
+
     try:
         if any(arg in ["-h", "--help"] for arg in args[1:]):
             if len(args) == 2 and args[1] in ["-h", "--help"]:
@@ -167,6 +184,8 @@ async def handle_thread(app: Any, args: List[str], _worker_id: str) -> None:
             await _handle_view_conversation(app, parsed_args)
         elif parsed_args.subcommand == "delete":
             await _handle_delete_thread(app, parsed_args)
+        elif parsed_args.subcommand == "websearch":
+            await _handle_websearch_toggle(app, parsed_args)
         else:
             app.ui.print_text("Error: Missing subcommand", PrintType.ERROR)
             app.ui.print_text("Available Thread Subcommands:", PrintType.HEADER)
@@ -227,6 +246,11 @@ async def handle_thread(app: Any, args: List[str], _worker_id: str) -> None:
                 "Delete Thread",
                 format_command_with_args_plain("/thread delete", "<thread_id>"),
                 "Remove an unwanted thread\nExample: /thread delete thread_abc",
+            ),
+            (
+                "Web Search",
+                format_command_with_args_plain("/thread websearch", "on|off"),
+                "Enable or disable per-thread web search mode used by chat input\nExample: /thread websearch on",
             ),
         ]
 
@@ -419,3 +443,27 @@ async def _handle_delete_thread(app: Any, args: argparse.Namespace) -> None:
         thread_id = f"thread_{thread_id}"
     app.ui.print_text(f"Deleted thread: {thread_id}", PrintType.SUCCESS)
     app.ui.chat_thread_update(app.state.active_thread)
+
+
+async def _handle_websearch_toggle(app: Any, args: argparse.Namespace) -> None:
+    """Enable or disable per-thread web search mode.
+
+    When enabled, chat input will route the user's message through the research agent
+    rather than the default chat model for the active thread.
+    """
+    thread = app.state.get_current_thread()
+    if not thread:
+        app.ui.print_text("No active thread.", PrintType.ERROR)
+        return
+
+    enable = args.state.lower() == "on"
+    thread.metadata["web_search_enabled"] = enable
+    try:
+        thread.save()  # Persist toggle if possible
+    except Exception:
+        # Non-fatal if persistence fails; runtime state still updated
+        pass
+
+    state_str = "enabled" if enable else "disabled"
+    app.ui.print_text(f"Web search {state_str} for thread {thread.thread_id}", PrintType.SUCCESS)
+    app.ui.chat_thread_update(thread.thread_id)

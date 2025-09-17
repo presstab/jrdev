@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 
 from jrdev.agents import agent_tools
 from jrdev.agents.router_agent import CommandInterpretationAgent
+from jrdev.commands.handle_research import handle_research
 from jrdev.commands.keys import check_existing_keys, save_keys_to_env
 from jrdev.core.clients import APIClients
 from jrdev.core.commands import Command, CommandHandler
@@ -353,9 +354,9 @@ class Application:
         self.logger.info(f"Switching thread to {thread_id}")
         return self.state.switch_thread(thread_id)
 
-    def create_thread(self, thread_id="") -> str:
-        """Create a new thread"""
-        return self.state.create_thread(thread_id)
+    def create_thread(self, thread_id: str = "", meta_data: Dict[str, str] | None = None) -> str:
+        """Create a new thread, optionally with metadata."""
+        return self.state.create_thread(thread_id, meta_data)
 
     def stage_code_context(self, file_path) -> None:
         """Stage files that will be added as context to the next /code command"""
@@ -620,6 +621,25 @@ class Application:
         thread_id = msg_thread.thread_id
         # 2) tell UI “I’m starting a new chat” (e.g. highlight the thread)
         self.ui.chat_thread_update(thread_id)
+
+        # Check if web search is enabled for this thread
+        if msg_thread.metadata.get("web_search_enabled"):
+            # The UI has already added the user's message to the view.
+            # We need to add it to the thread history for persistence.
+            content = f"{USER_INPUT_PREFIX}{user_input}"
+            msg_thread.messages.append({"role": "user", "content": content})
+
+            # Use research agent. It will run within the context of the current chat.
+            # The handle_research function expects args to be a list, with the first
+            # element being the command name (which we can fake) and the rest being the query.
+            await handle_research(
+                self, ["/research", user_input], worker_id, chat_thread_id=thread_id
+            )
+
+            # Notify UI that the process is complete and to refresh state
+            self.ui.chat_thread_update(thread_id)
+            return
+
         # 3) stream the LLM response
         content = f"{USER_INPUT_PREFIX}{user_input}"
         async for chunk in self.message_service.stream_message(msg_thread, content, worker_id):
