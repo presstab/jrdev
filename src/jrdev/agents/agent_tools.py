@@ -84,8 +84,11 @@ def terminal(args: List[str]) -> str:
 def web_search(args: List[str]) -> str:
     if not args:
         return ""
+    query = args[0].strip()
+    if not query:
+        return ""
     service = WebSearchService()
-    return str(service.search(args[0]))
+    return str(service.search(query))
 
 
 async def web_scrape_url(args: List[str]) -> str:
@@ -102,8 +105,9 @@ async def web_scrape_url(args: List[str]) -> str:
         logger.info("web_scrap_url: empty args")
         return ""
 
-    logger.info("web_scrape_url: scraping %s", args[0])
-    doc = await WebScrapeService().fetch_and_convert(args[0])
+    url = args[0]
+    logger.info("web_scrape_url: scraping %s", url)
+    doc = await WebScrapeService().fetch_and_convert(url)
     if len(args) > 1:
         file_path = args[1]
         with open(file_path, "w", encoding="utf-8") as file:

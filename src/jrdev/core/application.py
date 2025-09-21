@@ -2,18 +2,17 @@ import asyncio
 import json
 import os
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
-from jrdev.agents import agent_tools
 from jrdev.agents.router_agent import CommandInterpretationAgent
+from jrdev.core.input_handler import InputHandler
 from jrdev.commands.handle_research import handle_research
 from jrdev.commands.keys import check_existing_keys, save_keys_to_env
 from jrdev.core.clients import APIClients
 from jrdev.core.commands import Command, CommandHandler
 from jrdev.core.state import AppState
-from jrdev.core.tool_call import ToolCall
 from jrdev.core.user_settings import UserSettings
 from jrdev.file_operations.file_utils import (JRDEV_DIR, JRDEV_PACKAGE_DIR,
                                               add_to_gitignore, get_env_path,
@@ -49,6 +48,7 @@ class Application:
 
         # Add the router agent and its dedicated chat thread
         self.router_agent = None
+        self.input_handler: Optional[InputHandler] = None
         self.state.router_thread_id = self.state.create_thread(thread_id="", meta_data={"type": "router"})
 
         self.user_settings: UserSettings = UserSettings()
@@ -273,8 +273,9 @@ class Application:
         self.message_service = MessageService(self)
         self.model_fetch_service = ModelFetchService()
 
-        # Initialize the router agent
+        # Initialize the router agent and input handler
         self.router_agent = CommandInterpretationAgent(self)
+        self.input_handler = InputHandler(self)
         self.logger.info("CommandInterpretationAgent initialized.")
 
         if not self.state.model:
@@ -527,7 +528,7 @@ class Application:
         await self.task_monitor_callback()
 
     async def process_input(self, user_input, worker_id=None):
-        """Process user input."""
+        """Process user input by dispatching commands or invoking the input router."""
         await asyncio.sleep(0.01)  # Brief yield to event loop
 
         if not user_input:
@@ -536,84 +537,16 @@ class Application:
         if user_input.startswith("/"):
             command = Command(user_input, worker_id)
             result = await self.handle_command(command)
-            # Check for special exit code
             if result == "EXIT":
                 self.logger.info("Exit command received, forcing running state to False")
                 self.state.running = False
-        else:
-            # Invoke the CommandInterpretationAgent
-            self.ui.print_text("Interpreting your request...\n", print_type=PrintType.PROCESSING)
-            restricted_commands = ["/init", "/migrate", "/keys"]
-            calls_made = []
-            max_iter = self.user_settings.max_router_iterations
-            i = 0
-            while i < max_iter:
-                i += 1
-                tool_call: ToolCall = await self.router_agent.interpret(user_input, worker_id, calls_made)
-                if not tool_call:
-                    # Agent decided to clarify, chat, summarize, or failed. Stop processing.
-                    break
+            return
 
-                # The agent decided on a command, now execute it
-                command_to_execute = tool_call.formatted_cmd
-                self.ui.print_text(f"Running command: {command_to_execute}\nCommand Purpose: {tool_call.reasoning}\n", print_type=PrintType.PROCESSING)
-                if tool_call.action_type == "command":
-                    if tool_call.command in restricted_commands:
-                        self.ui.print_text(
-                            f"Error: Router Agent is restricted from using the {tool_call.command} command.",
-                            PrintType.ERROR
-                        )
-                        break
-                    # commands print directly to console, therefore we have to capture console output for results
-                    self.ui.start_capture()
-                    command = Command(command_to_execute, worker_id)
-                    await self.handle_command(command)
-                    self.ui.end_capture()
-                    tool_call.result = self.ui.get_capture()
-                    # If the command was /code, we should break out of the router loop
-                    # as /code is a self-contained agentic process.
-                    if command_to_execute.startswith("/code"):
-                        break
-                elif tool_call.action_type == "tool":
-                    try:
-                        if tool_call.command not in agent_tools.tools_list:
-                            tool_call.result = f"Error: Tool '{tool_call.command}' does not exist."
-                        elif tool_call.command == "read_files":
-                            tool_call.result = agent_tools.read_files(tool_call.args)
-                        elif tool_call.command == "get_file_tree":
-                            tool_call.result = agent_tools.get_file_tree()
-                        elif tool_call.command == "write_file":
-                            filename = tool_call.args[0]
-                            content = " ".join(tool_call.args[1:])
-                            tool_call.result = await agent_tools.write_file(self, filename, content)
-                        elif tool_call.command == "web_search":
-                            tool_call.result = agent_tools.web_search(tool_call.args)
-                        elif tool_call.command == "web_scrape_url":
-                            tool_call.result = await agent_tools.web_scrape_url(tool_call.args)
-                        elif tool_call.command == "get_indexed_files_context":
-                            tool_call.result = agent_tools.get_indexed_files_context(self, tool_call.args)
-                        elif tool_call.command == "terminal":
-                            command_str = " ".join(tool_call.args)
-                            confirmed = await self.ui.prompt_for_command_confirmation(command_str)
-                            if confirmed:
-                                tool_call.result = agent_tools.terminal(tool_call.args)
-                            else:
-                                tool_call.result = "Terminal command request REJECTED by user."
-                                self.ui.print_text("Command execution cancelled.", PrintType.INFO)
-                    except Exception as e:
-                        error_message = f"Error executing tool '{tool_call.command}': {str(e)}"
-                        self.logger.error(f"Tool execution failed: {error_message}", exc_info=True)
-                        tool_call.result = error_message
-                if not tool_call.has_next:
-                    # This was the final command in the chain.
-                    break
+        if not self.input_handler:
+            self.logger.warning("Input handler not initialized; skipping natural language routing.")
+            return
 
-                # This was an info-gathering step, add result to history and loop again.
-                calls_made.append(tool_call)
-            if i >= max_iter:
-                self.ui.print_text(
-                    "My maximum command iterations have been hit for this request. Please reprompt to continue. You can"
-                    " adjust this using the /routeragent command", print_type=PrintType.ERROR)
+        await self.input_handler.route(user_input, worker_id)
 
     async def process_chat_input(self, user_input, worker_id=None):
         # 1) get the active thread
