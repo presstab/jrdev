@@ -212,7 +212,8 @@ class JrDevUI(App[None]):
         if isinstance(event.text, list):
             self.terminal_output_widget.append_text("\n".join(event.text) + "\n")
         else:
-            self.terminal_output_widget.append_text(f"[PrintType={type_string}]" + event.text + "\n")
+            if event.text is not None:
+                self.terminal_output_widget.append_text(f"[PrintType={type_string}]" + event.text + "\n")
 
     @on(TextualEvents.StreamChunk)
     async def handle_stream_chunk(self, event: TextualEvents.StreamChunk) -> None:

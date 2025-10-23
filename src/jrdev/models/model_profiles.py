@@ -79,19 +79,19 @@ class ModelProfileManager:
         # Define the hardcoded fallback configuration
         hardcoded_fallback_config: Dict[str, Any] = {
             "profiles": {
-                "advanced_reasoning": "o4-mini-2025-04-16",
-                "advanced_coding": "o4-mini-2025-04-16",
-                "intermediate_reasoning": "gpt-4.1-2025-04-14",
-                "intermediate_coding": "gpt-4.1-2025-04-14",
-                "quick_reasoning": "gpt-4.1-mini-2025-04-14",
-                "intent_router": "gpt-4.1-2025-04-14",
-                "low_cost_search": "gpt-4.1-2025-04-14"
+                "advanced_reasoning": "gpt-5-mini",
+                "advanced_coding": "gpt-5-mini",
+                "intermediate_reasoning": "gpt-5-mini",
+                "intermediate_coding": "gpt-5-mini",
+                "quick_reasoning": "gpt-5-mini",
+                "intent_router": "gpt-5-mini",
+                "low_cost_search": "gpt-5-mini"
             },
             "default_profile": "advanced_coding",
             # chat_model will be derived from default_profile
         }
         hardcoded_fallback_config["chat_model"] = hardcoded_fallback_config["profiles"].get(
-            hardcoded_fallback_config["default_profile"], "o4-mini-2025-04-16" # Ultimate fallback for chat_model
+            hardcoded_fallback_config["default_profile"], "gpt-5-mini" # Ultimate fallback for chat_model
         )
 
         try:
@@ -206,7 +206,7 @@ class ModelProfileManager:
         # Fall back to default profile if requested profile doesn't exist
         default = str(self.profiles["default_profile"])
         logger.warning(f"Profile '{profile_type}' not found, using default: {default}")
-        return str(self.profiles["profiles"].get(default, "qwen-2.5-coder-32b"))
+        return str(self.profiles["profiles"].get(default, "gpt-5-mini"))
 
     def update_profile(self, profile_type: str, model_name: str, model_list: Optional[ModelList] = None) -> bool:
         """
@@ -402,18 +402,18 @@ class ModelProfileManager:
         self.active_provider_names: List[str] = active_provider_names if active_provider_names is not None else []
         hardcoded_fallback_config = {
             "profiles": {
-                "advanced_reasoning": "o4-mini-2025-04-16",
-                "advanced_coding": "o4-mini-2025-04-16",
-                "intermediate_reasoning": "gpt-4.1-2025-04-14",
-                "intermediate_coding": "gpt-4.1-2025-04-14",
-                "quick_reasoning": "gpt-4.1-mini-2025-04-14",
-                "intent_router": "gpt-4.1-2025-04-14",
-                "low_cost_search": "gpt-4.1-2025-04-14"
+                "advanced_reasoning": "gpt-5-mini",
+                "advanced_coding": "gpt-5-mini",
+                "intermediate_reasoning": "gpt-5-mini",
+                "intermediate_coding": "gpt-5-mini",
+                "quick_reasoning": "gpt-5-mini",
+                "intent_router": "gpt-5-mini",
+                "low_cost_search": "gpt-5-mini"
             },
             "default_profile": "advanced_coding",
         }
         hardcoded_fallback_config["chat_model"] = hardcoded_fallback_config["profiles"].get(
-            hardcoded_fallback_config["default_profile"], "o4-mini-2025-04-16"
+            hardcoded_fallback_config["default_profile"], "gpt-5-mini"
         )
         # Only compare the relevant keys
         current = self.profiles

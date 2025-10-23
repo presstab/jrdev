@@ -70,7 +70,7 @@ class ModelListView(Widget):
         self.height = 10
         self.models = []
         self.search_input = SearchInput(placeholder="Search models...", id="model-search-input")
-        self.btn_settings = Button("⚙️", id="btn-settings", tooltip="Model & Provider Settings")
+        self.btn_settings = Button("\u2699", id="btn-settings", tooltip="Model & Provider Settings")
         self.btn_settings.can_focus = False
         self.list_view = ListView(id="_listview")
         self.input_query = None
@@ -109,7 +109,7 @@ class ModelListView(Widget):
 
         is_first = True
         for provider, provider_models in grouped_models.items():
-            provider_item = ListItem(Label(f"[{star_color.rich_color.name}][bold white]✨{provider}✨[/bold white][/{star_color.rich_color.name}]", markup=True), name=provider, disabled=True)
+            provider_item = ListItem(Label(f"[{star_color.rich_color.name}][bold white]\u2739 {provider} \u2739[/bold white][/{star_color.rich_color.name}]", markup=True), name=provider, disabled=True)
             self.list_view.append(provider_item)
             for model in provider_models:
                 model_name = model["name"]

@@ -104,8 +104,8 @@ class TerminalOutputWidget(Widget):
         else:
             self.model_button = Button(label="Model", id="model_btn_term")
             self.context_label = Label("Context Use 0%", id="context-label")
-            self.compact_button = Button(label="🗜️", id="compact-btn", tooltip="Compact conversation. Condenses conversation thread, keeping a summary, but not all details. Reduces Context Use.")
-            self.clear_button = Button(label="🗑️", id="clear-btn", tooltip="Clear the entire conversation with the router agent. Sets Context Use to 0.")
+            self.compact_button = Button(label="🗜", id="compact-btn", tooltip="Compact conversation. Condenses conversation thread, keeping a summary, but not all details. Reduces Context Use.")
+            self.clear_button = Button(label="🗑", id="clear-btn", tooltip="Clear the entire conversation with the router agent. Sets Context Use to 0.")
             if not core_app:
                 raise Exception("core app reference missing from terminal output widget")
             self.core_app = core_app
