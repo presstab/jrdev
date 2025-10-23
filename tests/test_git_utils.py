@@ -16,9 +16,22 @@ class TestGitUtils(unittest.TestCase):
         self.test_dir = os.path.abspath("test_repo")
         os.makedirs(self.test_dir, exist_ok=True)
         os.chdir(self.test_dir)
+        # Ensure this test repo is fully isolated from any user/global git config
+        # to avoid prompts (e.g., GPG signing) or running user hooks.
+        os.environ["GIT_CONFIG_GLOBAL"] = os.devnull
+        # Some environments also read system config; point it at a harmless file.
+        os.environ["GIT_CONFIG_SYSTEM"] = os.devnull
+        # Avoid external editor launches if a commit is made without -m by mistake.
+        os.environ["GIT_EDITOR"] = "true"
         subprocess.call(["git", "init"])
         subprocess.call(["git", "config", "user.email", "test@example.com"])
         subprocess.call(["git", "config", "user.name", "Test User"])
+        # Explicitly disable commit/tag signing and any hooks for this test repo.
+        subprocess.call(["git", "config", "commit.gpgsign", "false"])
+        subprocess.call(["git", "config", "tag.gpgSign", "false"])
+        hooks_dir = os.path.join(os.getcwd(), ".git", "hooks-disabled")
+        os.makedirs(hooks_dir, exist_ok=True)
+        subprocess.call(["git", "config", "core.hooksPath", hooks_dir])
 
     def tearDown(self):
         """Clean up the temporary git repository."""
