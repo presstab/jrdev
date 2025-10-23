@@ -52,15 +52,58 @@ class ResearchAgent:
 
         # Use a specific model for this task
         research_model = self.app.state.model
-        response_text = await generate_llm_response(self.app, research_model, messages, task_id=worker_id)
+        response_json = None
+        for attempt in range(2):  # Retry once
+            response_text = await generate_llm_response(
+                self.app, research_model, messages, task_id=worker_id
+            )
+            json_content = ""
+            try:
+                json_content = cutoff_string(response_text, "```json", "```")
+                response_json = json.loads(json_content)
+                break  # Success, exit loop
+            except (json.JSONDecodeError, KeyError) as e:
+                self.logger.warning(
+                    f"Attempt {attempt + 1} failed to parse research agent LLM response: {e}"
+                )
+                if attempt == 0:
+                    self.app.ui.print_text(
+                        "Research agent had an issue parsing its response. Retrying once...",
+                        print_type=PrintType.WARNING,
+                    )
+                else:
+                    self.logger.error(
+                        f"Failed to parse research agent LLM response after 2 attempts. Aborting and summarizing. Response: {response_text}"
+                    )
+                    self.app.ui.print_text(
+                        "Research agent failed to parse its response after a retry. Summarizing current findings and finishing.",
+                        print_type=PrintType.ERROR,
+                    )
+                    summary_parts = [
+                        "I was unable to decide on the next step due to a persistent error."
+                    ]
+                    if previous_tool_calls:
+                        summary_parts.append(
+                            "Here is a summary of the research so far:"
+                        )
+                        for tc in previous_tool_calls:
+                            summary_parts.append(
+                                f"Action: {tc.formatted_cmd}\nResult: {tc.result}"
+                            )
+                    else:
+                        summary_parts.append("No research actions were taken.")
 
-        json_content = ""
-        try:
-            json_content = cutoff_string(response_text, "```json", "```")
-            response_json = json.loads(json_content)
-        except (json.JSONDecodeError, KeyError) as e:
+                    summary = "\n".join(summary_parts)
+                    self.thread.messages.append(
+                        {"role": "assistant", "content": summary}
+                    )
+                    return {"type": "summary", "data": summary}
+
+        if response_json is None:
+            # This should not be reached if the logic above is correct, but as a safeguard.
             self.logger.error(
-                f"Failed to parse research agent LLM response: {e}\nResponse:\n {response_text}\nRaw:\n{json_content}")
+                "response_json is None after retry loop, which should not happen. Aborting."
+            )
             self.app.ui.print_text(
                 "Research agent had an issue parsing its own response. This may be a temporary issue. Aborting research task.",
                 print_type=PrintType.ERROR,
