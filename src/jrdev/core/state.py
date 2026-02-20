@@ -100,7 +100,7 @@ class AppState:
         return list(self.threads.values())
 
     # Thread management
-    def create_thread(self, thread_id: str="", meta_data: Dict[str, str]=None) -> str:
+    def create_thread(self, thread_id: str="", meta_data: Dict[str, str]=None, category: str="default", mode: str="chat") -> str:
         """Create a new message thread"""
         if thread_id == "":
             thread_id = f"thread_{uuid.uuid4().hex[:8]}"
@@ -109,7 +109,10 @@ class AppState:
             # This is handled by @auto_persist on MessageThread methods like set_name or if it's saved on creation
             # For now, MessageThread constructor doesn't auto-save, so an explicit save might be needed
             # or ensure first mutation triggers save. The current design relies on mutation.
-            self.threads[thread_id] = MessageThread(thread_id)
+            thread = MessageThread(thread_id)
+            thread.category = category
+            thread.metadata["mode"] = mode
+            self.threads[thread_id] = thread
             if meta_data:
                 for k, v in meta_data.items():
                     self.threads[thread_id].metadata[k] = v

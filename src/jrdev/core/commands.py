@@ -5,6 +5,7 @@ from jrdev.commands import (
     handle_addcontext,
     handle_asyncsend,
     handle_cancel,
+    handle_category,
     handle_clearcontext,
     handle_code,
     handle_compact,
@@ -14,6 +15,7 @@ from jrdev.commands import (
     handle_help,
     handle_init,
     handle_keys,
+    handle_message,
     handle_migrate,
     handle_model,
     handle_models,
@@ -58,6 +60,7 @@ class CommandHandler:
             "/viewcontext": handle_viewcontext,
             "/asyncsend": handle_asyncsend,
             "/tasks": handle_tasks,
+            "/category": handle_category,
             "/cancel": handle_cancel,
             "/code": handle_code,
             "/projectcontext": handle_projectcontext,
@@ -67,7 +70,8 @@ class CommandHandler:
             "/research": handle_research,
             "/routeragent": handle_routeragent,
             "/thread": handle_thread,
-            "/migrate": handle_migrate
+            "/migrate": handle_migrate,
+            "/message": handle_message
         }
 
         self.commands.update(core_commands)

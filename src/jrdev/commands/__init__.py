@@ -7,6 +7,7 @@ import os
 from jrdev.commands.addcontext import handle_addcontext
 from jrdev.commands.asyncsend import handle_asyncsend
 from jrdev.commands.cancel import handle_cancel
+from jrdev.commands.category import handle_category
 from jrdev.commands.clearcontext import handle_clearcontext
 from jrdev.commands.code import handle_code
 from jrdev.commands.compact import handle_compact
@@ -17,6 +18,7 @@ from jrdev.commands.git_pr import handle_git_pr_review, handle_git_pr_summary
 from jrdev.commands.help import handle_help
 from jrdev.commands.init import handle_init
 from jrdev.commands.keys import handle_keys
+from jrdev.commands.message import handle_message
 from jrdev.commands.migrate import handle_migrate
 from jrdev.commands.model import handle_model
 from jrdev.commands.modelprofile import handle_modelprofile
@@ -34,6 +36,7 @@ __all__ = [
     "handle_addcontext",
     "handle_asyncsend",
     "handle_cancel",
+    "handle_category",
     "handle_code",
     "handle_compact",
     "handle_cost",
@@ -44,6 +47,7 @@ __all__ = [
     "handle_help",
     "handle_init",
     "handle_keys",
+    "handle_message",
     "handle_migrate",
     "handle_model",
     "handle_models",

@@ -84,39 +84,51 @@ class Application:
             self.logger.error("Error writing terminal text styles")
 
     def _load_persisted_threads(self) -> Dict[str, MessageThread]:
-        """Load all persisted message threads from disk."""
+        """Load all persisted message threads from disk, including subdirectories."""
         loaded_threads: Dict[str, MessageThread] = {}
         if not os.path.isdir(THREADS_DIR):
             self.logger.info(f"Threads directory '{THREADS_DIR}' not found. No threads to load.")
             return loaded_threads
 
         self.logger.info(f"Loading persisted threads from '{THREADS_DIR}'...")
-        for filename in os.listdir(THREADS_DIR):
-            if filename.endswith(".json"):
-                file_path = os.path.join(THREADS_DIR, filename)
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
+
+        for root, dirs, files in os.walk(THREADS_DIR):
+            for filename in files:
+                if filename.endswith(".json"):
+                    file_path = os.path.join(root, filename)
+
+                    # Infer category from parent directory relative to THREADS_DIR
+                    rel_dir = os.path.relpath(root, THREADS_DIR)
+                    category = "default"
+                    if rel_dir != ".":
+                        category = rel_dir
                     
-                    if "thread_id" not in data:
-                        self.logger.warning(f"File {file_path} is missing 'thread_id'. Skipping.")
-                        continue
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
 
-                    thread = MessageThread.from_dict(data)
+                        if "thread_id" not in data:
+                            self.logger.warning(f"File {file_path} is missing 'thread_id'. Skipping.")
+                            continue
 
-                    # Don't load old router threads
-                    thread_type = thread.metadata.get("type")
-                    if thread_type and thread_type == "router":
-                        continue
+                        thread = MessageThread.from_dict(data)
 
-                    loaded_threads[thread.thread_id] = thread
-                    self.logger.debug(f"Successfully loaded thread: {thread.thread_id} from {file_path}")
-                except json.JSONDecodeError as e:
-                    self.logger.error(f"Error decoding JSON from {file_path}: {e}. Skipping file.")
-                except KeyError as e:
-                    self.logger.error(f"Missing key in thread data from {file_path}: {e}. Skipping file.")
-                except Exception as e:
-                    self.logger.error(f"Unexpected error loading thread from {file_path}: {e}. Skipping file.")
+                        # Ensure loaded category matches filesystem structure
+                        thread.category = category
+
+                        # Don't load old router threads
+                        thread_type = thread.metadata.get("type")
+                        if thread_type and thread_type == "router":
+                            continue
+
+                        loaded_threads[thread.thread_id] = thread
+                        self.logger.debug(f"Successfully loaded thread: {thread.thread_id} from {file_path}")
+                    except json.JSONDecodeError as e:
+                        self.logger.error(f"Error decoding JSON from {file_path}: {e}. Skipping file.")
+                    except KeyError as e:
+                        self.logger.error(f"Missing key in thread data from {file_path}: {e}. Skipping file.")
+                    except Exception as e:
+                        self.logger.error(f"Unexpected error loading thread from {file_path}: {e}. Skipping file.")
         
         self.logger.info(f"Finished loading threads. Total loaded: {len(loaded_threads)}.")
         return loaded_threads

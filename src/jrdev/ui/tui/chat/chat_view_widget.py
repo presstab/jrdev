@@ -244,10 +244,13 @@ class ChatViewWidget(Widget):
             thread: Optional[MessageThread] = self.core_app.get_current_thread()
         if thread:
             thread_name = thread.name.strip() if thread.name else None
+            mode = thread.metadata.get("mode", "chat")
+            mode_str = f" [{mode.upper()}]" if mode != "chat" else ""
+
             if thread_name:
-                self.layout_output.border_title = f"Chat: {thread_name}"
+                self.layout_output.border_title = f"Chat: {thread_name}{mode_str}"
             else:
-                self.layout_output.border_title = f"Chat: {thread.thread_id}"
+                self.layout_output.border_title = f"Chat: {thread.thread_id}{mode_str}"
         else:
             self.layout_output.border_title = "Chat"
 
@@ -269,13 +272,20 @@ class ChatViewWidget(Widget):
 
         if self.current_thread_id == thread.thread_id and self.message_scroller.children:
             # If it's the same thread and we already have bubbles, just scroll
-            self.message_scroller.scroll_end(animate=False)
-            return
+            # But wait, if messages were edited, we need to reload.
+            # ChatViewWidget doesn't know if messages were edited unless notified.
+            # For now, let's assume we reload if we are told to via on_thread_switched.
+            # But on_thread_switched is called by handle_chat_update.
+            # So if we edited a message, handle_chat_update is called, calling on_thread_switched.
+            # So we should probably reload even if thread ID is same, to reflect edits.
+            # But rebuilding all bubbles is expensive.
+            # For now, we will rebuild to ensure correctness.
+            pass
 
         self.current_thread_id = thread.thread_id
         await self.message_scroller.remove_children()
 
-        for msg in thread.messages:
+        for idx, msg in enumerate(thread.messages):
             role = msg["role"]
             body = msg["content"]
             
@@ -288,7 +298,7 @@ class ChatViewWidget(Widget):
             else:
                 display_content = body
             
-            bubble = MessageBubble(display_content, role=role)
+            bubble = MessageBubble(display_content, role=role, thread_id=thread.thread_id, message_index=idx)
             await self.message_scroller.mount(bubble)
 
         await self._prune_bubbles()
@@ -300,7 +310,12 @@ class ChatViewWidget(Widget):
         Adds a new user message bubble to the UI. 
         Called by JrDevUI when user submits input via ChatInputWidget.
         """
-        bubble = MessageBubble(raw_user_input, role="user")
+        thread = self.core_app.get_current_thread()
+        if not thread:
+            return
+
+        idx = len(thread.messages)
+        bubble = MessageBubble(raw_user_input, role="user", thread_id=thread.thread_id, message_index=idx)
         await self.message_scroller.mount(bubble)
         await self._prune_bubbles()
         # Context display is updated when the thread itself is updated (e.g., via _load_current_thread)
@@ -322,11 +337,34 @@ class ChatViewWidget(Widget):
         if last_bubble and last_bubble.role == "assistant":
             last_bubble.append_chunk(event.chunk)
         else:
-            new_bubble = MessageBubble(event.chunk, role="assistant")
+            idx = len(active_thread.messages) - 1
+            new_bubble = MessageBubble(event.chunk, role="assistant", thread_id=active_thread.thread_id, message_index=idx)
             await self.message_scroller.mount(new_bubble)
             await self._prune_bubbles()
 
         self.message_scroller.scroll_end(animate=False)
+
+    @on(MessageBubble.MessageEdited)
+    async def on_message_edited(self, event: MessageBubble.MessageEdited) -> None:
+        # Use simple string replacement for now, avoiding newlines issues by just passing content
+        # But wait, CommandRequest takes string.
+        # If content has newlines, I can't pass it easily via command line arguments unless I quote it carefully.
+        # Since I'm inside the app, I can call the command handler directly or invoke the thread method?
+        # But keeping it consistent with commands is good.
+        # The /message command uses " ".join(args), so newlines are lost if split by shell.
+        # I'll invoke the thread method directly for reliability, then trigger update.
+
+        thread = self.core_app.state.threads.get(event.thread_id)
+        if thread:
+            if thread.edit_message(event.index, event.content):
+                self.notify("Message updated.")
+                self.core_app.ui.chat_thread_update(event.thread_id)
+            else:
+                self.notify("Failed to update message.", severity="error")
+
+    @on(MessageBubble.MessageDeleted)
+    async def on_message_deleted(self, event: MessageBubble.MessageDeleted) -> None:
+        self.post_message(CommandRequest(f"/message delete {event.thread_id} {event.index}"))
 
     def set_project_context_on(self, is_on: bool) -> None:
         """Programmatically sets the project context switch state."""

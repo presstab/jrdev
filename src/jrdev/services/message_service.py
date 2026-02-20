@@ -57,7 +57,11 @@ class MessageService:
         # Update message thread state with the new user message and context used
         # This ensures the user's message is part of the history before the assistant responds.
         msg_thread.add_embedded_files(builder.get_files()) # Files used are now "embedded"
-        msg_thread.messages = messages_for_llm # Update thread history to include this user's message
+
+        # New: Append user message instead of overwriting entire history
+        if messages_for_llm and messages_for_llm[-1]["role"] == "user":
+            new_user_msg = messages_for_llm[-1]
+            msg_thread.add_user_message(new_user_msg["content"], metadata=new_user_msg.get("metadata"))
 
         # Stream response from LLM
         response_accumulator = ""
@@ -73,6 +77,7 @@ class MessageService:
             # completely filter out thinking
             is_first_chunk = True
             in_think = False
+            metadata = {"model": self.app.state.model}
             async for chunk in llm_response_stream:
                 if is_first_chunk:
                     is_first_chunk = False
@@ -81,18 +86,18 @@ class MessageService:
                         yield "Thinking..."
                     else:
                         response_accumulator += chunk
-                        msg_thread.add_response_partial(chunk)  # Update thread with partial assistant response
+                        msg_thread.add_response_partial(chunk, metadata=metadata)  # Update thread with partial assistant response
                         yield chunk
                 elif in_think:
                     if chunk == "</think>":
                         in_think = False
                 else:
                     response_accumulator += chunk
-                    msg_thread.add_response_partial(chunk) # Update thread with partial assistant response
+                    msg_thread.add_response_partial(chunk, metadata=metadata) # Update thread with partial assistant response
                     yield chunk
 
             # Finalize the full response in the message thread
-            msg_thread.finalize_response(response_accumulator.strip())
+            msg_thread.finalize_response(response_accumulator.strip(), metadata=metadata)
         except Exception as e:
             logger.error("Message Service: %s", e)
             if task_id:

@@ -147,6 +147,16 @@ async def handle_thread(app: Any, args: List[str], _worker_id: str) -> None:
         help="Turn web search on or off for the current thread",
     )
 
+    # Move thread command
+    move_parser = subparsers.add_parser(
+        "move",
+        help="Move a thread to a category",
+        description="Move an existing conversation thread to a category",
+        epilog=f"Example: {format_command_with_args_plain('/thread move', 'thread_abc feature_requests')}",
+    )
+    move_parser.add_argument("thread_id", type=str, help="Unique ID of the thread to move")
+    move_parser.add_argument("category", type=str, help="Target category name")
+
     try:
         if any(arg in ["-h", "--help"] for arg in args[1:]):
             if len(args) == 2 and args[1] in ["-h", "--help"]:
@@ -186,6 +196,8 @@ async def handle_thread(app: Any, args: List[str], _worker_id: str) -> None:
             await _handle_delete_thread(app, parsed_args)
         elif parsed_args.subcommand == "websearch":
             await _handle_websearch_toggle(app, parsed_args)
+        elif parsed_args.subcommand == "move":
+            await _handle_move_thread(app, parsed_args)
         else:
             app.ui.print_text("Error: Missing subcommand", PrintType.ERROR)
             app.ui.print_text("Available Thread Subcommands:", PrintType.HEADER)
@@ -198,6 +210,7 @@ async def handle_thread(app: Any, args: List[str], _worker_id: str) -> None:
                 ("info", "", "Show current thread details", "thread info"),
                 ("view", "[count]", "Display message history", "thread view 5"),
                 ("delete", "<thread_id>", "Delete an existing thread", "thread delete thread_abc"),
+                ("move", "<thread_id> <category>", "Move thread to category", "thread move thread_abc work"),
             ]
 
             for cmd, cmd_args, desc, example in subcommands:
@@ -251,6 +264,11 @@ async def handle_thread(app: Any, args: List[str], _worker_id: str) -> None:
                 "Web Search",
                 format_command_with_args_plain("/thread websearch", "on|off"),
                 "Enable or disable per-thread web search mode used by chat input\nExample: /thread websearch on",
+            ),
+            (
+                "Move Thread",
+                format_command_with_args_plain("/thread move", "<thread_id> <category>"),
+                "Move thread to a category\nExample: /thread move thread_abc work",
             ),
         ]
 
@@ -467,3 +485,42 @@ async def _handle_websearch_toggle(app: Any, args: argparse.Namespace) -> None:
     state_str = "enabled" if enable else "disabled"
     app.ui.print_text(f"Web search {state_str} for thread {thread.thread_id}", PrintType.SUCCESS)
     app.ui.chat_thread_update(thread.thread_id)
+
+
+async def _handle_move_thread(app: Any, args: argparse.Namespace) -> None:
+    """Move an existing message thread to a category."""
+    thread_id = args.thread_id
+    category = args.category
+
+    thread = app.state.threads.get(thread_id)
+    if not thread:
+        # try with prefix
+        thread_id_pre = f"thread_{thread_id}"
+        thread = app.state.threads.get(thread_id_pre)
+        if thread:
+            thread_id = thread_id_pre
+
+    if not thread:
+        app.ui.print_text(f"Error: Thread '{args.thread_id}' not found.", PrintType.ERROR)
+        return
+
+    old_category = getattr(thread, "category", "default")
+
+    # If category is same, do nothing
+    if old_category == category:
+        app.ui.print_text(f"Thread is already in category '{category}'.", PrintType.INFO)
+        return
+
+    # Delete old file
+    thread.delete_persisted_file()
+
+    # Update category
+    thread.category = category
+
+    # Save (creates new file in new dir)
+    thread.save()
+
+    app.ui.print_text(f"Thread '{thread_id}' moved to category '{category}'.", PrintType.SUCCESS)
+
+    # Update UI
+    app.ui.chat_thread_update(thread_id)

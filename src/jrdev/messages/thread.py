@@ -36,6 +36,7 @@ class MessageThread:
             thread_id: Unique identifier for this thread
         """
         self.thread_id: str = thread_id
+        self.category: str = "default"
         self.name: Optional[str] = None
         self.messages: List[Dict[str, str]] = []
         self.context: Set[str] = set()
@@ -44,6 +45,7 @@ class MessageThread:
         self.metadata: Dict[str, Any] = {
             "created_at": datetime.now(),
             "last_modified": datetime.now(),
+            "mode": "chat",
         }
 
     def to_dict(self) -> Dict[str, Any]:
@@ -58,6 +60,7 @@ class MessageThread:
 
         return {
             "thread_id": self.thread_id,
+            "category": self.category,
             "name": self.name,
             "messages": self.messages,
             "context": list(self.context),
@@ -70,6 +73,7 @@ class MessageThread:
     def from_dict(cls, data: Dict[str, Any]) -> 'MessageThread':
         """Create a MessageThread instance from a dictionary."""
         thread = cls(data["thread_id"])
+        thread.category = data.get("category", "default")
         thread.name = data.get("name")
         thread.messages = data.get("messages", [])
         thread.context = set(data.get("context", []))
@@ -103,7 +107,12 @@ class MessageThread:
 
     def save(self) -> None:
         """Save the thread's state to a JSON file."""
-        file_path = os.path.join(THREADS_DIR, f"{self.thread_id}.json")
+        # Ensure category directory exists
+        category = getattr(self, "category", "default") or "default"
+        category_dir = os.path.join(THREADS_DIR, category)
+        os.makedirs(category_dir, exist_ok=True)
+
+        file_path = os.path.join(category_dir, f"{self.thread_id}.json")
         tmp_file_path = file_path + ".tmp"
         try:
             with open(tmp_file_path, "w") as f:
@@ -121,10 +130,22 @@ class MessageThread:
 
     def delete_persisted_file(self) -> None:
         """Delete the persisted JSON file for this thread."""
-        file_path = os.path.join(THREADS_DIR, f"{self.thread_id}.json")
+        category = getattr(self, "category", "default") or "default"
+        file_path = os.path.join(THREADS_DIR, category, f"{self.thread_id}.json")
         try:
             if os.path.exists(file_path):
                 os.remove(file_path)
+            # Also check default if not found (in case it was moved implicitly without update, though unlikely)
+            elif category != "default":
+                 default_path = os.path.join(THREADS_DIR, "default", f"{self.thread_id}.json")
+                 if os.path.exists(default_path):
+                     os.remove(default_path)
+                 else:
+                    # Also check root for legacy files
+                    root_path = os.path.join(THREADS_DIR, f"{self.thread_id}.json")
+                    if os.path.exists(root_path):
+                        os.remove(root_path)
+
         except OSError as e:
             # Optionally log this error
             # print(f"Error deleting persisted file {file_path}: {e}") # For debugging
@@ -171,27 +192,53 @@ class MessageThread:
         self.metadata["last_modified"] = datetime.now()
 
     @auto_persist
-    def add_response(self, response: str) -> None:
-        """Add a complete assistant response to the thread history."""
-        self.messages.append({"role": "assistant", "content": response})
+    def add_user_message(self, content: str, metadata: Dict[str, Any] = None) -> None:
+        """Add a user message to the thread history."""
+        msg = {"role": "user", "content": content}
+        if metadata:
+            msg["metadata"] = metadata
+        self.messages.append(msg)
         self.metadata["last_modified"] = datetime.now()
 
     @auto_persist
-    def add_response_partial(self, chunk: str) -> None:
+    def add_response(self, response: str, metadata: Dict[str, Any] = None) -> None:
+        """Add a complete assistant response to the thread history."""
+        msg = {"role": "assistant", "content": response}
+        if metadata:
+            msg["metadata"] = metadata
+        self.messages.append(msg)
+        self.metadata["last_modified"] = datetime.now()
+
+    @auto_persist
+    def add_response_partial(self, chunk: str, metadata: Dict[str, Any] = None) -> None:
         """Add a partial assistant response chunk to the thread history."""
         if self.messages and self.messages[-1].get("role") == "assistant":
             self.messages[-1]["content"] += chunk
+            if metadata:
+                if "metadata" not in self.messages[-1]:
+                    self.messages[-1]["metadata"] = {}
+                self.messages[-1]["metadata"].update(metadata)
         else:
-            self.messages.append({"role": "assistant", "content": chunk})
+            msg = {"role": "assistant", "content": chunk}
+            if metadata:
+                msg["metadata"] = metadata
+            self.messages.append(msg)
         self.metadata["last_modified"] = datetime.now()
 
     @auto_persist
-    def finalize_response(self, full_text: str) -> None:
+    def finalize_response(self, full_text: str, metadata: Dict[str, Any] = None) -> None:
         """Finalize the assistant response, replacing partials with full text."""
         if self.messages and self.messages[-1].get("role") == "assistant":
             self.messages[-1]["content"] = full_text
+            if metadata:
+                if "metadata" not in self.messages[-1]:
+                    self.messages[-1]["metadata"] = {}
+                self.messages[-1]["metadata"].update(metadata)
         else:
-            self.messages.append({"role": "assistant", "content": full_text})
+            msg = {"role": "assistant", "content": full_text}
+            if metadata:
+                msg["metadata"] = metadata
+            self.messages.append(msg)
         self.metadata["last_modified"] = datetime.now()
 
     @auto_persist
@@ -201,3 +248,21 @@ class MessageThread:
         self.context = set()
         self.embedded_files = set()
         self.metadata["last_modified"] = datetime.now()
+
+    @auto_persist
+    def edit_message(self, index: int, new_content: str) -> bool:
+        """Edit the content of a specific message."""
+        if 0 <= index < len(self.messages):
+            self.messages[index]["content"] = new_content
+            self.metadata["last_modified"] = datetime.now()
+            return True
+        return False
+
+    @auto_persist
+    def delete_message(self, index: int) -> bool:
+        """Delete a specific message from the history."""
+        if 0 <= index < len(self.messages):
+            del self.messages[index]
+            self.metadata["last_modified"] = datetime.now()
+            return True
+        return False
