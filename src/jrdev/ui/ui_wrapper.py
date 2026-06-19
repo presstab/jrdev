@@ -15,13 +15,14 @@ class UiWrapper:
         """print a stream of text"""
         raise NotImplementedError("Subclasses must implement print_stream()")
 
-    def stream_chunk(self, thread_id: str, chunk: str) -> None:
+    def stream_chunk(self, thread_id: str, chunk: str, model: Optional[str] = None) -> None:
         """
         Handle an incoming chunk of text from a streaming LLM response.
         
         Args:
             thread_id: The ID of the conversation thread this chunk belongs to.
             chunk: The piece of text from the AI's response.
+            model: Optional model name associated with the response.
         """
         raise NotImplementedError("Subclasses must implement stream_chunk()")
 

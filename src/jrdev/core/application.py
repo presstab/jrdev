@@ -584,9 +584,10 @@ class Application:
 
         # 3) stream the LLM response
         content = f"{USER_INPUT_PREFIX}{user_input}"
+        response_model = self.state.model
         async for chunk in self.message_service.stream_message(msg_thread, content, worker_id):
             # for each piece of text we hand it off to the UI
-            self.ui.stream_chunk(thread_id, chunk)
+            self.ui.stream_chunk(thread_id, chunk, response_model)
         # 4) at the end, notify UI to refresh thread list or button state
         self.ui.chat_thread_update(thread_id)
 

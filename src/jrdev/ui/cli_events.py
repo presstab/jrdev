@@ -22,13 +22,14 @@ class CliEvents(UiWrapper):
         if self.capture_active:
             self.capture += message
 
-    def stream_chunk(self, thread_id: str, chunk: str) -> None:
+    def stream_chunk(self, thread_id: str, chunk: str, model: Optional[str] = None) -> None:
         """
         Handle an incoming chunk of text from a streaming LLM response.
         
         Args:
             thread_id: The ID of the conversation thread this chunk belongs to.
             chunk: The piece of text from the AI's response.
+            model: Optional model name associated with the response.
         """
         terminal_print(chunk, PrintType.LLM, end="", flush=True)
         

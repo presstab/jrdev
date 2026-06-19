@@ -63,9 +63,10 @@ class MessageService:
         response_accumulator = ""
         try:
             # stream_request returns an async generator directly as per refactoring note (b)
+            response_model = self.app.state.model
             llm_response_stream = stream_request(
                 self.app,
-                self.app.state.model,
+                response_model,
                 messages_for_llm,
                 task_id
             )
@@ -81,18 +82,18 @@ class MessageService:
                         yield "Thinking..."
                     else:
                         response_accumulator += chunk
-                        msg_thread.add_response_partial(chunk)  # Update thread with partial assistant response
+                        msg_thread.add_response_partial(chunk, model=response_model)  # Update thread with partial assistant response
                         yield chunk
                 elif in_think:
                     if chunk == "</think>":
                         in_think = False
                 else:
                     response_accumulator += chunk
-                    msg_thread.add_response_partial(chunk) # Update thread with partial assistant response
+                    msg_thread.add_response_partial(chunk, model=response_model) # Update thread with partial assistant response
                     yield chunk
 
             # Finalize the full response in the message thread
-            msg_thread.finalize_response(response_accumulator.strip())
+            msg_thread.finalize_response(response_accumulator.strip(), model=response_model)
         except Exception as e:
             logger.error("Message Service: %s", e)
             if task_id:

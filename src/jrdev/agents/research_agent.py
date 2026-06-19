@@ -94,9 +94,7 @@ class ResearchAgent:
                         summary_parts.append("No research actions were taken.")
 
                     summary = "\n".join(summary_parts)
-                    self.thread.messages.append(
-                        {"role": "assistant", "content": summary}
-                    )
+                    self.thread.add_response(summary, model=research_model)
                     return {"type": "summary", "data": summary}
 
         if response_json is None:
@@ -111,9 +109,7 @@ class ResearchAgent:
             return None
 
         # Add the structured assistant response to history *after* successful parsing.
-        self.thread.messages.append(
-            {"role": "assistant", "content": json.dumps(response_json, indent=2)}
-        )
+        self.thread.add_response(json.dumps(response_json, indent=2), model=research_model)
 
         decision = response_json.get("decision")
 
@@ -147,7 +143,7 @@ class ResearchAgent:
         if decision == "summary":
             summary = response_json.get("response", "")
             # Add summary to thread as final assistant message
-            self.thread.messages.append({"role": "assistant", "content": summary})
+            self.thread.add_response(summary, model=research_model)
             return {"type": "summary", "data": summary}
 
         self.logger.error(f"Research agent returned an unknown decision: {decision}. Aborting.")

@@ -33,10 +33,17 @@ class MessageBubble(Vertical):
     }
     """
 
-    def __init__(self, message_content: str, role: str, id: str | None = None) -> None:
+    def __init__(
+        self,
+        message_content: str,
+        role: str,
+        id: str | None = None,
+        model: str | None = None
+    ) -> None:
         super().__init__(id=id)
         self.message_content = message_content
         self.role = role
+        self.model = model
         self.is_thinking = message_content == "Thinking..."
 
         border_color_map = {
@@ -68,7 +75,7 @@ class MessageBubble(Vertical):
             self.border_title = "Me"
         else:
             self.styles.border = ("round", Color.parse("#27dfd0"))
-            self.border_title = "Assistant"
+            self.border_title = self.model or "Assistant"
 
     @on(Button.Pressed)
     async def handle_copy_button(self, event: Button.Pressed) -> None:
@@ -101,3 +108,10 @@ class MessageBubble(Vertical):
 
         # add the new text
         self.text_area.append_text(chunk)
+
+    def set_model(self, model: str | None) -> None:
+        """Set the displayed model name for assistant messages."""
+        if self.role != "assistant" or not model:
+            return
+        self.model = model
+        self.border_title = model
