@@ -67,6 +67,7 @@ class CommandInterpretationAgent:
 
         # Use a specific, fast model for this routing task
         router_model = self.app.profile_manager().get_model("intent_router")
+        response_model = router_model
         response_text = await generate_llm_response(self.app, router_model, messages, task_id=worker_id)
 
         # The user's input is part of the request, so add it to history.
@@ -97,6 +98,7 @@ class CommandInterpretationAgent:
             salvage_builder.add_user_message(response_text)
 
             salvage_model = self.app.profile_manager().get_model("quick_reasoning")
+            response_model = salvage_model
             response_text = await generate_llm_response(self.app, salvage_model, salvage_builder.build(), task_id=worker_id)
 
             try:
@@ -105,15 +107,13 @@ class CommandInterpretationAgent:
             except (json.JSONDecodeError, KeyError) as e2:
                 self.logger.error(f"Failed to parse router JSON response{e2}\nResponse:\n {response_text}\n")
                 msg = "Sorry, I had issues parsing my response. Do you want to try again?"
-                self.thread.messages.append({"role": "assistant", "content": msg})
+                self.thread.add_response(msg, model=response_model)
                 self.app.ui.print_text(msg, print_type=PrintType.ERROR)
                 return None
 
         # Add the structured assistant response to history *after* successful parsing.
         # The content is the JSON string of the decision.
-        self.thread.messages.append(
-            {"role": "assistant", "content": json.dumps(response_json, indent=2)}
-        )
+        self.thread.add_response(json.dumps(response_json, indent=2), model=response_model)
 
         decision = response_json.get("decision")
 

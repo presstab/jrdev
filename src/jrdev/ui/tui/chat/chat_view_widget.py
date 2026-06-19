@@ -288,7 +288,7 @@ class ChatViewWidget(Widget):
             else:
                 display_content = body
             
-            bubble = MessageBubble(display_content, role=role)
+            bubble = MessageBubble(display_content, role=role, model=msg.get("model"))
             await self.message_scroller.mount(bubble)
 
         await self._prune_bubbles()
@@ -318,11 +318,17 @@ class ChatViewWidget(Widget):
 
         bubbles = [child for child in self.message_scroller.children if isinstance(child, MessageBubble)]
         last_bubble = bubbles[-1] if bubbles else None
+        model = event.model
+        if not model and active_thread.messages:
+            latest_message = active_thread.messages[-1]
+            if latest_message.get("role") == "assistant":
+                model = latest_message.get("model")
 
         if last_bubble and last_bubble.role == "assistant":
+            last_bubble.set_model(model)
             last_bubble.append_chunk(event.chunk)
         else:
-            new_bubble = MessageBubble(event.chunk, role="assistant")
+            new_bubble = MessageBubble(event.chunk, role="assistant", model=model)
             await self.message_scroller.mount(new_bubble)
             await self._prune_bubbles()
 

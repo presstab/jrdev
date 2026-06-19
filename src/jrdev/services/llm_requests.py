@@ -6,8 +6,18 @@ from jrdev.services.streaming.google_stream import stream_gemini_format
 from jrdev.services.streaming.openai_stream import stream_openai_format
 
 
+def _provider_messages(messages):
+    """Return provider-safe chat messages without local persistence metadata."""
+    return [
+        {"role": msg["role"], "content": msg["content"]}
+        for msg in messages
+        if "role" in msg and "content" in msg
+    ]
+
+
 def stream_request(app, model, messages, task_id=None, print_stream=True, json_output=False, max_output_tokens=None) -> AsyncIterator[str]:
     """Route a streaming LLM request to the appropriate provider based on the model."""
+    messages = _provider_messages(messages)
     model_provider = None
     for entry in app.get_models():
         if entry["name"] == model:

@@ -58,10 +58,11 @@ class TextualEvents(UiWrapper):
 
     class StreamChunk(Message):
         """Fired once per text-chunk from the LLM."""
-        def __init__(self, thread_id: str, chunk: str):
+        def __init__(self, thread_id: str, chunk: str, model: Optional[str] = None):
             super().__init__()
             self.thread_id = thread_id
             self.chunk = chunk
+            self.model = model
 
     class ConfirmationRequest(Message):
         def __init__(self, prompt_text: str, future: asyncio.Future, diff_lines: Optional[List[str]] = None, error_msg: str = None):
@@ -224,9 +225,9 @@ class TextualEvents(UiWrapper):
         """Signal to UI that project context has been toggled on or off"""
         self.app.post_message(self.ProjectContextUpdate(is_enabled))
 
-    def stream_chunk(self, thread_id: str, chunk: str) -> None:
+    def stream_chunk(self, thread_id: str, chunk: str, model: Optional[str] = None) -> None:
         """Post a chunk event into Textual's event bus."""
-        self.app.post_message(self.StreamChunk(thread_id, chunk))
+        self.app.post_message(self.StreamChunk(thread_id, chunk, model))
 
     def providers_updated(self) -> None:
         """Providers has been changed (add/delete/edit)"""

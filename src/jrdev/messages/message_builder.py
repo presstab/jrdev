@@ -11,7 +11,7 @@ logger = logging.getLogger("jrdev")
 class MessageBuilder:
     def __init__(self, app: Any):
         self.app = app
-        self.messages: List[Dict[str, str]] = []
+        self.messages: List[Dict[str, Any]] = []
         self.files: Set[str] = set()
         self.project_files: Set[str] = set()
         self.include_tree: bool = False
@@ -33,7 +33,7 @@ class MessageBuilder:
         """Add an assistant message to the conversation"""
         self.messages.append({"role": "assistant", "content": content})
 
-    def add_historical_messages(self, messages: List[Dict[str, str]]) -> None:
+    def add_historical_messages(self, messages: List[Dict[str, Any]]) -> None:
         """Add historical message chain"""
         self.messages.extend(messages)
 
@@ -176,7 +176,7 @@ class MessageBuilder:
     def clean(self) -> None:
         self.messages = [m for m in self.messages if m["content"] != ""]
 
-    def build(self) -> List[Dict[str, str]]:
+    def build(self) -> List[Dict[str, Any]]:
         """Return the fully constructed message list"""
         if not self.isUserSectionFinal:
             self.finalize_user_section()

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import json
 import os
@@ -457,6 +459,15 @@ class Application:
         self.ui.model_list_updated()
         return True
 
+    def set_model_quantizations(self, model_name: str, quantizations: List[str]) -> bool:
+        """Set OpenRouter provider quantization filters for a model and flush to disk."""
+        if not self.state.model_list.update_model_quantizations(model_name, quantizations):
+            return False
+
+        save_models(self.state.model_list.get_model_list())
+        self.ui.model_list_updated()
+        return True
+
     def refresh_model_list(self):
         # 1) grab every model from user's config (single source of truth)
         models = load_models()
@@ -575,9 +586,10 @@ class Application:
 
         # 3) stream the LLM response
         content = f"{USER_INPUT_PREFIX}{user_input}"
+        response_model = self.state.model
         async for chunk in self.message_service.stream_message(msg_thread, content, worker_id):
             # for each piece of text we hand it off to the UI
-            self.ui.stream_chunk(thread_id, chunk)
+            self.ui.stream_chunk(thread_id, chunk, response_model)
         # 4) at the end, notify UI to refresh thread list or button state
         self.ui.chat_thread_update(thread_id)
 

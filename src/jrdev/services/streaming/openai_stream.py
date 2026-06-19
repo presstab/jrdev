@@ -14,12 +14,14 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
     app.logger.info(log_msg)
 
     # Get the appropriate client
+    model_info = None
     model_provider = None
 
     # Find the model in AVAILABLE_MODELS
     available_models = app.get_models()
     for entry in available_models:
         if entry["name"] == model:
+            model_info = entry
             model_provider = entry["provider"]
             break
 
@@ -61,6 +63,10 @@ async def stream_openai_format(app, model, messages, task_id=None, print_stream=
             kwargs["response_format"] = {"type": "json_object"}
     elif model_provider == "venice":
         kwargs["extra_body"] = {"venice_parameters": {"include_venice_system_prompt": False}}
+    elif model_provider == "open_router" and model_info:
+        quantizations = model_info.get("quantizations")
+        if isinstance(quantizations, list) and quantizations and all(isinstance(item, str) for item in quantizations):
+            kwargs["extra_body"] = {"provider": {"quantizations": quantizations}}
 
     stream = await client.chat.completions.create(**kwargs)
 

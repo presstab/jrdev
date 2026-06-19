@@ -37,7 +37,7 @@ class MessageThread:
         """
         self.thread_id: str = thread_id
         self.name: Optional[str] = None
-        self.messages: List[Dict[str, str]] = []
+        self.messages: List[Dict[str, Any]] = []
         self.context: Set[str] = set()
         self.embedded_files: Set[str] = set()
         self.token_usage: Dict[str, int] = {"input": 0, "output": 0}
@@ -171,31 +171,44 @@ class MessageThread:
         self.metadata["last_modified"] = datetime.now()
 
     @auto_persist
-    def add_response(self, response: str) -> None:
+    def add_response(self, response: str, model: Optional[str] = None) -> None:
         """Add a complete assistant response to the thread history."""
-        self.messages.append({"role": "assistant", "content": response})
+        message = {"role": "assistant", "content": response}
+        if model:
+            message["model"] = model
+        self.messages.append(message)
         self.metadata["last_modified"] = datetime.now()
 
     @auto_persist
-    def add_response_partial(self, chunk: str) -> None:
+    def add_response_partial(self, chunk: str, model: Optional[str] = None) -> None:
         """Add a partial assistant response chunk to the thread history."""
         if self.messages and self.messages[-1].get("role") == "assistant":
             self.messages[-1]["content"] += chunk
+            if model:
+                self.messages[-1]["model"] = model
         else:
-            self.messages.append({"role": "assistant", "content": chunk})
+            message = {"role": "assistant", "content": chunk}
+            if model:
+                message["model"] = model
+            self.messages.append(message)
         self.metadata["last_modified"] = datetime.now()
 
     @auto_persist
-    def finalize_response(self, full_text: str) -> None:
+    def finalize_response(self, full_text: str, model: Optional[str] = None) -> None:
         """Finalize the assistant response, replacing partials with full text."""
         if self.messages and self.messages[-1].get("role") == "assistant":
             self.messages[-1]["content"] = full_text
+            if model:
+                self.messages[-1]["model"] = model
         else:
-            self.messages.append({"role": "assistant", "content": full_text})
+            message = {"role": "assistant", "content": full_text}
+            if model:
+                message["model"] = model
+            self.messages.append(message)
         self.metadata["last_modified"] = datetime.now()
 
     @auto_persist
-    def set_compacted(self, messages: List[Dict[str, str]]) -> None:
+    def set_compacted(self, messages: List[Dict[str, Any]]) -> None:
         """Replace the existing messages list and reset file states."""
         self.messages = messages
         self.context = set()

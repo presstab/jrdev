@@ -142,8 +142,8 @@ class FetchContextPhase(Stage):
             self.app.ui.update_task_info(sub_task_str, update={"sub_task_finished": True})
 
         json_content = cutoff_string(response, "```json", "```")
-        tool_calls = json.loads(json_content)
         try:
+            tool_calls = json.loads(json_content)
             if tool_calls:
                 tool = tool_calls.get("tool")
                 if tool and tool == "read":
@@ -154,7 +154,7 @@ class FetchContextPhase(Stage):
                             if file not in files:
                                 files.append(file)
                                 self.app.logger.info(f"Adding file {file}")
-        except AttributeError as e:
+        except (json.JSONDecodeError, TypeError, AttributeError) as e:
             self.app.logger.error("ask_files_sufficient: malformed additional files response %s", str(e))
             self.app.ui.print_text("ask_files_sufficient response malformed", PrintType.ERROR)
         return files

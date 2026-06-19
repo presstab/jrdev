@@ -4,10 +4,14 @@
 Model command implementation for the JrDev terminal.
 Manages the user's list of available models and the active chat model.
 """
+from __future__ import annotations
+
 from typing import Any, List, Union
 
 from jrdev.ui.ui import PrintType
 from jrdev.utils.string_utils import is_valid_context_window, is_valid_cost, is_valid_name
+
+OPENROUTER_PROVIDER = "open_router"
 
 
 def _parse_bool(val: str) -> bool:
@@ -19,6 +23,31 @@ def _parse_bool(val: str) -> bool:
     if val.lower() in false_vals:
         return False
     raise ValueError(f"Invalid boolean value: {val}")
+
+
+def _parse_quantizations(args: List[str]) -> List[str] | None:
+    """Parse a quantization list from CLI args such as [int4, int8]."""
+    raw = " ".join(args).strip()
+    if raw.startswith("[") and raw.endswith("]"):
+        raw = raw[1:-1].strip()
+
+    if not raw:
+        return None
+
+    if "," in raw:
+        quantizations = [item.strip() for item in raw.split(",")]
+    else:
+        quantizations = raw.split()
+
+    quantizations = [item for item in quantizations if item]
+    if not quantizations:
+        return None
+
+    for quantization in quantizations:
+        if not is_valid_name(quantization, max_len=32):
+            return None
+
+    return quantizations
 
 
 # pylint: disable=too-many-return-statements
@@ -101,6 +130,8 @@ async def handle_model(app, args: List[str], _worker_id: str):
       list                          - Shows all models available in your configuration.
       set <model_name>              - Sets the active model for the chat.
       remove <model_name>           - Removes a model from your configuration.
+      <model_name> quantizations [values]
+                                    - Sets OpenRouter provider quantization filters.
       add <name> <provider> <is_think> <input> <output> <context>
                                     - Adds a new model to your configuration.
       edit <name> <provider> <is_think> <input> <output> <context>
@@ -125,6 +156,8 @@ async def handle_model(app, args: List[str], _worker_id: str):
         "  /model list                       - Shows all models available in your user_models.json.\n"
         "  /model set <model_name>           - Sets the active model for the chat.\n"
         "  /model remove <model_name>        - Removes a model from your user_models.json.\n"
+        "  /model <model_name> quantizations [int4, int8]\n"
+        "      - Set OpenRouter provider quantization filters for a model.\n"
         "  /model add <name> <provider> <is_think> <input_cost> <output_cost> <context_window>\n"
         "      - Add a new model to your user_models.json.\n"
         "        <input_cost> and <output_cost> are the cost per 1,000,000 tokens (as a float, in dollars).\n"
@@ -145,6 +178,10 @@ async def handle_model(app, args: List[str], _worker_id: str):
         return
 
     subcommand = args[1].lower()
+    if len(args) >= 3 and args[2].lower() == "quantizations":
+        _handle_quantizations(app, args, available_model_names)
+        return
+
     _handle_subcommand(app, subcommand, args, available_model_names)
 
     if subcommand not in ["list", "set", "remove", "add", "edit"]:
@@ -172,6 +209,48 @@ def _handle_subcommand(app: Any, subcommand: str, args: List[str], available_mod
 
     if subcommand == "edit":
         _handle_edit(app, args, available_model_names)
+
+
+def _handle_quantizations(app: Any, args: List[str], available_model_names: List[str]) -> None:
+    if len(args) < 4:
+        app.ui.print_text("Usage: /model <model_name> quantizations [int4, int8]", PrintType.ERROR)
+        return
+
+    model_name = args[1]
+    if model_name not in available_model_names:
+        app.ui.print_text(f"Error: Model '{model_name}' not found in your configuration.", PrintType.ERROR)
+        return
+
+    model_info = next((model for model in app.get_models() if model["name"] == model_name), None)
+    if not model_info:
+        app.ui.print_text(f"Error: Model '{model_name}' not found in your configuration.", PrintType.ERROR)
+        return
+
+    provider = model_info.get("provider")
+    if provider != OPENROUTER_PROVIDER:
+        app.ui.print_text(
+            f"Error: Quantizations can only be set for OpenRouter models. '{model_name}' uses provider '{provider}'.",
+            PrintType.ERROR,
+        )
+        return
+
+    quantizations = _parse_quantizations(args[3:])
+    if quantizations is None:
+        app.ui.print_text(
+            "Invalid quantizations. Usage: /model <model_name> quantizations [int4, int8]", PrintType.ERROR
+        )
+        return
+
+    if not app.set_model_quantizations(model_name, quantizations):
+        app.logger.info(f"Failed to set quantizations for model {model_name}")
+        app.ui.print_text(f"Failed to set quantizations for model '{model_name}'", PrintType.ERROR)
+        return
+
+    app.logger.info(f"Set quantizations for model {model_name}: {quantizations}")
+    app.ui.print_text(
+        f"Set quantizations for model '{model_name}' to: {', '.join(quantizations)}",
+        PrintType.SUCCESS,
+    )
 
 
 def _handle_set(app: Any, args: List[str], available_model_names: List[str]) -> None:

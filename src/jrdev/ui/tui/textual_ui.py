@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from jrdev.ui.tui.model_listview import ModelListView
 from jrdev.ui.ui import printtype_to_string
 from textual import on, events

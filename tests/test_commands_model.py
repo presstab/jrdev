@@ -15,7 +15,7 @@ from jrdev.commands import model as model_cmd
 
 # Helper: run async function in sync test
 def run_async(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 class DummyUI:
     def __init__(self):
@@ -35,6 +35,7 @@ class DummyApp:
         self.added_models = []
         self.removed_models = []
         self.edited_models = []
+        self.quantization_models = []
         self.failed_remove = False
     def get_model_names(self):
         return [m["name"] for m in self._models]
@@ -79,12 +80,21 @@ class DummyApp:
                 self.edited_models.append(name)
                 return True
         return False
+    def set_model_quantizations(self, name, quantizations):
+        for m in self._models:
+            if m["name"] == name:
+                m["quantizations"] = quantizations
+                self.quantization_models.append(name)
+                return True
+        return False
+
 
 class TestModelCommand(unittest.TestCase):
     def setUp(self):
         self.default_models = [
             {"name": "gpt-4", "provider": "openai", "is_think": True, "input_cost": 1, "output_cost": 2, "context_tokens": 8192},
-            {"name": "gpt-3.5", "provider": "openai", "is_think": False, "input_cost": 1, "output_cost": 2, "context_tokens": 4096}
+            {"name": "gpt-3.5", "provider": "openai", "is_think": False, "input_cost": 1, "output_cost": 2, "context_tokens": 4096},
+            {"name": "openai/glm-5", "provider": "open_router", "is_think": True, "input_cost": 1, "output_cost": 2, "context_tokens": 128000}
         ]
         self.app = DummyApp(models=[m.copy() for m in self.default_models], model="gpt-4")
 
@@ -93,7 +103,7 @@ class TestModelCommand(unittest.TestCase):
         out = "\n".join(msg for msg, _ in self.app.ui.printed)
         self.assertIn("Current chat model: gpt-4", out)
         self.assertIn("/model list", out)
-        self.assertIn("Available models: gpt-4, gpt-3.5", out)
+        self.assertIn("Available models: gpt-4, gpt-3.5, openai/glm-5", out)
 
     def test_list_models(self):
         run_async(model_cmd.handle_model(self.app, ["/model", "list"], "w1"))
@@ -101,6 +111,7 @@ class TestModelCommand(unittest.TestCase):
         self.assertIn("Available models (from your user_models.json):", out)
         self.assertIn("  - gpt-4", out)
         self.assertIn("  - gpt-3.5", out)
+        self.assertIn("  - openai/glm-5", out)
 
     def test_list_models_empty(self):
         app = DummyApp(models=[])
@@ -119,7 +130,7 @@ class TestModelCommand(unittest.TestCase):
         run_async(model_cmd.handle_model(self.app, ["/model", "set"], "w1"))
         out = "\n".join(msg for msg, _ in self.app.ui.printed)
         self.assertIn("Usage: /model set <model_name>", out)
-        self.assertIn("Available models: gpt-4, gpt-3.5", out)
+        self.assertIn("Available models: gpt-4, gpt-3.5, openai/glm-5", out)
 
     def test_set_model_not_found(self):
         run_async(model_cmd.handle_model(self.app, ["/model", "set", "notfound"], "w1"))
@@ -433,6 +444,31 @@ class TestModelCommand(unittest.TestCase):
         out = "\n".join(msg for msg, _ in self.app.ui.printed)
         self.assertIn("context_window must be between 1 and 1,000,000,000", out)
         self.assertEqual(len(self.app.edited_models), 0)
+
+    def test_set_openrouter_quantizations_success(self):
+        args = ["/model", "openai/glm-5", "quantizations", "[int4,", "int8]"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        model = next(m for m in self.app.get_models() if m["name"] == "openai/glm-5")
+        self.assertEqual(model["quantizations"], ["int4", "int8"])
+        self.assertIn("openai/glm-5", self.app.quantization_models)
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Set quantizations for model 'openai/glm-5' to: int4, int8", out)
+
+    def test_set_quantizations_rejects_non_openrouter_model(self):
+        args = ["/model", "gpt-4", "quantizations", "[int4,", "int8]"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        model = next(m for m in self.app.get_models() if m["name"] == "gpt-4")
+        self.assertNotIn("quantizations", model)
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Quantizations can only be set for OpenRouter models", out)
+
+    def test_set_quantizations_rejects_empty_list(self):
+        args = ["/model", "openai/glm-5", "quantizations", "[]"]
+        run_async(model_cmd.handle_model(self.app, args, "w1"))
+        model = next(m for m in self.app.get_models() if m["name"] == "openai/glm-5")
+        self.assertNotIn("quantizations", model)
+        out = "\n".join(msg for msg, _ in self.app.ui.printed)
+        self.assertIn("Invalid quantizations", out)
 
 
 if __name__ == "__main__":

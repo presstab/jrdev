@@ -127,7 +127,7 @@ async def handle_compact(app: Any, args: List[str], worker_id: str) -> None:
                 # Create new messages in the required format
                 new_messages = [
                     {"role": "user", "content": compact_data["user"]},
-                    {"role": "assistant", "content": compact_data["assistant"]},
+                    {"role": "assistant", "content": compact_data["assistant"], "model": model},
                 ]
 
                 # Replace the thread's messages with just these two

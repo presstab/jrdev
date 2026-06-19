@@ -82,7 +82,7 @@ async def handle_help(app: Any, args: List[str], _worker_id: str):
     app.ui.print_text(
         f"  {cmd_format}{format_command_with_args('/model', '<list|set|remove|add|edit> [args]')}{reset} "
         "- Manage and add models (/model add|edit <name> <provider> <is_think> <input_cost> <output_cost> "
-        "<context_window>)",
+        "<context_window>; /model <name> quantizations [int4, int8] for OpenRouter)",
         print_type=None,
     )
     app.ui.print_text(f"  {cmd_format}/models{reset} - List all available models", print_type=None)
@@ -215,7 +215,7 @@ async def handle_help_plain(app: Any, _args: List[str]):
 
     app.ui.print_text(
         "  /model <list|set|remove|add|edit> [args] - Manage and add models (/model add|edit <name> <provider> "
-        "<is_think> <input_cost> <output_cost> <context_window>)",
+        "<is_think> <input_cost> <output_cost> <context_window>; /model <name> quantizations [int4, int8] for OpenRouter)",
         print_type=None,
     )
     app.ui.print_text("  /models - List all available models", print_type=None)

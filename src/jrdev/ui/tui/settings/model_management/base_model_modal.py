@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from textual.screen import ModalScreen
 from textual.widgets import Input, Button, Label, Select
 from textual.containers import Vertical, Horizontal
