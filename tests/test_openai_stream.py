@@ -11,7 +11,7 @@ from jrdev.services.streaming.openai_stream import stream_openai_format
 
 
 def run_async(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 class FakeUsage:

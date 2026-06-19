@@ -15,7 +15,7 @@ from jrdev.commands import model as model_cmd
 
 # Helper: run async function in sync test
 def run_async(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 class DummyUI:
     def __init__(self):
