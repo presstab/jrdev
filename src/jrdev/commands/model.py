@@ -4,6 +4,8 @@
 Model command implementation for the JrDev terminal.
 Manages the user's list of available models and the active chat model.
 """
+from __future__ import annotations
+
 from typing import Any, List, Union
 
 from jrdev.ui.ui import PrintType
