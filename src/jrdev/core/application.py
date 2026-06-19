@@ -457,6 +457,15 @@ class Application:
         self.ui.model_list_updated()
         return True
 
+    def set_model_quantizations(self, model_name: str, quantizations: List[str]) -> bool:
+        """Set OpenRouter provider quantization filters for a model and flush to disk."""
+        if not self.state.model_list.update_model_quantizations(model_name, quantizations):
+            return False
+
+        save_models(self.state.model_list.get_model_list())
+        self.ui.model_list_updated()
+        return True
+
     def refresh_model_list(self):
         # 1) grab every model from user's config (single source of truth)
         models = load_models()

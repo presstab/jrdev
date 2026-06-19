@@ -75,6 +75,18 @@ class ModelList:
                     return True
             return False
 
+    def update_model_quantizations(self, model_name: str, quantizations: List[str]) -> bool:
+        """
+        Update OpenRouter provider quantization filters for an existing model.
+        Returns True if the model was updated, False if the model was not found.
+        """
+        with self._lock:
+            for m in self._model_list:
+                if m["name"] == model_name:
+                    m["quantizations"] = quantizations
+                    return True
+            return False
+
     def add_model(self, model_name: str, provider: str, is_think: bool, input_cost: int, output_cost: int, context_window: int) -> bool:
         """
         Add a new model to the model list if it does not already exist.
