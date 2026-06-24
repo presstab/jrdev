@@ -1,5 +1,6 @@
 from typing import AsyncIterator, TYPE_CHECKING
 from jrdev.messages.message_builder import MessageBuilder
+from jrdev.prompts.prompt_utils import PromptManager
 from jrdev.services.llm_requests import stream_request
 from jrdev.messages.thread import MessageThread
 import re
@@ -9,6 +10,8 @@ logger = logging.getLogger("jrdev")
 
 if TYPE_CHECKING:
     from jrdev.core.application import Application # To avoid circular imports
+
+THREAD_NAME_PATTERN = re.compile(r"\n?\s*Thread name:\s*([A-Za-z0-9 _-]{1,40})\s*$", re.IGNORECASE)
 
 def filter_think_tags(text):
     """Remove content within <think></think> tags."""
@@ -25,6 +28,14 @@ def is_inside_think_tag(text):
     # If there are more opening tags than closing tags, we're inside a tag
     return think_open > think_close
 
+
+def _sanitize_thread_name(name: str) -> str:
+    """Return a safe, short thread display name from model output."""
+    safe_name = re.sub(r"[^A-Za-z0-9 _-]", "", name)
+    safe_name = re.sub(r"\s+", " ", safe_name).strip(" _-")
+    return safe_name[:15].strip(" _-")
+
+
 class MessageService:
     def __init__(self, application: 'Application'):
         self.app = application
@@ -39,6 +50,8 @@ class MessageService:
         # Configure builder with history and context
         builder.set_embedded_files(msg_thread.embedded_files)
 
+        request_thread_name = not msg_thread.messages and not msg_thread.name
+
         if msg_thread.messages:
             builder.add_historical_messages(msg_thread.messages)
         elif self.app.state.use_project_context: # Add project files if no history and project context is on
@@ -52,12 +65,16 @@ class MessageService:
         builder.append_to_user_section(content)
         builder.finalize_user_section()
 
-        messages_for_llm = builder.build()
+        persisted_messages = builder.build()
+        messages_for_llm = persisted_messages
+        if request_thread_name:
+            thread_name_prompt = PromptManager.load("conversation/thread_name")
+            messages_for_llm = [{"role": "system", "content": thread_name_prompt}, *messages_for_llm]
 
         # Update message thread state with the new user message and context used
         # This ensures the user's message is part of the history before the assistant responds.
         msg_thread.add_embedded_files(builder.get_files()) # Files used are now "embedded"
-        msg_thread.messages = messages_for_llm # Update thread history to include this user's message
+        msg_thread.messages = persisted_messages # Update thread history to include this user's message
 
         # Stream response from LLM
         response_accumulator = ""
@@ -93,7 +110,15 @@ class MessageService:
                     yield chunk
 
             # Finalize the full response in the message thread
-            msg_thread.finalize_response(response_accumulator.strip(), model=response_model)
+            final_response = response_accumulator.strip()
+            if request_thread_name:
+                match = THREAD_NAME_PATTERN.search(final_response)
+                if match:
+                    thread_name = _sanitize_thread_name(match.group(1))
+                    if thread_name:
+                        msg_thread.set_name(thread_name)
+                    final_response = THREAD_NAME_PATTERN.sub("", final_response).rstrip()
+            msg_thread.finalize_response(final_response, model=response_model)
         except Exception as e:
             logger.error("Message Service: %s", e)
             if task_id:
