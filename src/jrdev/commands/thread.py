@@ -8,6 +8,7 @@ Commands:
 - /thread list: List all available threads
 - /thread switch THREAD_ID: Switch to a different thread
 - /thread rename THREAD_ID NAME: Rename an existing thread
+- /thread name-all: Generate names for unnamed threads
 - /thread info: Show information about the current thread
 - /thread view [COUNT]: View conversation history in the current thread (default: 10)
 - /thread delete THREAD_ID: Delete an existing thread
@@ -20,10 +21,13 @@ For more details, see the docs/threads.md documentation.
 
 import argparse
 import re
-from typing import Any, List
+from typing import Any, Dict, List, Optional
 
 from jrdev.commands.help import format_command_with_args_plain
-from jrdev.messages.thread import MessageThread  # For type hinting
+from jrdev.messages.thread import MessageThread, USER_INPUT_PREFIX  # For type hinting
+from jrdev.prompts.prompt_utils import PromptManager
+from jrdev.services.llm_requests import generate_llm_response
+from jrdev.services.message_service import THREAD_NAME_PATTERN, _sanitize_thread_name
 from jrdev.ui.ui import PrintType, show_conversation
 
 
@@ -43,6 +47,7 @@ async def handle_thread(app: Any, args: List[str], _worker_id: str) -> None:
       list                    - Lists all available threads.
       switch <thread_id>      - Switches to an existing thread.
       rename <thread_id> <name> - Renames an existing thread.
+      name-all                - Uses the low_cost_search model to name unnamed threads.
       info                    - Shows information about the current thread.
       view [count]            - Views conversation history (default: 10 messages).
       delete <thread_id>      - Deletes an existing thread.
@@ -103,6 +108,14 @@ async def handle_thread(app: Any, args: List[str], _worker_id: str) -> None:
     rename_parser.add_argument("thread_id", type=str, help="Unique ID of the thread to rename")
     rename_parser.add_argument(
         "name", type=str, nargs=argparse.REMAINDER, help="New name for the thread (3-20 chars, a-z0-9_- )"
+    )
+
+    # Name all unnamed threads command
+    subparsers.add_parser(
+        "name-all",
+        help="Generate names for unnamed threads",
+        description="Use the low_cost_search model to generate names for unnamed conversation threads",
+        epilog=f"Example: {format_command_with_args_plain('/thread name-all')}",
     )
 
     # Show thread info command
@@ -178,6 +191,8 @@ async def handle_thread(app: Any, args: List[str], _worker_id: str) -> None:
             await _handle_switch_thread(app, parsed_args)
         elif parsed_args.subcommand == "rename":
             await _handle_rename_thread(app, parsed_args)
+        elif parsed_args.subcommand == "name-all":
+            await _handle_name_all_threads(app, _worker_id)
         elif parsed_args.subcommand == "info":
             await _handle_thread_info(app)
         elif parsed_args.subcommand == "view":
@@ -195,6 +210,7 @@ async def handle_thread(app: Any, args: List[str], _worker_id: str) -> None:
                 ("list", "", "List all available threads", "thread list"),
                 ("switch", "<id>", "Change active thread", "thread switch 2"),
                 ("rename", "<thread_id> <name>", "Rename an existing thread", "thread rename thread_abc new_name"),
+                ("name-all", "", "Generate names for unnamed threads", "thread name-all"),
                 ("info", "", "Show current thread details", "thread info"),
                 ("view", "[count]", "Display message history", "thread view 5"),
                 ("delete", "<thread_id>", "Delete an existing thread", "thread delete thread_abc"),
@@ -231,6 +247,11 @@ async def handle_thread(app: Any, args: List[str], _worker_id: str) -> None:
                 "Rename Thread",
                 format_command_with_args_plain("/thread rename", "<thread_id> <new_name>"),
                 "Change the name of an existing thread\nExample: /thread rename my_thread_id new_feature_name",
+            ),
+            (
+                "Name Unnamed Threads",
+                format_command_with_args_plain("/thread name-all"),
+                "Generate names for unnamed conversation threads\nExample: /thread name-all",
             ),
             (
                 "Thread Info",
@@ -391,6 +412,124 @@ async def _handle_rename_thread(app: Any, args: argparse.Namespace) -> None:
         PrintType.SUCCESS,
     )
     app.ui.chat_thread_update(thread_id_to_rename)
+
+
+def _thread_needs_name(thread_id: str, thread: MessageThread, router_thread_id: str) -> bool:
+    """Return True when a user conversation thread has messages but no display name."""
+    if thread_id == router_thread_id or thread.metadata.get("type") == "router":
+        return False
+    return bool(thread.messages) and not bool(thread.name and thread.name.strip())
+
+
+def _first_user_message(thread: MessageThread) -> Optional[Dict[str, str]]:
+    """Return the first user message in a provider-safe shape."""
+    for message in thread.messages:
+        if message.get("role") == "user" and message.get("content"):
+            content = str(message["content"])
+            if USER_INPUT_PREFIX in content:
+                content = content.split(USER_INPUT_PREFIX, 1)[1].strip()
+            return {"role": "user", "content": content}
+    return None
+
+
+def _extract_thread_name(response: Optional[str]) -> Optional[str]:
+    """Extract and sanitize a thread name from the standard thread naming response."""
+    if not response:
+        return None
+    text = response.strip()
+    match = THREAD_NAME_PATTERN.search(text)
+    if not match:
+        tag_match = re.search(r"<thread_name>\s*([^<]{1,80})\s*</thread_name>", text, re.IGNORECASE)
+        if tag_match:
+            return _sanitize_thread_name(tag_match.group(1)) or None
+
+        line_match = re.search(
+            r"(?:^|\n)\s*(?:[-*]\s*)?(?:`{1,3})?Thread\s+name\s*:\s*[\"'`]*([^\n\"'`<]{1,80})",
+            text,
+            re.IGNORECASE,
+        )
+        if line_match:
+            return _sanitize_thread_name(line_match.group(1)) or None
+
+        lines = [line.strip(" `\"'") for line in text.splitlines() if line.strip()]
+        if len(lines) == 1 and len(lines[0]) <= 80:
+            return _sanitize_thread_name(lines[0]) or None
+
+        return None
+    return _sanitize_thread_name(match.group(1)) or None
+
+
+async def _handle_name_all_threads(app: Any, worker_id: str) -> None:
+    """Generate names for all unnamed threads using the low_cost_search profile."""
+    router_thread_id = app.state.router_thread_id
+    unnamed_threads = [
+        thread
+        for thread_id, thread in app.state.threads.items()
+        if _thread_needs_name(thread_id, thread, router_thread_id)
+    ]
+
+    if not unnamed_threads:
+        app.ui.print_text("No unnamed threads with messages found.", PrintType.INFO)
+        return
+
+    model = app.profile_manager().get_model("low_cost_search")
+    thread_name_prompt = PromptManager.load("conversation/thread_name")
+    app.ui.print_text(
+        f"Naming {len(unnamed_threads)} unnamed thread(s) using {model} (low_cost_search profile)...",
+        PrintType.PROCESSING,
+    )
+
+    named_count = 0
+    skipped_count = 0
+    failed_count = 0
+
+    for thread in unnamed_threads:
+        first_user_message = _first_user_message(thread)
+        if not first_user_message:
+            skipped_count += 1
+            app.ui.print_text(
+                f"Skipping {thread.thread_id}: no user message found.",
+                PrintType.INFO,
+            )
+            continue
+
+        name_request = (
+            "Name this existing thread using the first user request below. "
+            "Return only the final thread name line.\n\n"
+            f"First request:\n{first_user_message['content']}"
+        )
+        messages = [{"role": "system", "content": thread_name_prompt}, {"role": "user", "content": name_request}]
+        try:
+            response = await generate_llm_response(
+                app,
+                model,
+                messages,
+                worker_id,
+                print_stream=False,
+                max_output_tokens=200,
+            )
+            thread_name = _extract_thread_name(response)
+            if not thread_name:
+                failed_count += 1
+                app.ui.print_text(
+                    f"Could not extract a valid name for {thread.thread_id}.",
+                    PrintType.WARNING,
+                )
+                continue
+
+            thread.set_name(thread_name)
+            named_count += 1
+            app.ui.print_text(f"Named {thread.thread_id}: {thread_name}", PrintType.SUCCESS)
+            app.ui.chat_thread_update(thread.thread_id)
+        except Exception as e:
+            failed_count += 1
+            app.logger.error("Failed to name thread %s: %s", thread.thread_id, e)
+            app.ui.print_text(f"Failed to name {thread.thread_id}: {e}", PrintType.ERROR)
+
+    app.ui.print_text(
+        f"Thread naming complete: {named_count} named, {skipped_count} skipped, {failed_count} failed.",
+        PrintType.SUCCESS if failed_count == 0 else PrintType.WARNING,
+    )
 
 
 async def _handle_thread_info(app: Any) -> None:

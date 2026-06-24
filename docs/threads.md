@@ -9,6 +9,7 @@ JrDev supports multiple conversation threads, each with isolated context and mes
 | `/thread new [NAME]` | Create a new thread with optional name |
 | `/thread list` | List all available threads |
 | `/thread switch THREAD_ID` | Switch to a different thread |
+| `/thread name-all` | Generate names for unnamed threads |
 | `/thread info` | Show information about the current thread |
 | `/thread view [COUNT]` | View conversation (default: 10 messages) |
 
@@ -66,6 +67,19 @@ Switch to a different thread with:
 > /thread switch main
 Switched to thread: main
 ```
+
+### Naming Existing Threads
+
+Generate names for any threads that have messages but no name:
+
+```
+> /thread name-all
+Naming 1 unnamed thread(s) using gpt-5-mini (low_cost_search profile)...
+Named thread_a1b2c3d4: auth-fix
+Thread naming complete: 1 named, 0 skipped, 0 failed.
+```
+
+This uses the `low_cost_search` model profile and the same prompt used when JrDev names new chat threads automatically.
 
 ### Viewing Thread Information
 
