@@ -15,6 +15,7 @@ logger = logging.getLogger("jrdev")
 
 class CommandTextArea(TextArea):
     """A command input widget based on TextArea for multi-line input."""
+    MAX_HISTORY = 20
 
     DEFAULT_CSS = """
     CommandTextArea {
@@ -91,7 +92,7 @@ class CommandTextArea(TextArea):
         if os.path.exists(history_file):
             try:
                 with open(history_file, "r", encoding="utf-8") as f:
-                    self.submit_history = json.load(f)
+                    self.submit_history = json.load(f)[-self.MAX_HISTORY:]
                     self.history_index = len(self.submit_history)
             except Exception as e:
                 logger.error(f"Error loading command history: {e}")
@@ -134,6 +135,7 @@ class CommandTextArea(TextArea):
             return
         self.post_message(self.Submitted(self, self.text))
         self.submit_history.append(self.text)
+        self.submit_history = self.submit_history[-self.MAX_HISTORY:]
         self.history_index = len(self.submit_history)
 
         # Save updated history
