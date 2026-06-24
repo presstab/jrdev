@@ -136,7 +136,7 @@ async def handle_help(app: Any, args: List[str], _worker_id: str):
     )
 
     app.ui.print_text(
-        f"  {cmd_format}{format_command_with_args('/thread', '<new|list|switch|info>')}{reset} - Manage "
+        f"  {cmd_format}{format_command_with_args('/thread', '<new|list|switch|name-all|info>')}{reset} - Manage "
         "separate message threads with isolated context",
         print_type=None,
     )
@@ -242,7 +242,8 @@ async def handle_help_plain(app: Any, _args: List[str]):
     app.ui.print_text("Message Threads & Context Control:", print_type=None)
 
     app.ui.print_text(
-        "  /thread <new|list|switch|info> - Manage separate message threads with isolated context", print_type=None
+        "  /thread <new|list|switch|name-all|info> - Manage separate message threads with isolated context",
+        print_type=None,
     )
     app.ui.print_text("  /addcontext <file_path or pattern> - Add file(s) to the LLM context window", print_type=None)
     app.ui.print_text("  /viewcontext [number] - View the LLM context window content", print_type=None)

@@ -317,19 +317,22 @@ class JrDevUI(App[None]):
             return
 
         self.directory_widget.reload_highlights()
-        # get the thread
-        msg_thread = self.jrdev.get_current_thread()
+        # Update the thread that emitted the event; it may not be the active thread.
+        msg_thread = self.jrdev.get_thread(message.thread_id)
         if msg_thread:
             # update chat_list buttons
             await self.chat_list.thread_update(msg_thread)
-            self.chat_list.set_active(msg_thread.thread_id)
+            active_thread = self.jrdev.get_current_thread()
+            if active_thread:
+                self.chat_list.set_active(active_thread.thread_id)
 
             # double check that no threads were deleted
             all_threads = self.jrdev.state.get_thread_ids()
             self.chat_list.check_threads(all_threads)
 
             # update chat view
-            await self.chat_view.on_thread_switched()
+            if active_thread and msg_thread.thread_id == active_thread.thread_id:
+                await self.chat_view.on_thread_switched()
 
     @on(TextualEvents.CodeContextUpdate)
     def handle_code_context_update(self, message: TextualEvents.CodeContextUpdate) -> None:
