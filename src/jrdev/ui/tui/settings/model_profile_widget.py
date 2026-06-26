@@ -11,7 +11,7 @@ import logging
 
 logger = logging.getLogger("jrdev")
 
-class ModelSelectionModal(ModalScreen[str]):
+class ModelSelectionModal(ModalScreen[Any]):
     """Modal screen for selecting a model"""
 
     DEFAULT_CSS = """
@@ -55,6 +55,11 @@ class ModelSelectionModal(ModalScreen[str]):
         background: $success;
         margin-right: 1;
     }
+
+    #use-model-for-all-btn {
+        background: $primary;
+        margin-right: 1;
+    }
     
     #cancel-btn {
         background: $error;
@@ -79,6 +84,7 @@ class ModelSelectionModal(ModalScreen[str]):
         self.model_selection_widget: ModelSelectionWidget = None
         self.selected_model: Optional[str] = None
         self.button_save = Button("Save", variant="success", id="save-btn")
+        self.button_use_model_for_all = Button("Use Model for All", variant="primary", id="use-model-for-all-btn")
         self.button_cancel = Button("Cancel", variant="default", id="cancel-btn")
 
     def compose(self) -> Any:
@@ -92,6 +98,7 @@ class ModelSelectionModal(ModalScreen[str]):
 
             with Horizontal(id="modal-footer"):
                 yield self.button_save
+                yield self.button_use_model_for_all
                 yield self.button_cancel
 
     async def on_mount(self) -> None:
@@ -100,6 +107,7 @@ class ModelSelectionModal(ModalScreen[str]):
         self.model_selection_widget.styles.border = "none"
         self.model_selection_widget.styles.height = "90%"
         self.button_save.styles.border = "none"
+        self.button_use_model_for_all.styles.border = "none"
         self.button_cancel.styles.border = "none"
 
 
@@ -109,6 +117,15 @@ class ModelSelectionModal(ModalScreen[str]):
         if selected_button:
             self.selected_model = str(selected_button.label)
             self.dismiss(self.selected_model)
+        else:
+            self.dismiss(None)
+
+    @on(Button.Pressed, "#use-model-for-all-btn")
+    def handle_use_model_for_all(self) -> None:
+        selected_button = self.model_selection_widget.pressed_button
+        if selected_button:
+            self.selected_model = str(selected_button.label)
+            self.dismiss({"action": "all", "model": self.selected_model})
         else:
             self.dismiss(None)
 
@@ -208,10 +225,22 @@ class ModelProfileScreen(ModalScreen):
         color: $text-muted;
     }
 
+    #model-actions {
+        height: auto;
+        margin-top: 1;
+    }
+
     #change-model-btn {
         margin-top: 1;
         background: $primary;
         width: 20;
+    }
+
+    #change-all-models-btn {
+        margin-top: 1;
+        margin-left: 1;
+        background: $primary;
+        width: 24;
     }
 
     #footer {
@@ -247,7 +276,9 @@ class ModelProfileScreen(ModalScreen):
                 with Vertical(id="model-info"):
                     yield Label("Current Model", id="model-info-title")
                     yield Label("", id="current-model")
-                    yield Button("Change Model", id="change-model-btn")
+                    with Horizontal(id="model-actions"):
+                        yield Button("Change Model", id="change-model-btn")
+                        yield Button("Use Model for All", id="change-all-models-btn")
 
             with Horizontal(id="footer"):
                 yield Button("Close", variant="default", id="close-btn")
@@ -256,8 +287,9 @@ class ModelProfileScreen(ModalScreen):
         """Load profiles and set up the UI when the screen is mounted"""
         self.load_profiles()
         
-        # Initially hide the change button until a profile is selected
-        self.query_one("#change-model-btn", Button).disabled = True
+        has_profile = bool(self.selected_profile)
+        self.query_one("#change-model-btn", Button).disabled = not has_profile
+        self.query_one("#change-all-models-btn", Button).disabled = not bool(self.profiles)
 
         self.profile_richlog.wrap = True
         self.profile_richlog.markup = True
@@ -318,6 +350,7 @@ class ModelProfileScreen(ModalScreen):
         
         # Enable the change button
         self.query_one("#change-model-btn", Button).disabled = False
+        self.query_one("#change-all-models-btn", Button).disabled = False
 
     @on(Button.Pressed, ".profile-button")
     def handle_profile_button(self, event: Button.Pressed) -> None:
@@ -343,29 +376,69 @@ class ModelProfileScreen(ModalScreen):
         """Handle clicking the Change Model button"""
         if not self.selected_profile:
             return
+        selected_profile = self.selected_profile
             
         # Get the current model for the selected profile
-        current_model = self.profiles[self.selected_profile]
+        current_model = self.profiles[selected_profile]
         
         # Show the model selection modal
         models = self.core_app.get_models()
         #modal = ModelSelectionModal(self.selected_profile, current_model, models)
 
-        def save_profile_model(selected_model):
-            if selected_model:
+        def save_profile_model(selection):
+            if selection:
+                if isinstance(selection, dict) and selection.get("action") == "all":
+                    selected_model = str(selection.get("model", ""))
+                    if not selected_model:
+                        return
+                    self.post_message(CommandRequest(f"/modelprofile setall {selected_model}"))
+                    for profile in self.profiles:
+                        self.profiles[profile] = selected_model
+                    self.update_content_area(selected_profile)
+                    return
+
+                selected_model = str(selection)
                 self.post_message(
-                    CommandRequest(f"/modelprofile set {str(self.selected_profile)} {str(selected_model)}")
+                    CommandRequest(f"/modelprofile set {selected_profile} {str(selected_model)}")
                 )
 
                 # Update the profiles dictionary
-                self.profiles[self.selected_profile] = selected_model
+                self.profiles[selected_profile] = selected_model
 
                 # Update the content area
-                self.update_content_area(self.selected_profile)
+                self.update_content_area(selected_profile)
 
 
         # push model screen with callback to save profile
-        self.app.push_screen(ModelSelectionModal(self.selected_profile, current_model, models), save_profile_model)
+        self.app.push_screen(ModelSelectionModal(selected_profile, current_model, models), save_profile_model)
+
+    @on(Button.Pressed, "#change-all-models-btn")
+    def handle_change_all_models(self) -> None:
+        """Handle clicking the Use Model for All button"""
+        if not self.profiles:
+            return
+
+        selected_profile = self.selected_profile or self.default_profile
+        current_model = self.profiles.get(selected_profile, next(iter(self.profiles.values())))
+        models = self.core_app.get_models()
+
+        def save_all_profiles(selection):
+            if not selection:
+                return
+            if isinstance(selection, dict):
+                selected_model = str(selection.get("model", ""))
+            else:
+                selected_model = str(selection)
+            if not selected_model:
+                return
+
+            self.post_message(CommandRequest(f"/modelprofile setall {selected_model}"))
+            for profile in self.profiles:
+                self.profiles[profile] = selected_model
+            if selected_profile:
+                self.update_content_area(selected_profile)
+
+        self.app.push_screen(ModelSelectionModal("All Profiles", current_model, models), save_all_profiles)
 
     @on(Button.Pressed, "#close-btn")
     def close_screen(self) -> None:

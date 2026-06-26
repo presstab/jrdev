@@ -154,7 +154,7 @@ class TerminalOutputWidget(Widget):
             self.styles.height = "1fr"
         else:
             self.terminal_input.focus()
-            self.terminal_input.border_title = "Command Input"
+            self.terminal_input.border_title = CommandTextArea._format_border_title_with_resize_handle("Command Input")
             self.terminal_input.styles.border = ("round", Color.parse("#5e5e5e"))
             self.terminal_input.styles.border_title_color = "#fabd2f"
             self.terminal_input.styles.height = 6
