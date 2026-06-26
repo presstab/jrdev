@@ -261,6 +261,48 @@ class ModelProfileManager:
             logger.error(f"Error updating profile: {str(e)}")
             return False
 
+    def update_all_profiles(self, model_name: str, model_list: Optional[ModelList] = None) -> bool:
+        """
+        Update every profile to use the same model.
+
+        Args:
+            model_name: The model name to assign to every profile
+            model_list: Optional ModelList instance for validation
+
+        Returns:
+            True if update successful, False otherwise
+        """
+        if model_list is None:
+            model_list = ModelList()
+
+        if not model_name:
+            logger.error("Invalid model name")
+            return False
+
+        if not model_list.validate_model_exists(model_name):
+            for profile_model in self.profiles["profiles"].values():
+                if model_name == profile_model:
+                    logger.info(f"Accepting model '{model_name}' which exists in profiles")
+                    break
+            else:
+                logger.error(f"Model '{model_name}' does not exist in available models. Options:")
+                for model in model_list.get_model_list():
+                    logger.error(f"{model}")
+                return False
+
+        try:
+            for profile_type in self.profiles["profiles"]:
+                self.profiles["profiles"][profile_type] = model_name
+
+            if write_json_file(self.config_path, self.profiles):
+                logger.info(f"Updated all profiles to use model '{model_name}'")
+                return True
+            return False
+
+        except Exception as e:
+            logger.error(f"Error updating all profiles: {str(e)}")
+            return False
+
     def list_available_profiles(self) -> Dict[str, str]:
         """
         Return all available profile:model mappings.
