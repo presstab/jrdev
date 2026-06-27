@@ -63,6 +63,23 @@ class FakeApp:
 class FakeThread:
     def __init__(self):
         self.messages = []
+        self.add_message_calls = []
+
+    def add_message(self, role, content, model=None, metadata=None):
+        self.add_message_calls.append(
+            {
+                "role": role,
+                "content": content,
+                "model": model,
+                "metadata": metadata,
+            }
+        )
+        message = {"role": role, "content": content}
+        if model:
+            message["model"] = model
+        if metadata:
+            message["metadata"] = metadata
+        self.messages.append(message)
 
 
 class FakeInterpretationAgent:
@@ -137,3 +154,21 @@ async def test_route_stores_tool_results_in_thread(monkeypatch):
     assert calls["count"] == 1
     assert result == "result 1 for python caching"
     assert agent.thread.messages[-1]["content"] == "result 1 for python caching"
+
+
+def test_append_thread_message_uses_thread_api():
+    app = FakeApp()
+    agent = FakeInterpretationAgent([])
+    handler = InputHandler(app)
+
+    handler._append_thread_message(agent, "persist this")
+
+    assert agent.thread.add_message_calls == [
+        {
+            "role": "assistant",
+            "content": "persist this",
+            "model": None,
+            "metadata": None,
+        }
+    ]
+    assert agent.thread.messages == [{"role": "assistant", "content": "persist this"}]

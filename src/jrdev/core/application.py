@@ -571,7 +571,7 @@ class Application:
             # The UI has already added the user's message to the view.
             # We need to add it to the thread history for persistence.
             content = f"{USER_INPUT_PREFIX}{user_input}"
-            msg_thread.messages.append({"role": "user", "content": content})
+            msg_thread.add_user_message(content)
 
             # Use research agent. It will run within the context of the current chat.
             # The handle_research function expects args to be a list, with the first

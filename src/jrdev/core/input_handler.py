@@ -188,4 +188,4 @@ class InputHandler:
         thread = agent.thread
         if thread is None:
             return
-        thread.messages.append({"role": "assistant", "content": content})
+        thread.add_message("assistant", content)

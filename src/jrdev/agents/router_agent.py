@@ -77,7 +77,7 @@ class CommandInterpretationAgent:
                 user_msg_needed = False
                 break
         if user_msg_needed:
-            self.thread.messages.append({"role": "user", "content": f"**User Request**: {user_input}"})
+            self.thread.add_user_message(f"**User Request**: {user_input}")
 
         json_content = ""
         try:

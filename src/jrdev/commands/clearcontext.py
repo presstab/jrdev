@@ -23,7 +23,7 @@ async def handle_clearcontext(app: Any, _args: List[str], _worker_id: str) -> No
     # Clear the context array
     msg_thread = app.get_current_thread()
     num_files = len(msg_thread.context)
-    msg_thread.context.clear()
+    msg_thread.clear_context()
     app.ui.chat_thread_update(msg_thread.thread_id)
     app.ui.print_text(f"Cleared {num_files} file(s) from context.", print_type=PrintType.SUCCESS)
     app.ui.print_text(

@@ -171,6 +171,32 @@ class MessageThread:
         self.metadata["last_modified"] = datetime.now()
 
     @auto_persist
+    def add_message(
+        self,
+        role: str,
+        content: str,
+        model: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Add a complete message to the thread history."""
+        message: Dict[str, Any] = {"role": role, "content": content}
+        if model:
+            message["model"] = model
+        if metadata:
+            message["metadata"] = metadata
+        self.messages.append(message)
+        self.metadata["last_modified"] = datetime.now()
+
+    def add_user_message(
+        self,
+        content: str,
+        model: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Add a complete user message to the thread history."""
+        self.add_message("user", content, model=model, metadata=metadata)
+
+    @auto_persist
     def add_response(self, response: str, model: Optional[str] = None) -> None:
         """Add a complete assistant response to the thread history."""
         message = {"role": "assistant", "content": response}
@@ -213,4 +239,18 @@ class MessageThread:
         self.messages = messages
         self.context = set()
         self.embedded_files = set()
+        self.metadata["last_modified"] = datetime.now()
+
+    @auto_persist
+    def clear(self) -> None:
+        """Clear message history and contextual file state."""
+        self.messages = []
+        self.context = set()
+        self.embedded_files = set()
+        self.metadata["last_modified"] = datetime.now()
+
+    @auto_persist
+    def clear_context(self) -> None:
+        """Clear active context files without removing message history."""
+        self.context = set()
         self.metadata["last_modified"] = datetime.now()
