@@ -37,6 +37,7 @@ async def handle_modelprofile(app: Any, args: List[str], _worker_id: str) -> Non
       /modelprofile list                      - Shows all profiles and their assigned models.
       /modelprofile get <profile_name>        - Shows the model assigned to a specific profile.
       /modelprofile set <profile_name> <model_name> - Sets a profile to use a specific model.
+      /modelprofile setall <model_name>       - Sets every profile to use a specific model.
       /modelprofile default <profile_name>    - Sets the default profile for general tasks.
       /modelprofile showdefault               - Shows the current default profile.
     """
@@ -47,6 +48,7 @@ Usage:
   /modelprofile list - Show all profiles and their assigned models
   /modelprofile get [profile] - Show the model assigned to a profile
   /modelprofile set [profile] [model] - Set a profile to use a specific model
+  /modelprofile setall [model] - Set every profile to use a specific model
   /modelprofile default [profile] - Set the default profile
   /modelprofile showdefault - Show the current default profile
         """
@@ -102,6 +104,25 @@ def _handle_set(app: Any, args: List[str], manager: Any) -> None:
         app.ui.model_list_updated()
 
 
+def _handle_setall(app: Any, args: List[str], manager: Any) -> None:
+    # Set every profile to use the same model
+    if len(args) < 3:
+        app.ui.print_text(
+            "Missing arguments. Usage: /modelprofile setall [model]",
+            PrintType.ERROR,
+        )
+        return
+
+    model = args[2]
+    success = manager.update_all_profiles(model, app.state.model_list)
+
+    if not success:
+        app.ui.print_text("Failed to update all profiles", PrintType.ERROR)
+    else:
+        app.ui.print_text(f"Updated all profiles to use model: {model}")
+        app.ui.model_list_updated()
+
+
 async def _handle_subcommand(app: Any, subcommand: str, args: List[str], manager: Any) -> None:
     """Returns true if handled"""
     if subcommand == "list":
@@ -111,6 +132,8 @@ async def _handle_subcommand(app: Any, subcommand: str, args: List[str], manager
         _handle_get(app, args, manager)
     elif subcommand == "set":
         _handle_set(app, args, manager)
+    elif subcommand == "setall":
+        _handle_setall(app, args, manager)
     elif subcommand == "default":
         # Set the default profile
         if len(args) < 3:
@@ -137,7 +160,7 @@ async def _handle_subcommand(app: Any, subcommand: str, args: List[str], manager
     else:
         app.ui.print_text(f"Unknown subcommand: {subcommand}", PrintType.ERROR)
         app.ui.print_text(
-            "Available subcommands: list, get, set, default, showdefault",
+            "Available subcommands: list, get, set, setall, default, showdefault",
             PrintType.INFO,
         )
 

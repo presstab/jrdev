@@ -116,7 +116,7 @@ class PlanPhase(Stage):
                 self.agent.worker_id, update={"new_sub_task": sub_task_str, "description": "create plan"}
             )
 
-        response = await generate_llm_response(self.app, model, messages, task_id=sub_task_str)
+        response = await generate_llm_response(self.app, model, messages, task_id=sub_task_str, json_output=True)
 
         # mark sub_task complete
         if self.agent.worker_id:
