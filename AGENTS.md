@@ -57,6 +57,8 @@ pip install -e .
 
 ### Testing
 
+Agents should not write tests or run tests unless explicitly asked to do so by the user.
+
 To run the tests, use `pytest`:
 
 ```bash
