@@ -1,5 +1,6 @@
 import logging
-from typing import Any
+import os
+from typing import Any, Optional
 
 from jrdev.ui.tui.model_listview import ModelListView
 from textual.app import ComposeResult
@@ -344,6 +345,7 @@ class GitOverviewWidget(Static):
         self.button_stage.disabled = True
         self.button_unstage.disabled = True
         self.button_reset.disabled = True
+        self._set_reset_button_delete_mode(False)
 
         branch_label = self.query_one("#branch-label", Label)
         branch_name = get_current_branch()
@@ -405,6 +407,10 @@ class GitOverviewWidget(Static):
         # also update current model
         self.commit_model_btn.label = self.core_app.state.model
 
+    def _set_reset_button_delete_mode(self, is_delete: bool) -> None:
+        """Switch the unstaged destructive action between reset and delete."""
+        self.button_reset.label = "Delete" if is_delete else "Reset"
+
     @on(ListView.Selected, "#unstaged-files-list")
     @on(ListView.Selected, "#staged-files-list")
     @on(ListView.Selected, "#commit-history-list")
@@ -431,6 +437,7 @@ class GitOverviewWidget(Static):
             if commit_history_list.index is not None: commit_history_list.index = None
             self.button_stage.disabled = True
             self.button_reset.disabled = True
+            self._set_reset_button_delete_mode(False)
             self.button_unstage.disabled = False
         elif event.list_view.id == "unstaged-files-list":
             if staged_list.index is not None: staged_list.index = None
@@ -443,6 +450,7 @@ class GitOverviewWidget(Static):
             if unstaged_list.index is not None: unstaged_list.index = None
             self.button_stage.disabled = True
             self.button_reset.disabled = True
+            self._set_reset_button_delete_mode(False)
             self.button_unstage.disabled = True
 
         item = event.item
@@ -451,6 +459,7 @@ class GitOverviewWidget(Static):
         diff_log.clear()
 
         if isinstance(item, FileListItem):
+            self._set_reset_button_delete_mode(not item.staged and item.is_untracked)
             file_label.update(f"File Diff: [green]{item.filepath}[/]")
             diff_content = get_file_diff(
                 item.filepath, staged=item.staged, is_untracked=item.is_untracked
@@ -538,8 +547,50 @@ class GitOverviewWidget(Static):
         self.button_reset.display = not show
 
     @on(Button.Pressed, "#reset-button")
-    def handle_reset_pressed(self):
+    async def handle_reset_pressed(self):
+        selected_item = self._get_selected_unstaged_file()
+        if selected_item is None:
+            return
+
+        if selected_item.is_untracked:
+            await self._delete_untracked_file(selected_item.filepath)
+            return
+
         self._toggle_reset_confirmation(True)
+
+    def _get_selected_unstaged_file(self) -> Optional[FileListItem]:
+        """Return the selected unstaged file item, if any."""
+        unstaged_list = self.query_one("#unstaged-files-list", ListView)
+        if unstaged_list.index is None:
+            return None
+
+        item = unstaged_list.children[unstaged_list.index]
+        if isinstance(item, FileListItem):
+            return item
+
+        return None
+
+    async def _delete_untracked_file(self, filepath: str) -> None:
+        """Confirm and delete an untracked file from the working tree."""
+        confirmed = await self.core_app.ui.prompt_for_deletion(filepath)
+        if not confirmed:
+            self.notify(f"Delete cancelled: {filepath}", severity="information")
+            return
+
+        try:
+            os.remove(filepath)
+        except FileNotFoundError:
+            self.notify(f"File not found: {filepath}", severity="warning")
+            self.refresh_git_status()
+            self.reset_file_label()
+            return
+        except OSError as exc:
+            self.notify(f"Failed to delete: {exc}", severity="error", timeout=10)
+            return
+
+        self.notify(f"Deleted: {filepath}", severity="information")
+        self.refresh_git_status()
+        self.reset_file_label()
 
     @on(Button.Pressed, "#confirm-reset-button")
     def handle_confirm_reset_pressed(self):
