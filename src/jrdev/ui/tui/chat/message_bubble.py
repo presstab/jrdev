@@ -87,6 +87,8 @@ class MessageBubble(Vertical):
         if text_to_copy:
             try:
                 pyperclip.copy(text_to_copy)
+                if self.app is not None:
+                    self.app.copy_to_clipboard(text_to_copy)
                 self.notify("Copied to clipboard!", timeout=2)
             except pyperclip.PyperclipException as e:
                 logger.error(f"Pyperclip error copying to clipboard: {e}")
