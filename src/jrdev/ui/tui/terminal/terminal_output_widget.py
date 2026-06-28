@@ -100,7 +100,7 @@ class TerminalOutputWidget(Widget):
         # output_widget_mode provides the output widget, without the input widget
         self.output_widget_mode = output_widget_mode
         self.terminal_output = TerminalTextArea(_id="terminal_output")
-        self._last_terminal_selection = ""
+        self._copy_click_selection = ""
         self.copy_button = Button(label="Copy Selection", id="copy_btn_term")
         if self.output_widget_mode:
             self.copy_button.styles.layer = "bottom"
@@ -169,11 +169,9 @@ class TerminalOutputWidget(Widget):
     def handle_copy(self):
         self.copy_to_clipboard()
 
-    @on(TerminalTextArea.SelectionChanged, "#terminal_output")
-    def handle_terminal_selection_changed(self, event: TerminalTextArea.SelectionChanged) -> None:
-        selected_text = event.text_area.selected_text
-        if selected_text:
-            self._last_terminal_selection = selected_text
+    @on(events.MouseDown, "#copy_btn_term")
+    def handle_copy_mouse_down(self) -> None:
+        self._copy_click_selection = self.terminal_output.selected_text
 
     def on_mouse_down(self, event: events.MouseDown) -> None:
         """
@@ -273,7 +271,12 @@ class TerminalOutputWidget(Widget):
         if not self.terminal_output.text:
             return
 
-        content = self.terminal_output.selected_text or self._last_terminal_selection
+        content = (
+            self.terminal_output.selected_text
+            or self._copy_click_selection
+            or self.terminal_output.text
+        )
+        self._copy_click_selection = ""
         if not content:
             return
         # Use pyperclip to copy to clipboard
