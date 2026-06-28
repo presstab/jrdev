@@ -8,7 +8,7 @@ from typing import Optional
 import asyncio
 
 class CommandConfirmationWidget(Widget):
-    """Modal screen for confirming a terminal command."""
+    """Inline yes/no confirmation widget shown beside terminal output."""
 
     DEFAULT_CSS = """
     CommandConfirmationWidget {
@@ -47,9 +47,16 @@ class CommandConfirmationWidget(Widget):
     }
     """
 
-    def __init__(self, command: str) -> None:
+    def __init__(
+        self,
+        command: str,
+        title: str = "JrDev is requesting to run the following shell command:",
+        question: str = "Do you want to allow this?",
+    ) -> None:
         super().__init__()
         self.command = command
+        self.title = title
+        self.question = question
         self.future: Optional[asyncio.Future] = None
         self.richlog = RichLog(id="richlog-confirmation", markup=True, wrap=True)
 
@@ -63,14 +70,17 @@ class CommandConfirmationWidget(Widget):
     def on_mount(self) -> None:
         self.query_one("#yes-button").focus()
         line_width = max(1, self.parent.parent.virtual_size.width - 3)
-        self.richlog.write("[bold]JrDev is requesting to run the following shell command:[/bold]", line_width)
-        self.richlog.write(f"[bold yellow]{self.command}[/bold yellow]", line_width)
-        self.richlog.write("Do you want to allow this?", line_width)
+        self.richlog.write(f"[bold]{self.title}[/bold]", line_width)
+        if self.command:
+            self.richlog.write(f"[bold yellow]{self.command}[/bold yellow]", line_width)
+        self.richlog.write(self.question, line_width)
 
         # manually set max heights based on line wrapping
         chars = len(self.command)
         wrapped_lines = math.ceil(float(chars) / float(line_width))
         rl_height = wrapped_lines + 2
+        if not self.command:
+            rl_height = 2
         self.richlog.styles.max_height = rl_height
         self.parent.styles.max_height = rl_height + 4
 

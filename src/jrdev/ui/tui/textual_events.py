@@ -109,10 +109,18 @@ class TextualEvents(UiWrapper):
 
     class CommandConfirmationRequest(Message):
         """Request confirmation for a terminal command"""
-        def __init__(self, command: str, future: asyncio.Future):
+        def __init__(
+            self,
+            command: str,
+            future: asyncio.Future,
+            title: str = "JrDev is requesting to run the following shell command:",
+            question: str = "Do you want to allow this?",
+        ):
             super().__init__()
             self.command = command
             self.future = future
+            self.title = title
+            self.question = question
 
     class ProvidersUpdate(Message):
         """List of providers has changed (edit/add/delete)"""
@@ -260,5 +268,34 @@ class TextualEvents(UiWrapper):
         """
         confirmation_future = asyncio.Future()
         self.app.post_message(self.CommandConfirmationRequest(command, confirmation_future))
+        result = await confirmation_future
+        return result
+
+    async def prompt_for_yes_no(
+        self,
+        prompt_text: str,
+        detail: Optional[str] = None,
+        question: str = "Do you want to continue?",
+    ) -> bool:
+        """
+        Prompt the user for a yes/no decision using the inline terminal confirmation widget.
+
+        Args:
+            prompt_text: The primary prompt text to display.
+            detail: Optional highlighted detail to display below the prompt.
+            question: The final yes/no question.
+
+        Returns:
+            bool: True if the user chooses yes, False otherwise.
+        """
+        confirmation_future = asyncio.Future()
+        self.app.post_message(
+            self.CommandConfirmationRequest(
+                detail or "",
+                confirmation_future,
+                title=prompt_text,
+                question=question,
+            )
+        )
         result = await confirmation_future
         return result

@@ -321,12 +321,18 @@ class TerminalOutputWidget(Widget):
     def clear_input(self):
         self.terminal_input.value = ""
 
-    async def show_confirmation(self, command: str, future: asyncio.Future) -> None:
+    async def show_confirmation(
+        self,
+        command: str,
+        future: asyncio.Future,
+        title: str = "JrDev is requesting to run the following shell command:",
+        question: str = "Do you want to allow this?",
+    ) -> None:
         """Shows a command confirmation widget in the terminal."""
         await self.confirmation_container.remove_children()
         self.command_confirmation_future = future
 
-        widget = CommandConfirmationWidget(command=command)
+        widget = CommandConfirmationWidget(command=command, title=title, question=question)
         self.confirmation_container.display = True
         await self.confirmation_container.mount(widget)
         widget.focus()

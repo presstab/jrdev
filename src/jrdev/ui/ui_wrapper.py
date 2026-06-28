@@ -148,3 +148,22 @@ class UiWrapper:
             bool: True if the user confirms execution, False otherwise.
         """
         raise NotImplementedError("Subclasses must implement prompt_for_command_confirmation()")
+
+    async def prompt_for_yes_no(
+        self,
+        prompt_text: str,
+        detail: Optional[str] = None,
+        question: str = "Do you want to continue?",
+    ) -> bool:
+        """
+        Prompt the user for a generic yes/no decision.
+
+        Args:
+            prompt_text: The primary prompt text to display.
+            detail: Optional supporting detail to display.
+            question: The final yes/no question.
+
+        Returns:
+            bool: True if the user confirms, False otherwise.
+        """
+        raise NotImplementedError("Subclasses must implement prompt_for_yes_no()")

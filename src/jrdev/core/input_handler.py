@@ -114,8 +114,19 @@ class InputHandler:
         return last_result
 
     def _announce_tool_call(self, tool_call: ToolCall) -> None:
+        if tool_call.action_type == "command" and self._is_code_command(tool_call.formatted_cmd):
+            message = (
+                f"Recommended command: {tool_call.formatted_cmd}\n"
+                f"Command Purpose: {tool_call.reasoning}\n"
+            )
+            self.app.ui.print_text(message, print_type=PrintType.PROCESSING)
+            return
+
         message = f"Running command: {tool_call.formatted_cmd}\n" f"Command Purpose: {tool_call.reasoning}\n"
         self.app.ui.print_text(message, print_type=PrintType.PROCESSING)
+
+    def _is_code_command(self, command_to_execute: str) -> bool:
+        return command_to_execute == "/code" or command_to_execute.startswith("/code ")
 
     async def _execute_command(
         self,
@@ -133,6 +144,24 @@ class InputHandler:
             tool_call.has_next = False
             return
 
+        if self._is_code_command(command_to_execute):
+            prompt_for_yes_no = getattr(self.app.ui, "prompt_for_yes_no", None)
+            if prompt_for_yes_no:
+                confirmed = await prompt_for_yes_no(
+                    "For this complex task I recommend using a coding agent.",
+                    detail=command_to_execute,
+                    question="Would you like me to launch a coding agent?",
+                )
+            else:
+                confirmed = await self.app.ui.prompt_for_command_confirmation(command_to_execute)
+            if not confirmed:
+                message = "Coding agent launch cancelled."
+                self.app.ui.print_text(message, PrintType.INFO)
+                tool_call.result = "Code agent request REJECTED by user."
+                self._append_thread_message(agent, tool_call.result)
+                tool_call.has_next = True
+                return
+
         self.app.ui.start_capture()
         try:
             command = Command(command_to_execute, worker_id)
@@ -143,7 +172,7 @@ class InputHandler:
         tool_call.result = self.app.ui.get_capture()
         self._append_thread_message(agent, tool_call.result)
 
-        if command_to_execute.startswith("/code"):
+        if self._is_code_command(command_to_execute):
             tool_call.has_next = False
 
     async def _execute_tool(self, agent: Any, tool_call: ToolCall) -> None:
