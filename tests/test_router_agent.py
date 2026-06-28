@@ -89,6 +89,20 @@ def test_record_user_request_is_idempotent_for_turn_id():
     ]
 
 
+def test_parse_router_json_accepts_raw_json_with_markdown_code_fences_in_response():
+    response_text = r"""{
+  "decision": "summary",
+  "reasoning": "I have read the README.md and found the installation instructions.",
+  "response": "Based on the `README.md`, the command to install this project from PyPI is:\n\n```bash\npip install jrdev\n```\n\nFor development:\n\n```bash\ngit clone https://github.com/presstab/jrdev\ncd jrdev\npip install -e .\n```"
+}"""
+
+    parsed = CommandInterpretationAgent.parse_router_json(response_text)
+
+    assert parsed["decision"] == "summary"
+    assert "```bash\npip install jrdev\n```" in parsed["response"]
+    assert "pip install -e ." in parsed["response"]
+
+
 @pytest.mark.asyncio
 async def test_interpret_records_request_once_and_only_adds_observations_on_later_iterations(monkeypatch):
     agent = make_router_agent()

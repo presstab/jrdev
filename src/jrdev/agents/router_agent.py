@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional
 
 from jrdev.agents import agent_tools
 from jrdev.core.tool_call import ToolCall
-from jrdev.file_operations.file_utils import cutoff_string
 from jrdev.messages import MessageThread
 from jrdev.messages.message_builder import MessageBuilder
 from jrdev.prompts.prompt_utils import PromptManager
@@ -18,6 +17,26 @@ class CommandInterpretationAgent:
         self.logger = app.logger
         # Use the dedicated system thread for conversation history
         self.thread: MessageThread = self.app.state.get_thread(self.app.state.router_thread_id)
+
+    @staticmethod
+    def parse_router_json(response_text: str) -> Dict[str, Any]:
+        """Parse a router JSON response even when it contains markdown fences in strings."""
+        stripped_response = response_text.strip()
+        try:
+            parsed = json.loads(stripped_response)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+        json_start = stripped_response.find("{")
+        if json_start == -1:
+            raise json.JSONDecodeError("No JSON object found", stripped_response, 0)
+
+        parsed, _ = json.JSONDecoder().raw_decode(stripped_response[json_start:])
+        if not isinstance(parsed, dict):
+            raise json.JSONDecodeError("Router response must be a JSON object", stripped_response, json_start)
+        return parsed
 
     def get_formatted_commands(self) -> str:
         lines = []
@@ -118,13 +137,11 @@ class CommandInterpretationAgent:
         response_model = router_model
         response_text = await generate_llm_response(self.app, router_model, messages, task_id=worker_id)
 
-        json_content = ""
         try:
-            json_content = cutoff_string(response_text, "```json", "```")
-            response_json = json.loads(json_content)
+            response_json = self.parse_router_json(response_text)
         except (json.JSONDecodeError, KeyError) as e:
             self.logger.error(
-                f"Failed to parse router LLM response - running salvage: {e}\nResponse:\n {response_text}\nRaw:\n{json_content}"
+                f"Failed to parse router LLM response - running salvage: {e}\nResponse:\n {response_text}"
             )
             self.app.ui.print_text(
                 "Rephrasing response...",
@@ -144,8 +161,7 @@ class CommandInterpretationAgent:
             )
 
             try:
-                json_content = cutoff_string(response_text, "```json", "```")
-                response_json = json.loads(json_content)
+                response_json = self.parse_router_json(response_text)
             except (json.JSONDecodeError, KeyError) as e2:
                 self.logger.error(f"Failed to parse router JSON response{e2}\nResponse:\n {response_text}\n")
                 msg = "Sorry, I had issues parsing my response. Do you want to try again?"
