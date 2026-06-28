@@ -238,6 +238,43 @@ class CliEvents(UiWrapper):
             else:
                 self.print_text("Please enter 'y' for yes or 'n' for no", PrintType.ERROR)
 
+    async def prompt_for_command_confirmation(self, command: str) -> bool:
+        """
+        Prompt the user for confirmation before running a terminal command.
+
+        Args:
+            command: The command to execute.
+
+        Returns:
+            bool: True if the user confirms execution, False otherwise.
+        """
+        return await self.prompt_for_yes_no(
+            "JrDev is requesting to run the following shell command:",
+            detail=command,
+            question="Do you want to allow this?",
+        )
+
+    async def prompt_for_yes_no(
+        self,
+        prompt_text: str,
+        detail: Optional[str] = None,
+        question: str = "Do you want to continue?",
+    ) -> bool:
+        """
+        Prompt the user for a generic yes/no decision.
+        """
+        self.print_text(prompt_text, PrintType.WARNING)
+        if detail:
+            self.print_text(detail, PrintType.COMMAND)
+
+        while True:
+            response = input(f"{question} [y/n]: ").strip().lower()
+            if response in ('y', 'yes'):
+                return True
+            if response in ('n', 'no', ''):
+                return False
+            self.print_text("Please enter 'y' for yes or 'n' for no", PrintType.ERROR)
+
     async def signal_no_keys(self):
         setup_success = await run_first_time_setup(self.app)
         if not setup_success:

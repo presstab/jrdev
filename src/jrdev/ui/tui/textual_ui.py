@@ -260,7 +260,12 @@ class JrDevUI(App[None]):
     async def handle_command_confirmation_request(self, message: TextualEvents.CommandConfirmationRequest) -> None:
         """Handle a request for command confirmation from the backend"""
         self.content_switcher.current = "terminal_output_container"
-        await self.terminal_output_widget.show_confirmation(message.command, message.future)
+        await self.terminal_output_widget.show_confirmation(
+            message.command,
+            message.future,
+            title=message.title,
+            question=message.question,
+        )
 
     @on(TextualEvents.EnterApiKeys)
     def handle_enter_api_keys(self, message: TextualEvents.EnterApiKeys) -> None:

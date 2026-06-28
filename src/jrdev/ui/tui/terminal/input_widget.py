@@ -44,6 +44,7 @@ class CommandTextArea(TextArea):
     BINDINGS: ClassVar[list] = [
         # Retain most TextArea bindings but override enter/up/down behavior
         *[binding for binding in TextArea.BINDINGS if "enter" not in binding.key and "up" not in binding.key and "down" not in binding.key],
+        Binding("shift+insert", "paste", "Paste", show=False),
         Binding("enter", "submit", "Submit", show=False),
         Binding("up", "history_previous", "History Previous", show=False),
         Binding("down", "history_next", "History Next", show=False),

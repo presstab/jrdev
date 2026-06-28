@@ -13,6 +13,8 @@ from typing import Optional
 import logging
 import pyperclip
 import asyncio
+import shutil
+import subprocess
 import tiktoken
 
 from jrdev.ui.tui.terminal.input_widget import CommandTextArea
@@ -98,6 +100,7 @@ class TerminalOutputWidget(Widget):
         # output_widget_mode provides the output widget, without the input widget
         self.output_widget_mode = output_widget_mode
         self.terminal_output = TerminalTextArea(_id="terminal_output")
+        self._copy_click_selection = ""
         self.copy_button = Button(label="Copy Selection", id="copy_btn_term")
         if self.output_widget_mode:
             self.copy_button.styles.layer = "bottom"
@@ -165,6 +168,10 @@ class TerminalOutputWidget(Widget):
     @on(Button.Pressed, "#copy_btn_term")
     def handle_copy(self):
         self.copy_to_clipboard()
+
+    @on(events.MouseDown, "#copy_btn_term")
+    def handle_copy_mouse_down(self) -> None:
+        self._copy_click_selection = self.terminal_output.selected_text
 
     def on_mouse_down(self, event: events.MouseDown) -> None:
         """
@@ -264,14 +271,41 @@ class TerminalOutputWidget(Widget):
         if not self.terminal_output.text:
             return
 
-        if self.terminal_output.selected_text:
-            content = self.terminal_output.selected_text
-        else:
-            content = self.terminal_output.text
+        content = (
+            self.terminal_output.selected_text
+            or self._copy_click_selection
+            or self.terminal_output.text
+        )
+        self._copy_click_selection = ""
+        if not content:
+            return
         # Use pyperclip to copy to clipboard
         pyperclip.copy(content)
+        self._copy_to_x11_primary_selection(content)
+        # Textual's clipboard feeds TextArea.action_paste; it also emits OSC52 for terminals that support it.
+        if self.app is not None:
+            self.app.copy_to_clipboard(content)
         # Provide visual feedback
         self.notify("Text copied to clipboard", timeout=2)
+
+    def _copy_to_x11_primary_selection(self, content: str) -> None:
+        """Populate Linux's PRIMARY selection, which many terminals use for Shift+Insert."""
+        xclip = shutil.which("xclip")
+        if xclip is None:
+            return
+
+        try:
+            subprocess.run(
+                [xclip, "-selection", "primary"],
+                input=content,
+                text=True,
+                check=True,
+                timeout=1,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            logger.debug("Unable to copy terminal selection to X11 PRIMARY selection")
         
     def append_text(self, text: str) -> None:
         """Append text to the end of the terminal output regardless of cursor position.
@@ -290,12 +324,18 @@ class TerminalOutputWidget(Widget):
     def clear_input(self):
         self.terminal_input.value = ""
 
-    async def show_confirmation(self, command: str, future: asyncio.Future) -> None:
+    async def show_confirmation(
+        self,
+        command: str,
+        future: asyncio.Future,
+        title: str = "JrDev is requesting to run the following shell command:",
+        question: str = "Do you want to allow this?",
+    ) -> None:
         """Shows a command confirmation widget in the terminal."""
         await self.confirmation_container.remove_children()
         self.command_confirmation_future = future
 
-        widget = CommandConfirmationWidget(command=command)
+        widget = CommandConfirmationWidget(command=command, title=title, question=question)
         self.confirmation_container.display = True
         await self.confirmation_container.mount(widget)
         widget.focus()

@@ -48,7 +48,7 @@ class ResearchAgent:
 
         # The user's input is part of the request, so add it to history.
         if not previous_tool_calls:
-            self.thread.messages.append({"role": "user", "content": f"**Researching**: {user_input}"})
+            self.thread.add_user_message(f"**Researching**: {user_input}")
 
         # Use a specific model for this task
         research_model = self.app.state.model

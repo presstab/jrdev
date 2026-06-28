@@ -126,8 +126,7 @@ class AppState:
         """Clear messages and context of router thread"""
         if self.router_thread_id in self.threads:
             router_thread = self.threads[self.router_thread_id]
-            router_thread.messages = []
-            router_thread.context.clear()
+            router_thread.clear()
 
     # Code Command Context
     def stage_code_context(self, file_path) -> None:

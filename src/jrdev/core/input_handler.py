@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, List, Optional
+from uuid import uuid4
 
 from jrdev.agents import agent_tools
 from jrdev.core.commands import Command
@@ -56,9 +57,17 @@ class InputHandler:
         last_result: Optional[str] = None
         max_iterations = max(1, self.app.user_settings.max_router_iterations)
         hit_iteration_limit = True
+        router_turn_id = uuid4().hex
+        if hasattr(agent, "record_user_request"):
+            router_turn_id = agent.record_user_request(user_input, router_turn_id)
 
         for _ in range(max_iterations):
-            tool_call = await agent.interpret(user_input, worker_id, calls_made)
+            tool_call = await agent.interpret(
+                user_input,
+                worker_id,
+                calls_made,
+                router_turn_id=router_turn_id,
+            )
             if not tool_call:
                 hit_iteration_limit = False
                 break
@@ -105,11 +114,19 @@ class InputHandler:
         return last_result
 
     def _announce_tool_call(self, tool_call: ToolCall) -> None:
-        message = (
-            f"Running command: {tool_call.formatted_cmd}\n"
-            f"Command Purpose: {tool_call.reasoning}\n"
-        )
+        if tool_call.action_type == "command" and self._is_code_command(tool_call.formatted_cmd):
+            message = (
+                f"Recommended command: {tool_call.formatted_cmd}\n"
+                f"Command Purpose: {tool_call.reasoning}\n"
+            )
+            self.app.ui.print_text(message, print_type=PrintType.PROCESSING)
+            return
+
+        message = f"Running command: {tool_call.formatted_cmd}\n" f"Command Purpose: {tool_call.reasoning}\n"
         self.app.ui.print_text(message, print_type=PrintType.PROCESSING)
+
+    def _is_code_command(self, command_to_execute: str) -> bool:
+        return command_to_execute == "/code" or command_to_execute.startswith("/code ")
 
     async def _execute_command(
         self,
@@ -120,14 +137,30 @@ class InputHandler:
         command_to_execute = tool_call.formatted_cmd
 
         if tool_call.command in self._restricted_commands:
-            error_message = (
-                f"Error: Router Agent is restricted from using the {tool_call.command} command."
-            )
+            error_message = f"Error: Router Agent is restricted from using the {tool_call.command} command."
             self.app.ui.print_text(error_message, PrintType.ERROR)
             tool_call.result = error_message
             self._append_thread_message(agent, error_message)
             tool_call.has_next = False
             return
+
+        if self._is_code_command(command_to_execute):
+            prompt_for_yes_no = getattr(self.app.ui, "prompt_for_yes_no", None)
+            if prompt_for_yes_no:
+                confirmed = await prompt_for_yes_no(
+                    "For this complex task I recommend using a coding agent.",
+                    detail=command_to_execute,
+                    question="Would you like me to launch a coding agent?",
+                )
+            else:
+                confirmed = await self.app.ui.prompt_for_command_confirmation(command_to_execute)
+            if not confirmed:
+                message = "Coding agent launch cancelled."
+                self.app.ui.print_text(message, PrintType.INFO)
+                tool_call.result = "Code agent request REJECTED by user."
+                self._append_thread_message(agent, tool_call.result)
+                tool_call.has_next = True
+                return
 
         self.app.ui.start_capture()
         try:
@@ -139,7 +172,7 @@ class InputHandler:
         tool_call.result = self.app.ui.get_capture()
         self._append_thread_message(agent, tool_call.result)
 
-        if command_to_execute.startswith("/code"):
+        if self._is_code_command(command_to_execute):
             tool_call.has_next = False
 
     async def _execute_tool(self, agent: Any, tool_call: ToolCall) -> None:
@@ -188,4 +221,4 @@ class InputHandler:
         thread = agent.thread
         if thread is None:
             return
-        thread.messages.append({"role": "assistant", "content": content})
+        thread.add_message("assistant", content)
