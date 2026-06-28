@@ -81,6 +81,9 @@ class FakeThread:
             message["metadata"] = metadata
         self.messages.append(message)
 
+    def add_user_message(self, content, model=None, metadata=None):
+        self.add_message("user", content, model=model, metadata=metadata)
+
 
 class FakeInterpretationAgent:
     def __init__(self, responses):
@@ -91,6 +94,36 @@ class FakeInterpretationAgent:
         if not self._responses:
             return None
         return self._responses.pop(0)
+
+
+class TrackingInterpretationAgent(FakeInterpretationAgent):
+    def __init__(self, responses):
+        super().__init__(responses)
+        self.recorded_turns = []
+        self.interpret_calls = []
+
+    def record_user_request(self, user_input, router_turn_id=None):
+        self.recorded_turns.append((user_input, router_turn_id))
+        self.thread.add_user_message(
+            f"**User Request**: {user_input}",
+            metadata={
+                "type": "router_event",
+                "event": "user_request",
+                "router_turn_id": router_turn_id,
+            },
+        )
+        return router_turn_id
+
+    async def interpret(self, user_input, worker_id, previous_tool_calls=None, router_turn_id=None):
+        self.interpret_calls.append(
+            {
+                "user_input": user_input,
+                "worker_id": worker_id,
+                "previous_tool_calls": list(previous_tool_calls or []),
+                "router_turn_id": router_turn_id,
+            }
+        )
+        return await super().interpret(user_input, worker_id, previous_tool_calls, router_turn_id=router_turn_id)
 
 
 @pytest.mark.asyncio
@@ -172,3 +205,47 @@ def test_append_thread_message_uses_thread_api():
         }
     ]
     assert agent.thread.messages == [{"role": "assistant", "content": "persist this"}]
+
+
+@pytest.mark.asyncio
+async def test_route_records_one_user_request_and_reuses_turn_id(monkeypatch):
+    def fake_web_search(args):
+        return f"result for {args[0]}"
+
+    from jrdev.agents import agent_tools as tools_module
+
+    monkeypatch.setattr(tools_module, "web_search", fake_web_search)
+
+    continuing_call = ToolCall(
+        action_type="tool",
+        command="web_search",
+        args=["router turn state"],
+        reasoning="gather context",
+        has_next=True,
+    )
+
+    app = FakeApp()
+    agent = TrackingInterpretationAgent([continuing_call, None])
+    app.router_agent = agent
+    handler = InputHandler(app)
+
+    result = await handler.route("search router turn state", worker_id="worker-1")
+
+    assert result == "result for router turn state"
+    assert len(agent.recorded_turns) == 1
+    assert len(agent.interpret_calls) == 2
+
+    router_turn_id = agent.recorded_turns[0][1]
+    assert router_turn_id
+    assert {call["router_turn_id"] for call in agent.interpret_calls} == {router_turn_id}
+    assert agent.interpret_calls[0]["previous_tool_calls"] == []
+    assert agent.interpret_calls[1]["previous_tool_calls"] == [continuing_call]
+
+    user_request_messages = [
+        msg
+        for msg in agent.thread.messages
+        if msg.get("role") == "user"
+        and msg.get("metadata", {}).get("event") == "user_request"
+        and msg.get("metadata", {}).get("router_turn_id") == router_turn_id
+    ]
+    assert len(user_request_messages) == 1

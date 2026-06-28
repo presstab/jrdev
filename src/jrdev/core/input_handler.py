@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, List, Optional
+from uuid import uuid4
 
 from jrdev.agents import agent_tools
 from jrdev.core.commands import Command
@@ -56,9 +57,17 @@ class InputHandler:
         last_result: Optional[str] = None
         max_iterations = max(1, self.app.user_settings.max_router_iterations)
         hit_iteration_limit = True
+        router_turn_id = uuid4().hex
+        if hasattr(agent, "record_user_request"):
+            router_turn_id = agent.record_user_request(user_input, router_turn_id)
 
         for _ in range(max_iterations):
-            tool_call = await agent.interpret(user_input, worker_id, calls_made)
+            tool_call = await agent.interpret(
+                user_input,
+                worker_id,
+                calls_made,
+                router_turn_id=router_turn_id,
+            )
             if not tool_call:
                 hit_iteration_limit = False
                 break
@@ -105,10 +114,7 @@ class InputHandler:
         return last_result
 
     def _announce_tool_call(self, tool_call: ToolCall) -> None:
-        message = (
-            f"Running command: {tool_call.formatted_cmd}\n"
-            f"Command Purpose: {tool_call.reasoning}\n"
-        )
+        message = f"Running command: {tool_call.formatted_cmd}\n" f"Command Purpose: {tool_call.reasoning}\n"
         self.app.ui.print_text(message, print_type=PrintType.PROCESSING)
 
     async def _execute_command(
@@ -120,9 +126,7 @@ class InputHandler:
         command_to_execute = tool_call.formatted_cmd
 
         if tool_call.command in self._restricted_commands:
-            error_message = (
-                f"Error: Router Agent is restricted from using the {tool_call.command} command."
-            )
+            error_message = f"Error: Router Agent is restricted from using the {tool_call.command} command."
             self.app.ui.print_text(error_message, PrintType.ERROR)
             tool_call.result = error_message
             self._append_thread_message(agent, error_message)
